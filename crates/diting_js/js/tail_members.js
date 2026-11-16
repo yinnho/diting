@@ -808,6 +808,102 @@
     seat(List.prototype, ['entries', 'keys', 'values', 'forEach', 'length', 'item', 'constructor']);
   });
 
+  // Chrome 157 TimelineTriggerRange. The constructor stays illegal and no
+  // range is minted, so every read fails the internal brand check.
+  section('timeline-trigger-range', () => {
+    const C = G.TimelineTriggerRange;
+    if (typeof C !== 'function' || !C.prototype) return;
+    const P = C.prototype;
+    const live = new WeakSet();
+    const ro = (name) => def(P, name, { get: pin(function () {
+      if (!live.has(this)) throw new TypeError('Illegal invocation');
+      return null;
+    }, 'get ' + name), enumerable: true, configurable: true });
+    for (const n of ['timeline', 'activationRangeStart', 'activationRangeEnd', 'activeRangeStart', 'activeRangeEnd']) ro(n);
+    const names = Object.getOwnPropertyNames(P);
+    const want = ['timeline', 'activationRangeStart', 'activationRangeEnd', 'activeRangeStart', 'activeRangeEnd', 'constructor'];
+    const seq = want.filter((k) => names.indexOf(k) >= 0).concat(names.filter((k) => want.indexOf(k) < 0));
+    if (!seq.every((k, i) => k === names[i])) {
+      const saved = [];
+      for (const k of seq) {
+        const d = Object.getOwnPropertyDescriptor(P, k);
+        if (d && d.configurable) { saved.push([k, d]); delete P[k]; }
+      }
+      for (const [k, d] of saved) Object.defineProperty(P, k, d);
+    }
+  });
+
+  // Chrome 157 <camera>, <microphone>, and <usermedia>. setConstraints does
+  // not open a device. Camera and microphone take a constraint set; user
+  // media takes a stream-constraint dictionary.
+  section('user-media-elements', () => {
+    const map = G.__diting_htmlTagMap;
+    if (!map || typeof G.HTMLElement !== 'function') return;
+    const make = (name, tags) => {
+      const C = { [name]: class extends G.HTMLElement {
+        constructor(nid) {
+          if (typeof nid !== 'number') throw new TypeError("Failed to construct '" + name + "': Illegal constructor");
+          super(nid);
+        }
+      } }[name];
+      Object.defineProperty(C, Symbol.hasInstance, { configurable: true, value(obj) {
+        if (!obj || typeof obj.tagName !== 'string') return false;
+        if (!tags.includes(String(obj.tagName).toLowerCase())) return false;
+        const ns = obj.namespaceURI;
+        return ns === undefined || ns === 'http://www.w3.org/1999/xhtml';
+      } });
+      try { Object.defineProperty(C.prototype, Symbol.toStringTag, { value: name, configurable: true }); } catch (e) {}
+      Object.defineProperty(G, name, { value: C, writable: true, enumerable: false, configurable: true });
+      for (const t of tags) map.set(t, C);
+      return C;
+    };
+    const seat = (P, want) => {
+      const names = Object.getOwnPropertyNames(P);
+      const seq = want.filter((k) => names.indexOf(k) >= 0).concat(names.filter((k) => want.indexOf(k) < 0));
+      if (seq.every((k, i) => k === names[i])) return;
+      const saved = [];
+      for (const k of seq) {
+        const d = Object.getOwnPropertyDescriptor(P, k);
+        if (d && d.configurable) { saved.push([k, d]); delete P[k]; }
+      }
+      for (const [k, d] of saved) Object.defineProperty(P, k, d);
+    };
+    const roNull = (C, name) => def(C.prototype, name, { get: pin(function () {
+      if (!(this instanceof C)) throw new TypeError('Illegal invocation');
+      return null;
+    }, 'get ' + name), enumerable: true, configurable: true });
+    const dictOk = (v) => v === undefined || v === null || typeof v === 'object';
+    const cam = make('HTMLCameraElement', ['camera']);
+    const mic = make('HTMLMicrophoneElement', ['microphone']);
+    const um = make('HTMLUserMediaElement', ['usermedia']);
+    for (const [C, iface] of [[cam, 'HTMLCameraElement'], [mic, 'HTMLMicrophoneElement']]) {
+      roNull(C, 'error');
+      roNull(C, 'track');
+      on(iface, 'cancel', 'error', 'track');
+      fn(iface, 'setConstraints', 0, function setConstraints(constraints) {
+        if (!(this instanceof C)) throw new TypeError('Illegal invocation');
+        if (!dictOk(constraints)) throw new TypeError("Failed to execute 'setConstraints' on '" + iface + "': The provided value is not of type 'MediaTrackConstraintSet'.");
+      });
+      seat(C.prototype, ['error', 'oncancel', 'onerror', 'ontrack', 'track', 'setConstraints', 'constructor']);
+    }
+    roNull(um, 'stream');
+    roNull(um, 'error');
+    on('HTMLUserMediaElement', 'stream', 'cancel', 'error');
+    fn('HTMLUserMediaElement', 'setConstraints', 0, function setConstraints(constraints) {
+      if (!(this instanceof um)) throw new TypeError('Illegal invocation');
+      if (!dictOk(constraints)) throw new TypeError("Failed to execute 'setConstraints' on 'HTMLUserMediaElement': The provided value is not of type 'HTMLMediaStreamConstraints'.");
+      if (constraints && typeof constraints === 'object') {
+        for (const key of ['video', 'audio']) {
+          const v = constraints[key];
+          if (v !== undefined && v !== null && typeof v !== 'object') {
+            throw new TypeError("Failed to execute 'setConstraints' on 'HTMLUserMediaElement': Failed to read the '" + key + "' property from 'HTMLMediaStreamConstraints': The provided value is not of type 'MediaTrackConstraintSet'.");
+          }
+        }
+      }
+    });
+    seat(um.prototype, ['onstream', 'stream', 'error', 'oncancel', 'onerror', 'setConstraints', 'constructor']);
+  });
+
   // Chrome 157 iterator helpers. join defaults to ",". includes uses
   // SameValueZero, so NaN matches NaN. A receiver without next throws when
   // next is called.
