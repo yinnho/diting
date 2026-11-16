@@ -844,17 +844,19 @@ fn knife60_gpu_supported_limits_face() {
             'maxColorAttachmentBytesPerSample', 'maxComputeWorkgroupStorageSize',
             'maxComputeInvocationsPerWorkgroup', 'maxComputeWorkgroupSizeX',
             'maxComputeWorkgroupSizeY', 'maxComputeWorkgroupSizeZ',
-            'maxComputeWorkgroupsPerDimension'].concat(['constructor']);
+            'maxComputeWorkgroupsPerDimension', 'maxImmediateSize',
+            'maxStorageBuffersInFragmentStage', 'maxStorageTexturesInFragmentStage',
+            'maxStorageBuffersInVertexStage', 'maxStorageTexturesInVertexStage'].concat(['constructor']);
           const P = GPUSupportedLimits.prototype;
           const names = Object.getOwnPropertyNames(P);
-          const order = names.length === 32 && names.every((n, i) => n === TRUTH[i]);
+          const order = names.length === 37 && names.every((n, i) => n === TRUTH[i]);
           const d = Object.getOwnPropertyDescriptor(P, 'maxTextureDimension1D');
           const flags = [!!d && typeof d.get === 'function', d.set === undefined, !!d && d.enumerable, !!d && d.configurable];
           const bare = Object.create(P).maxTextureDimension2D;
           const o = Object.create(P);
           o._lim = { maxTextureDimension2D: 8192 };
           const plumb = o.maxTextureDimension2D;
-          const named = TRUTH.slice(0, 31).filter((n) => Object.getOwnPropertyDescriptor(P, n).get.name === n).length;
+          const named = TRUTH.slice(0, 36).filter((n) => Object.getOwnPropertyDescriptor(P, n).get.name === n).length;
           const statics = Object.getOwnPropertyNames(GPUSupportedLimits).sort();
           return JSON.stringify({ order, flags, bare, plumb, named, statics });
         })()
@@ -863,7 +865,7 @@ fn knife60_gpu_supported_limits_face() {
     assert_eq!(
         v["order"],
         serde_json::json!(true),
-        "32 own names, constructor LAST, truth order"
+        "37 own names, constructor LAST, truth order"
     );
     assert_eq!(
         v["flags"],
@@ -882,7 +884,7 @@ fn knife60_gpu_supported_limits_face() {
     );
     assert_eq!(
         v["named"],
-        serde_json::json!(31),
+        serde_json::json!(36),
         "every getter carries its limit's own name"
     );
     assert_eq!(

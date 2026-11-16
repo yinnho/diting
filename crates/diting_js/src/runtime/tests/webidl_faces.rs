@@ -2130,6 +2130,90 @@ fn chrome157_animation_trigger() {
     );
 }
 
+/// Chrome 157 WebGPU immediate-data entry points. Two arguments are required.
+/// A full call returns undefined; the bytes are not uploaded.
+#[test]
+fn chrome157_gpu_immediates() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { const r = fn(); return r === undefined ? 'undef' : String(r); } catch (e) { return e.name + ': ' + e.message; } };
+        const pass = Object.create(GPUComputePassEncoder.prototype);
+        const names = Object.getOwnPropertyNames(GPUComputePassEncoder.prototype);
+        const qnames = Object.getOwnPropertyNames(GPUQueue.prototype);
+        const tex = Object.create(GPUTexture.prototype);
+        ({
+          zero: err(() => pass.setImmediates()),
+          one: err(() => pass.setImmediates(0)),
+          ok: err(() => pass.setImmediates(0, new Uint32Array([1]))),
+          bad: err(() => GPUComputePassEncoder.prototype.setImmediates.call({}, 0, new Uint32Array([1]))),
+          at: names.slice(names.indexOf('pushDebugGroup'), names.indexOf('dispatchWorkgroups') + 1),
+          q: qnames.slice(-2),
+          dim: err(() => tex.textureBindingViewDimension),
+          lim: Object.getOwnPropertyNames(GPUSupportedLimits.prototype).slice(-6),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "zero": "TypeError: Failed to execute 'setImmediates' on 'GPUComputePassEncoder': 2 arguments required, but only 0 present.",
+            "one": "TypeError: Failed to execute 'setImmediates' on 'GPUComputePassEncoder': 2 arguments required, but only 1 present.",
+            "ok": "undef",
+            "bad": "TypeError: Illegal invocation",
+            "at": ["pushDebugGroup", "setImmediates", "dispatchWorkgroups"],
+            "q": ["constructor", "drawElementImageToTexture"],
+            "dim": "undef",
+            "lim": ["maxImmediateSize", "maxStorageBuffersInFragmentStage", "maxStorageTexturesInFragmentStage", "maxStorageBuffersInVertexStage", "maxStorageTexturesInVertexStage", "constructor"],
+        })
+    );
+}
+
+/// Chrome 157 interaction paint and soft navigation. Nothing records an
+/// interaction, so the counters stay at rest and the largest paint is null.
+#[test]
+fn chrome157_interaction_paint() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { const r = fn(); return r === undefined ? 'undef' : (r === null ? 'null' : String(r)); } catch (e) { return e.name + ': ' + e.message; } };
+        const icp = Object.create(InteractionContentfulPaint.prototype);
+        const soft = Object.create(PerformanceSoftNavigation.prototype);
+        ({
+          icp: [icp.largestContentfulPaint, icp.interactionId, icp.paintTime, icp.presentationTime],
+          json: (() => { const j = icp.toJSON(); return { largestContentfulPaint: j.largestContentfulPaint, interactionId: j.interactionId, paintTime: j.paintTime, presentationTime: j.presentationTime, navigationId: j.navigationId }; })(),
+          soft: [soft.navigationType, soft.interactionId, soft.paintTime, soft.presentationTime, soft.getLargestInteractionContentfulPaint()],
+          bad: err(() => Object.getOwnPropertyDescriptor(InteractionContentfulPaint.prototype, 'paintTime').get.call({})),
+          order: Object.getOwnPropertyNames(InteractionContentfulPaint.prototype),
+          softOrder: Object.getOwnPropertyNames(PerformanceSoftNavigation.prototype),
+          illegal: err(() => new InteractionContentfulPaint()),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "icp": [0, 0, 0, null],
+            "json": {
+                "largestContentfulPaint": 0,
+                "interactionId": 0,
+                "paintTime": 0,
+                "presentationTime": null,
+                "navigationId": 1,
+            },
+            "soft": ["", 0, 0, null, null],
+            "bad": "TypeError: Illegal invocation",
+            "order": ["largestContentfulPaint", "interactionId", "paintTime", "presentationTime", "toJSON", "constructor"],
+            "softOrder": ["navigationType", "interactionId", "paintTime", "presentationTime", "getLargestInteractionContentfulPaint", "constructor"],
+            "illegal": "TypeError: Failed to construct 'InteractionContentfulPaint': Illegal constructor",
+        })
+    );
+}
+
 /// Chrome 157 datagram caps. 0 and non-finite numbers are stored as 1.
 /// A negative value wraps as an unsigned long.
 #[test]
