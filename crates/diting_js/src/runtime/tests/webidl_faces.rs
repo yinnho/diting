@@ -2796,6 +2796,55 @@ fn chrome157_parse_html() {
     );
 }
 
+/// Chrome 157 RTCPeerConnection diagnostic logging is one process-wide
+/// session. start returns a UUID. A second start, or stop/cancel with no
+/// session, is InvalidStateError. A non-object options value is a TypeError.
+#[test]
+fn chrome157_rtc_diagnostic_logging() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { const r = fn(); return r === undefined ? 'undef' : String(r); } catch (e) { return e.name + ': ' + e.message; } };
+        const none = err(() => RTCPeerConnection.stopDiagnosticLogging());
+        const id = RTCPeerConnection.startDiagnosticLogging();
+        const again = err(() => RTCPeerConnection.startDiagnosticLogging({}));
+        const stopped = err(() => RTCPeerConnection.stopDiagnosticLogging());
+        const after = err(() => RTCPeerConnection.cancelDiagnosticLogging());
+        const id2 = RTCPeerConnection.startDiagnosticLogging(null);
+        RTCPeerConnection.cancelDiagnosticLogging();
+        const bad = err(() => RTCPeerConnection.startDiagnosticLogging(1));
+        const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+        ({
+          none, again, stopped, after, bad,
+          id: uuid.test(id),
+          id2: uuid.test(id2) && id2 !== id,
+          lens: [
+            RTCPeerConnection.startDiagnosticLogging.length,
+            RTCPeerConnection.stopDiagnosticLogging.length,
+            RTCPeerConnection.cancelDiagnosticLogging.length,
+          ],
+          order: Object.getOwnPropertyNames(RTCPeerConnection).filter(n => n !== 'length' && n !== 'name' && n !== 'prototype'),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "none": "InvalidStateError: Failed to execute 'stopDiagnosticLogging' on 'RTCPeerConnection': No active diagnostic logging session.",
+            "again": "InvalidStateError: Failed to execute 'startDiagnosticLogging' on 'RTCPeerConnection': A diagnostic logging session is already active.",
+            "stopped": "undef",
+            "after": "InvalidStateError: Failed to execute 'cancelDiagnosticLogging' on 'RTCPeerConnection': No active diagnostic logging session.",
+            "bad": "TypeError: Failed to execute 'startDiagnosticLogging' on 'RTCPeerConnection': The provided value is not of type 'RTCDiagnosticLoggingOptions'.",
+            "id": true,
+            "id2": true,
+            "lens": [0, 0, 0],
+            "order": ["generateCertificate", "cancelDiagnosticLogging", "startDiagnosticLogging", "stopDiagnosticLogging"],
+        })
+    );
+}
+
 /// Chrome 157 datagram caps. 0 and non-finite numbers are stored as 1.
 /// A negative value wraps as an unsigned long.
 #[test]

@@ -1904,7 +1904,7 @@ P RTCError :: constructor,errorDetail,httpRequestStatusCode,receivedAlert,sctpCa
 P RTCErrorEvent :: constructor,error
 P RTCIceCandidate :: address,candidate,component,constructor,foundation,port,priority,protocol,relatedAddress,relatedPort,relayProtocol,sdpMLineIndex,sdpMid,tcpType,toJSON,type,url,usernameFragment
 P RTCIceTransport :: constructor,gatheringState,getLocalCandidates,getLocalParameters,getRemoteCandidates,getRemoteParameters,getSelectedCandidatePair,ongatheringstatechange,onselectedcandidatepairchange,onstatechange,role,state
-S RTCPeerConnection :: generateCertificate
+S RTCPeerConnection :: cancelDiagnosticLogging,generateCertificate,startDiagnosticLogging,stopDiagnosticLogging
 P RTCPeerConnection :: addIceCandidate,addStream,addTrack,addTransceiver,canTrickleIceCandidates,close,connectionState,constructor,createAnswer,createDTMFSender,createDataChannel,createOffer,currentLocalDescription,currentRemoteDescription,getConfiguration,getLocalStreams,getReceivers,getRemoteStreams,getSenders,getStats,getTransceivers,iceConnectionState,iceGatheringState,localDescription,onaddstream,onconnectionstatechange,ondatachannel,onicecandidate,onicecandidateerror,oniceconnectionstatechange,onicegatheringstatechange,onnegotiationneeded,onremovestream,onsignalingstatechange,ontrack,pendingLocalDescription,pendingRemoteDescription,remoteDescription,removeStream,removeTrack,restartIce,sctp,setConfiguration,setLocalDescription,setRemoteDescription,signalingState
 P RTCPeerConnectionIceErrorEvent :: address,constructor,errorCode,errorText,hostCandidate,port,url
 P RTCPeerConnectionIceEvent :: candidate,constructor
@@ -2329,7 +2329,7 @@ P scrollBy :: constructor
 P scrollTo :: constructor
 P stop :: constructor
 P webkitMediaStream :: active,addTrack,clone,constructor,getAudioTracks,getTrackById,getTracks,getVideoTracks,id,onactive,onaddtrack,oninactive,onremovetrack,removeTrack
-S webkitRTCPeerConnection :: generateCertificate
+S webkitRTCPeerConnection :: cancelDiagnosticLogging,generateCertificate,startDiagnosticLogging,stopDiagnosticLogging
 P webkitRTCPeerConnection :: addIceCandidate,addStream,addTrack,addTransceiver,canTrickleIceCandidates,close,connectionState,constructor,createAnswer,createDTMFSender,createDataChannel,createOffer,currentLocalDescription,currentRemoteDescription,getConfiguration,getLocalStreams,getReceivers,getRemoteStreams,getSenders,getStats,getTransceivers,iceConnectionState,iceGatheringState,localDescription,onaddstream,onconnectionstatechange,ondatachannel,onicecandidate,onicecandidateerror,oniceconnectionstatechange,onicegatheringstatechange,onnegotiationneeded,onremovestream,onsignalingstatechange,ontrack,pendingLocalDescription,pendingRemoteDescription,remoteDescription,removeStream,removeTrack,restartIce,sctp,setConfiguration,setLocalDescription,setRemoteDescription,signalingState
 P webkitSpeechGrammar :: constructor,src,weight
 P webkitSpeechGrammarList :: addFromString,addFromUri,constructor,item,length

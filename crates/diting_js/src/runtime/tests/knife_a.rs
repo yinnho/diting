@@ -1063,7 +1063,7 @@ fn knife61_rtc_peer_connection_face() {
     );
     assert_eq!(
         v["ctor"],
-        serde_json::json!([0, "length,name,prototype,generateCertificate"])
+        serde_json::json!([0, "length,name,prototype,generateCertificate,cancelDiagnosticLogging,startDiagnosticLogging,stopDiagnosticLogging"])
     );
     assert_eq!(
         v["fire"],
