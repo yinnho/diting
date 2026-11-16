@@ -218,6 +218,21 @@
       obj(this); argc(arguments, 1, 'updateElementGeometry', 'HTMLCanvasElement');
       prepare(this, el, 'updateElementGeometry', true);
     });
+    // OffscreenCanvas has no content attribute. clear and update accept any
+    // Element. The size query rejects every element.
+    fn('OffscreenCanvas', 'clearElementGeometry', 1, function clearElementGeometry(el) {
+      obj(this); argc(arguments, 1, 'clearElementGeometry', 'OffscreenCanvas');
+      if (!isEl(el)) failType('OffscreenCanvas', 'clearElementGeometry', true);
+    });
+    fn('OffscreenCanvas', 'getElementImageDefaultSize', 1, function getElementImageDefaultSize(el) {
+      obj(this); argc(arguments, 1, 'getElementImageDefaultSize', 'OffscreenCanvas');
+      if (!isEl(el)) failType('OffscreenCanvas', 'getElementImageDefaultSize', true);
+      failState('OffscreenCanvas', 'getElementImageDefaultSize', 'Elements cannot be drawn into an OffscreenCanvas.');
+    });
+    fn('OffscreenCanvas', 'updateElementGeometry', 1, function updateElementGeometry(el) {
+      obj(this); argc(arguments, 1, 'updateElementGeometry', 'OffscreenCanvas');
+      if (!isEl(el)) failType('OffscreenCanvas', 'updateElementGeometry', true);
+    });
     const draw = (iface, offscreen) => function drawElementImage(el, x, y) {
       obj(this);
       argc(arguments, 3, 'drawElementImage', iface);
@@ -443,38 +458,156 @@
     // SourceBuffer mode/updating/timestampOffset/appendWindow*: the class assigns them in its constructor — lifted by lift_own
   });
 
-  // Chrome 157 HTMLInputElement.createValueRange. Two offsets into the value
-  // string. end < start collapses at start. Out of range is IndexSizeError.
-  // The result is an OpaqueRange: offsets and collapsed, no containers.
+  // Chrome 157 createValueRange on input and textarea. Offsets are WebIDL
+  // longs (NaN and infinities become 0). end < start collapses at start.
+  // A negative or past-the-end offset is IndexSizeError. The result is an
+  // OpaqueRange and does not move the control's selection.
   section('input-value-range', () => {
-    const C = G.HTMLInputElement;
     const OR = G.OpaqueRange;
-    if (typeof C !== 'function' || typeof OR !== 'function') return;
-    const P = C.prototype;
-    if (Object.prototype.hasOwnProperty.call(P, 'createValueRange')) return;
-    const fn = function createValueRange(start, end) {
-      if (!(this instanceof C)) throw new TypeError('Illegal invocation');
-      if (arguments.length < 2) {
-        throw new TypeError("Failed to execute 'createValueRange' on 'HTMLInputElement': 2 arguments required, but only " + arguments.length + " present.");
-      }
-      const len = String(this.value == null ? '' : this.value).length;
-      const off = (v) => {
-        const n = typeof v === 'symbol' ? NaN : Number(v);
-        if (!Number.isFinite(n)) return NaN;
-        return Math.trunc(n);
-      };
-      let s = off(start), e = off(end);
-      if (!(s >= 0 && e >= 0 && s <= len && e <= len)) {
-        throw new DOMException("Failed to execute 'createValueRange' on 'HTMLInputElement': Start or end offset exceeds value length.", 'IndexSizeError');
-      }
-      if (e < s) e = s;
-      const r = Object.create(OR.prototype);
-      r._so = s;
-      r._eo = e;
-      return r;
+    if (typeof OR !== 'function') return;
+    const toLong = (v, iface) => {
+      let n;
+      try { n = Number(v); }
+      catch (e) { throw new TypeError("Failed to execute 'createValueRange' on '" + iface + "': " + e.message); }
+      if (!Number.isFinite(n) || n === 0) return 0;
+      n = Math.trunc(n);
+      if (n > 0x7fffffff) return 0x7fffffff;
+      if (n < -0x80000000) return -0x80000000;
+      return n;
     };
-    pin(fn, 'createValueRange', 2);
-    def(P, 'createValueRange', { value: fn, writable: true, enumerable: true, configurable: true });
+    const seatAfter = (P, anchor) => {
+      const names = Object.getOwnPropertyNames(P);
+      const at = names.indexOf(anchor);
+      if (at < 0 || names[at + 1] === 'createValueRange') return;
+      const tail = [];
+      for (let i = at + 1; i < names.length; i++) {
+        if (names[i] === 'createValueRange') continue;
+        const d = Object.getOwnPropertyDescriptor(P, names[i]);
+        if (d && d.configurable) { tail.push([names[i], d]); delete P[names[i]]; }
+      }
+      const mine = Object.getOwnPropertyDescriptor(P, 'createValueRange');
+      if (mine && mine.configurable) { delete P['createValueRange']; Object.defineProperty(P, 'createValueRange', mine); }
+      for (const [n, d] of tail) Object.defineProperty(P, n, d);
+    };
+    const install = (cn, anchor) => {
+      const C = G[cn];
+      if (typeof C !== 'function') return;
+      const P = C.prototype;
+      if (!Object.prototype.hasOwnProperty.call(P, 'createValueRange')) {
+        const fn = function createValueRange(start, end) {
+          if (!(this instanceof C)) throw new TypeError('Illegal invocation');
+          if (arguments.length < 2) {
+            throw new TypeError("Failed to execute 'createValueRange' on '" + cn + "': 2 arguments required, but only " + arguments.length + " present.");
+          }
+          const len = String(this.value == null ? '' : this.value).length;
+          let s = toLong(start, cn), e = toLong(end, cn);
+          if (!(s >= 0 && e >= 0 && s <= len && e <= len)) {
+            throw new DOMException("Failed to execute 'createValueRange' on '" + cn + "': Start or end offset exceeds value length.", 'IndexSizeError');
+          }
+          if (e < s) e = s;
+          const r = Object.create(OR.prototype);
+          r._so = s;
+          r._eo = e;
+          return r;
+        };
+        pin(fn, 'createValueRange', 2);
+        def(P, 'createValueRange', { value: fn, writable: true, enumerable: true, configurable: true });
+      }
+      seatAfter(P, anchor);
+    };
+    install('HTMLInputElement', 'webkitEntries');
+    install('HTMLTextAreaElement', 'setSelectionRange');
+  });
+
+  // Chrome 157 OpaqueRange. disconnect collapses the offsets to 0.
+  // Glyph boxes inside a control are not measured here, so a live range
+  // reports one empty rect and a disconnected range reports none.
+  section('opaque-range', () => {
+    const OR = G.OpaqueRange;
+    if (typeof OR !== 'function') return;
+    const P = OR.prototype;
+    const dead = new WeakMap();
+    const brand = (self) => { if (!(self instanceof OR)) throw new TypeError('Illegal invocation'); };
+    const zero = () => new G.DOMRect();
+    fn('OpaqueRange', 'disconnect', 0, function disconnect() {
+      brand(this);
+      this._so = 0;
+      this._eo = 0;
+      dead.set(this, true);
+    });
+    fn('OpaqueRange', 'getBoundingClientRect', 0, function getBoundingClientRect() {
+      brand(this);
+      return zero();
+    });
+    fn('OpaqueRange', 'getClientRects', 0, function getClientRects() {
+      brand(this);
+      const rects = dead.get(this) ? [] : [zero()];
+      return G.__diting_mkRectList(rects);
+    });
+    const want = ['disconnect', 'getBoundingClientRect', 'getClientRects', 'constructor'];
+    const names = Object.getOwnPropertyNames(P);
+    const seq = want.filter((k) => names.indexOf(k) >= 0).concat(names.filter((k) => want.indexOf(k) < 0));
+    if (!seq.every((k, i) => k === names[i])) {
+      const saved = [];
+      for (const k of seq) {
+        const d = Object.getOwnPropertyDescriptor(P, k);
+        if (d && d.configurable) { saved.push([k, d]); delete P[k]; }
+      }
+      for (const [k, d] of saved) Object.defineProperty(P, k, d);
+    }
+  });
+
+  // Chrome 157 WebTransport datagram caps. The count is an unsigned long,
+  // and 0 is stored as 1. datagrams is one duplex stream, not a plain object.
+  section('wt-datagrams', () => {
+    const C = G.WebTransportDatagramDuplexStream;
+    const WT = G.WebTransport;
+    if (typeof C !== 'function' || typeof WT !== 'function' || !C.prototype) return;
+    const P = C.prototype;
+    const slots = new WeakMap();
+    const brand = (self) => { if (!(self instanceof C)) throw new TypeError('Illegal invocation'); };
+    const open = (self) => {
+      let s = slots.get(self);
+      if (!s) {
+        s = { readable: new G.ReadableStream(), writable: new G.WritableStream(), inBuf: 1, outBuf: 1 };
+        slots.set(self, s);
+      }
+      return s;
+    };
+    const toCount = (v, name) => {
+      let n;
+      try { n = Number(v); }
+      catch (e) { throw new TypeError("Failed to set the '" + name + "' property on 'WebTransportDatagramDuplexStream': " + e.message); }
+      if (!Number.isFinite(n) || n === 0) n = 0;
+      else {
+        n = Math.sign(n) * Math.floor(Math.abs(n));
+        const m = 0x100000000;
+        n %= m;
+        if (n < 0) n += m;
+      }
+      return n === 0 ? 1 : n;
+    };
+    const acc = (name, key) => def(P, name, {
+      get: pin(function () { brand(this); return open(this)[key]; }, 'get ' + name),
+      set: pin(function (v) { brand(this); open(this)[key] = toCount(v, name); }, 'set ' + name, 1),
+      enumerable: true, configurable: true,
+    });
+    def(P, 'readable', { get: pin(function () { brand(this); return open(this).readable; }, 'get readable'), enumerable: true, configurable: true });
+    def(P, 'writable', { get: pin(function () { brand(this); return open(this).writable; }, 'get writable'), enumerable: true, configurable: true });
+    acc('incomingMaxBufferedDatagrams', 'inBuf');
+    acc('outgoingMaxBufferedDatagrams', 'outBuf');
+    Object.defineProperty(WT.prototype, 'datagrams', {
+      get: pin(function () {
+        if (this === null || (typeof this !== 'object' && typeof this !== 'function')) throw new TypeError('Illegal invocation');
+        if (!this._datagrams) {
+          const d = Object.create(P);
+          open(d);
+          this._datagrams = d;
+        }
+        return this._datagrams;
+      }, 'get datagrams'),
+      enumerable: true, configurable: true,
+    });
   });
 
   // Chrome 157 iterator helpers. join defaults to ",". includes uses

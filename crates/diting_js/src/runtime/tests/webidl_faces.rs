@@ -1862,6 +1862,14 @@ fn chrome157_loading_range_iterator_transport() {
         try { input.createValueRange(-1, 2); } catch (e) { bad = e.name; }
         let argc = '';
         try { input.createValueRange(0); } catch (e) { argc = e.name + ': ' + e.message; }
+        const area = document.createElement('textarea');
+        area.value = 'abcdef';
+        const areaMid = area.createValueRange(1.9, 4);
+        const areaNan = area.createValueRange(NaN, 1);
+        let areaSym = '';
+        try { area.createValueRange(Symbol('x'), 1); } catch (e) { areaSym = e.name + ': ' + e.message; }
+        const areaNames = Object.getOwnPropertyNames(HTMLTextAreaElement.prototype);
+        const inputNan = input.createValueRange(NaN, 1);
         const nums = [1, 2, 3].values();
         const wt = new WebTransport('https://example.com/wt');
         ({
@@ -1873,6 +1881,11 @@ fn chrome157_loading_range_iterator_transport() {
           bad, argc,
           join: [1, 2, 3].values().join('-'),
           joinDef: [1, 2].values().join(),
+          areaMid: [areaMid.startOffset, areaMid.endOffset, areaMid.collapsed],
+          areaNan: [areaNan.startOffset, areaNan.endOffset],
+          areaSym,
+          areaAt: areaNames.slice(areaNames.indexOf('setSelectionRange'), areaNames.indexOf('setSelectionRange') + 3),
+          inputNan: [inputNan.startOffset, inputNan.endOffset],
           nan: [1, NaN].values().includes(NaN),
           miss: [1].values().includes(),
           rel: wt.reliability,
@@ -1893,10 +1906,142 @@ fn chrome157_loading_range_iterator_transport() {
             "argc": "TypeError: Failed to execute 'createValueRange' on 'HTMLInputElement': 2 arguments required, but only 1 present.",
             "join": "1-2-3",
             "joinDef": "1,2",
+            "areaMid": [1, 4, false],
+            "areaNan": [0, 1],
+            "areaSym": "TypeError: Failed to execute 'createValueRange' on 'HTMLTextAreaElement': Cannot convert a Symbol value to a number",
+            "areaAt": ["setSelectionRange", "createValueRange", "constructor"],
+            "inputNan": [0, 1],
             "nan": true,
             "miss": false,
             "rel": "pending",
             "hdr": null,
+        })
+    );
+}
+
+/// Chrome 157 OpaqueRange geometry face. disconnect collapses the offsets.
+/// The engine does not measure glyphs inside a control, so the live rect is
+/// empty and the list drops to none after disconnect.
+#[test]
+fn chrome157_opaque_range_geometry() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const area = document.createElement('textarea');
+        area.value = 'abcdef';
+        const r = area.createValueRange(1, 4);
+        const box = r.getBoundingClientRect();
+        const list = r.getClientRects();
+        const names = Object.getOwnPropertyNames(OpaqueRange.prototype);
+        r.disconnect();
+        const gone = r.getClientRects();
+        let bad = '';
+        try { OpaqueRange.prototype.disconnect.call({}); } catch (e) { bad = e.name + ': ' + e.message; }
+        ({
+          live: [box.constructor.name, box.width, box.height, list.constructor.name, list.length, list.item(0).width],
+          off: [r.startOffset, r.endOffset, r.collapsed, gone.length, r.getBoundingClientRect().width],
+          again: r.disconnect() === undefined,
+          order: names,
+          bad,
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "live": ["DOMRect", 0, 0, "DOMRectList", 1, 0],
+            "off": [0, 0, true, 0, 0],
+            "again": true,
+            "order": ["disconnect", "getBoundingClientRect", "getClientRects", "constructor"],
+            "bad": "TypeError: Illegal invocation",
+        })
+    );
+}
+
+/// Chrome 157 OffscreenCanvas geometry. clear and update accept any element.
+/// Asking for a default size rejects every element.
+#[test]
+fn chrome157_offscreen_element_geometry() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const oc = new OffscreenCanvas(8, 8);
+        const d = document.createElement('div');
+        const t = document.createTextNode('t');
+        const err = (fn) => { try { const r = fn(); return r === undefined ? 'undef' : String(r); } catch (e) { return e.name + ': ' + e.message; } };
+        const names = Object.getOwnPropertyNames(OffscreenCanvas.prototype);
+        ({
+          zero: err(() => oc.getElementImageDefaultSize()),
+          text: err(() => oc.updateElementGeometry(t)),
+          clear: err(() => oc.clearElementGeometry(d)),
+          upd: err(() => oc.updateElementGeometry(d)),
+          size: err(() => oc.getElementImageDefaultSize(d)),
+          tail: names.slice(names.indexOf('constructor')),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "zero": "TypeError: Failed to execute 'getElementImageDefaultSize' on 'OffscreenCanvas': 1 argument required, but only 0 present.",
+            "text": "TypeError: Failed to execute 'updateElementGeometry' on 'OffscreenCanvas': The provided value is not of type '(Element or ElementImage)'.",
+            "clear": "undef",
+            "upd": "undef",
+            "size": "InvalidStateError: Failed to execute 'getElementImageDefaultSize' on 'OffscreenCanvas': Elements cannot be drawn into an OffscreenCanvas.",
+            "tail": ["constructor", "clearElementGeometry", "getElementImageDefaultSize", "updateElementGeometry"],
+        })
+    );
+}
+
+/// Chrome 157 datagram caps. 0 and non-finite numbers are stored as 1.
+/// A negative value wraps as an unsigned long.
+#[test]
+fn chrome157_datagram_caps() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const d = new WebTransport('https://example.com/wt').datagrams;
+        const def = [d.incomingMaxBufferedDatagrams, d.outgoingMaxBufferedDatagrams];
+        d.incomingMaxBufferedDatagrams = -1;
+        const neg = d.incomingMaxBufferedDatagrams;
+        d.outgoingMaxBufferedDatagrams = 0;
+        const zero = d.outgoingMaxBufferedDatagrams;
+        d.incomingMaxBufferedDatagrams = 2.9;
+        const frac = d.incomingMaxBufferedDatagrams;
+        d.incomingMaxBufferedDatagrams = NaN;
+        const nan = d.incomingMaxBufferedDatagrams;
+        let sym = '';
+        try { d.incomingMaxBufferedDatagrams = Symbol('x'); } catch (e) { sym = e.name + ': ' + e.message; }
+        const names = Object.getOwnPropertyNames(WebTransportDatagramDuplexStream.prototype);
+        let bad = '';
+        try { Object.getOwnPropertyDescriptor(WebTransportDatagramDuplexStream.prototype, 'incomingMaxBufferedDatagrams').get.call({}); } catch (e) { bad = e.name + ': ' + e.message; }
+        ({
+          def, neg, zero, frac, nan, sym, bad,
+          isa: d instanceof WebTransportDatagramDuplexStream,
+          streams: [d.readable.constructor.name, d.writable.constructor.name],
+          at: names.slice(names.indexOf('outgoingMaxAge'), names.indexOf('incomingHighWaterMark') + 1),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "def": [1, 1],
+            "neg": 4294967295u64,
+            "zero": 1,
+            "frac": 2,
+            "nan": 1,
+            "sym": "TypeError: Failed to set the 'incomingMaxBufferedDatagrams' property on 'WebTransportDatagramDuplexStream': Cannot convert a Symbol value to a number",
+            "bad": "TypeError: Illegal invocation",
+            "isa": true,
+            "streams": ["ReadableStream", "WritableStream"],
+            "at": ["outgoingMaxAge", "incomingMaxBufferedDatagrams", "outgoingMaxBufferedDatagrams", "incomingHighWaterMark"],
         })
     );
 }

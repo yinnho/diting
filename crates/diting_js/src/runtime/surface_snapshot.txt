@@ -1641,7 +1641,7 @@ P HTMLTableElement :: align,bgColor,border,caption,cellPadding,cellSpacing,const
 P HTMLTableRowElement :: align,bgColor,cells,ch,chOff,constructor,deleteCell,insertCell,rowIndex,sectionRowIndex,vAlign
 P HTMLTableSectionElement :: align,ch,chOff,constructor,deleteRow,insertRow,rows,vAlign
 P HTMLTemplateElement :: constructor,content,htmlFor,shadowRootClonable,shadowRootCustomElementRegistry,shadowRootDelegatesFocus,shadowRootMode,shadowRootReferenceTarget,shadowRootSerializable,shadowRootSlotAssignment
-P HTMLTextAreaElement :: autocomplete,checkValidity,cols,constructor,defaultValue,dirName,disabled,form,labels,maxLength,minLength,name,placeholder,readOnly,reportValidity,required,rows,select,selectionDirection,selectionEnd,selectionStart,setCustomValidity,setRangeText,setSelectionRange,textLength,type,validationMessage,validity,value,willValidate,wrap
+P HTMLTextAreaElement :: autocomplete,checkValidity,cols,constructor,createValueRange,defaultValue,dirName,disabled,form,labels,maxLength,minLength,name,placeholder,readOnly,reportValidity,required,rows,select,selectionDirection,selectionEnd,selectionStart,setCustomValidity,setRangeText,setSelectionRange,textLength,type,validationMessage,validity,value,willValidate,wrap
 P HTMLTimeElement :: constructor,dateTime
 P HTMLTitleElement :: constructor,text
 S HTMLTrackElement :: ERROR,LOADED,LOADING,NONE
@@ -1805,9 +1805,9 @@ S Observable :: from
 P Observable :: catch,constructor,drop,every,filter,finally,find,first,flatMap,forEach,inspect,last,map,reduce,some,subscribe,switchMap,take,takeUntil,toArray
 P OfflineAudioCompletionEvent :: constructor,renderedBuffer
 P OfflineAudioContext :: constructor,length,oncomplete,resume,startRendering,suspend
-P OffscreenCanvas :: constructor,convertToBlob,getContext,height,oncontextlost,oncontextrestored,transferToImageBitmap,width
+P OffscreenCanvas :: clearElementGeometry,constructor,convertToBlob,getContext,getElementImageDefaultSize,height,oncontextlost,oncontextrestored,transferToImageBitmap,updateElementGeometry,width
 P OffscreenCanvasRenderingContext2D :: arc,arcTo,beginPath,bezierCurveTo,canvas,clearRect,clip,closePath,constructor,createConicGradient,createImageData,createLinearGradient,createPattern,createRadialGradient,direction,drawElementImage,drawImage,ellipse,fill,fillRect,fillStyle,fillText,filter,font,fontKerning,fontStretch,fontVariantCaps,getContextAttributes,getImageData,getLineDash,getTransform,globalAlpha,globalCompositeOperation,imageSmoothingEnabled,imageSmoothingQuality,isContextLost,isPointInPath,isPointInStroke,lang,letterSpacing,lineCap,lineDashOffset,lineJoin,lineTo,lineWidth,measureText,miterLimit,moveTo,putImageData,quadraticCurveTo,rect,reset,resetTransform,restore,rotate,roundRect,save,scale,setLineDash,setTransform,shadowBlur,shadowColor,shadowOffsetX,shadowOffsetY,stroke,strokeRect,strokeStyle,strokeText,textAlign,textBaseline,textRendering,transform,translate,wordSpacing
-P OpaqueRange :: constructor
+P OpaqueRange :: constructor,disconnect,getBoundingClientRect,getClientRects
 P Option :: constructor,defaultSelected,disabled,form,index,label,selected,text,value
 P OrientationSensor :: constructor,populateMatrix,quaternion
 S Origin :: from
@@ -2232,7 +2232,7 @@ P WebSocketError :: closeCode,constructor,reason
 P WebSocketStream :: close,closed,constructor,opened,url
 P WebTransport :: close,closed,constructor,createBidirectionalStream,createUnidirectionalStream,datagrams,incomingBidirectionalStreams,incomingUnidirectionalStreams,protocol,ready,reliability,responseHeaders
 P WebTransportBidirectionalStream :: constructor,readable,writable
-P WebTransportDatagramDuplexStream :: constructor,incomingHighWaterMark,incomingMaxAge,maxDatagramSize,outgoingHighWaterMark,outgoingMaxAge,readable,writable
+P WebTransportDatagramDuplexStream :: constructor,incomingHighWaterMark,incomingMaxAge,incomingMaxBufferedDatagrams,maxDatagramSize,outgoingHighWaterMark,outgoingMaxAge,outgoingMaxBufferedDatagrams,readable,writable
 P WebTransportError :: constructor,source,streamErrorCode
 S WheelEvent :: DOM_DELTA_LINE,DOM_DELTA_PAGE,DOM_DELTA_PIXEL
 P WheelEvent :: DOM_DELTA_LINE,DOM_DELTA_PAGE,DOM_DELTA_PIXEL,constructor,deltaMode,deltaX,deltaY,deltaZ,momentum,wheelDelta,wheelDeltaX,wheelDeltaY
