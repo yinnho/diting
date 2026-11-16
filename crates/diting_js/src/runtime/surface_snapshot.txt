@@ -1573,7 +1573,7 @@ P HTMLBRElement :: clear,constructor
 P HTMLBaseElement :: constructor,href,target
 P HTMLBodyElement :: aLink,background,bgColor,constructor,link,onafterprint,onbeforeprint,onbeforeunload,onblur,onerror,onfocus,ongamepadconnected,ongamepaddisconnected,onhashchange,onlanguagechange,onload,onmessage,onmessageerror,onoffline,ononline,onpagehide,onpageshow,onpopstate,onrejectionhandled,onresize,onscroll,onstorage,onunhandledrejection,onunload,text,vLink
 P HTMLButtonElement :: checkValidity,command,commandForElement,constructor,disabled,form,formAction,formEnctype,formMethod,formNoValidate,formTarget,interestForElement,labels,name,popoverTargetAction,popoverTargetElement,reportValidity,setCustomValidity,type,validationMessage,validity,value,willValidate
-P HTMLCameraElement :: constructor
+P HTMLCameraElement :: constructor,error,oncancel,onerror,ontrack,setConstraints,track
 P HTMLCanvasElement :: captureElementImage,captureStream,clearElementGeometry,constructor,content,getContext,getElementImageDefaultSize,getElementTransform,height,onelementgeometryupdate,onpaint,requestPaint,toBlob,toDataURL,transferControlToOffscreen,updateElementGeometry,width
 P HTMLCollection :: constructor,item,length,namedItem
 P HTMLDListElement :: compact,constructor
@@ -1613,7 +1613,7 @@ P HTMLMediaElement :: HAVE_CURRENT_DATA,HAVE_ENOUGH_DATA,HAVE_FUTURE_DATA,HAVE_M
 P HTMLMenuElement :: compact,constructor
 P HTMLMetaElement :: constructor,content,httpEquiv,media,name,scheme
 P HTMLMeterElement :: constructor,high,labels,low,max,min,optimum,value
-P HTMLMicrophoneElement :: constructor
+P HTMLMicrophoneElement :: constructor,error,oncancel,onerror,ontrack,setConstraints,track
 P HTMLModElement :: cite,constructor,dateTime
 P HTMLOListElement :: compact,constructor,reversed,start,type
 P HTMLObjectElement :: align,archive,border,checkValidity,code,codeBase,codeType,constructor,contentDocument,contentWindow,data,declare,form,getSVGDocument,height,hspace,name,reportValidity,setCustomValidity,standby,type,useMap,validationMessage,validity,vspace,width,willValidate
@@ -1649,7 +1649,7 @@ S HTMLTrackElement :: ERROR,LOADED,LOADING,NONE
 P HTMLTrackElement :: ERROR,LOADED,LOADING,NONE,constructor,default,kind,label,readyState,src,srclang,track
 P HTMLUListElement :: compact,constructor,type
 P HTMLUnknownElement :: constructor
-P HTMLUserMediaElement :: constructor
+P HTMLUserMediaElement :: constructor,error,oncancel,onerror,onstream,setConstraints,stream
 P HTMLVideoElement :: cancelVideoFrameCallback,constructor,disablePictureInPicture,getVideoPlaybackQuality,height,onenterpictureinpicture,onleavepictureinpicture,playsInline,poster,requestPictureInPicture,requestVideoFrameCallback,videoHeight,videoWidth,webkitDecodedFrameCount,webkitDroppedFrameCount,width
 P HashChangeEvent :: constructor,newURL,oldURL
 P Headers :: append,constructor,delete,entries,forEach,get,getSetCookie,has,keys,set,values
@@ -2133,7 +2133,7 @@ P TextTrackList :: constructor,getTrackById,length,onaddtrack,onchange,onremovet
 P TextUpdateEvent :: constructor,selectionEnd,selectionStart,text,updateRangeEnd,updateRangeStart
 P TimeRanges :: constructor,end,length,start
 P TimelineTrigger :: constructor,ranges
-P TimelineTriggerRange :: constructor
+P TimelineTriggerRange :: activationRangeEnd,activationRangeStart,activeRangeEnd,activeRangeStart,constructor,timeline
 P TimelineTriggerRangeList :: constructor,entries,forEach,item,keys,length,values
 P ToggleEvent :: constructor,newState,oldState,source
 P Touch :: clientX,clientY,constructor,force,identifier,pageX,pageY,radiusX,radiusY,rotationAngle,screenX,screenY,target

@@ -2214,6 +2214,86 @@ fn chrome157_interaction_paint() {
     );
 }
 
+/// Chrome 157 TimelineTriggerRange. The constructor is illegal and a forged
+/// prototype object is not a live range.
+#[test]
+fn chrome157_timeline_trigger_range() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { fn(); return 'ok'; } catch (e) { return e.name + ': ' + e.message; } };
+        const forged = Object.create(TimelineTriggerRange.prototype);
+        ({
+          order: Object.getOwnPropertyNames(TimelineTriggerRange.prototype),
+          illegal: err(() => new TimelineTriggerRange()),
+          forged: err(() => forged.timeline),
+          bad: err(() => Object.getOwnPropertyDescriptor(TimelineTriggerRange.prototype, 'activationRangeStart').get.call({})),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "order": ["timeline", "activationRangeStart", "activationRangeEnd", "activeRangeStart", "activeRangeEnd", "constructor"],
+            "illegal": "TypeError: Failed to construct 'TimelineTriggerRange': Illegal constructor",
+            "forged": "TypeError: Illegal invocation",
+            "bad": "TypeError: Illegal invocation",
+        })
+    );
+}
+
+/// Chrome 157 camera, microphone, and usermedia elements. setConstraints
+/// checks the dictionary and does not open a device.
+#[test]
+fn chrome157_user_media_elements() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { const r = fn(); return r === undefined ? 'undef' : String(r); } catch (e) { return e.name + ': ' + e.message; } };
+        const cam = document.createElement('camera');
+        const mic = document.createElement('microphone');
+        const um = document.createElement('usermedia');
+        cam.onerror = 'nope';
+        const handler = cam.onerror;
+        cam.onerror = function () {};
+        ({
+          names: [cam.constructor.name, mic.constructor.name, um.constructor.name],
+          rest: [cam.error, cam.track, mic.track, um.stream, um.error],
+          camOk: err(() => cam.setConstraints({ video: true })),
+          camBad: err(() => cam.setConstraints(1)),
+          umOk: err(() => um.setConstraints({ video: {} })),
+          umBool: err(() => um.setConstraints({ video: true })),
+          umNum: err(() => um.setConstraints(1)),
+          handler, fn: typeof cam.onerror,
+          order: Object.getOwnPropertyNames(HTMLCameraElement.prototype),
+          umOrder: Object.getOwnPropertyNames(HTMLUserMediaElement.prototype),
+          illegal: err(() => new HTMLCameraElement()),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "names": ["HTMLCameraElement", "HTMLMicrophoneElement", "HTMLUserMediaElement"],
+            "rest": [null, null, null, null, null],
+            "camOk": "undef",
+            "camBad": "TypeError: Failed to execute 'setConstraints' on 'HTMLCameraElement': The provided value is not of type 'MediaTrackConstraintSet'.",
+            "umOk": "undef",
+            "umBool": "TypeError: Failed to execute 'setConstraints' on 'HTMLUserMediaElement': Failed to read the 'video' property from 'HTMLMediaStreamConstraints': The provided value is not of type 'MediaTrackConstraintSet'.",
+            "umNum": "TypeError: Failed to execute 'setConstraints' on 'HTMLUserMediaElement': The provided value is not of type 'HTMLMediaStreamConstraints'.",
+            "handler": null,
+            "fn": "function",
+            "order": ["error", "oncancel", "onerror", "ontrack", "track", "setConstraints", "constructor"],
+            "umOrder": ["onstream", "stream", "error", "oncancel", "onerror", "setConstraints", "constructor"],
+            "illegal": "TypeError: Failed to construct 'HTMLCameraElement': Illegal constructor",
+        })
+    );
+}
+
 /// Chrome 157 datagram caps. 0 and non-finite numbers are stored as 1.
 /// A negative value wraps as an unsigned long.
 #[test]
