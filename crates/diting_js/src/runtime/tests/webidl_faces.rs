@@ -2631,6 +2631,94 @@ fn chrome157_language_model() {
     );
 }
 
+/// Chrome 157 paint and geometry events. The element lists are empty.
+/// ElementImage stays illegal to construct.
+#[test]
+fn chrome157_paint_events() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { const r = fn(); return r === undefined ? 'undef' : String(r); } catch (e) { return e.name + ': ' + e.message; } };
+        const paint = new CanvasPaintEvent('paint');
+        const geo = new ElementGeometryUpdateEvent(1);
+        ({
+          paint: [paint.type, paint.changedElements.constructor.name, paint.changedElements.length, Object.prototype.toString.call(paint)],
+          geo: [geo.type, geo.elements.length, Object.prototype.toString.call(geo)],
+          zero: err(() => new CanvasPaintEvent()),
+          forged: err(() => Object.create(CanvasPaintEvent.prototype).changedElements),
+          img: err(() => new ElementImage()),
+          close: err(() => Object.create(ElementImage.prototype).close()),
+          order: Object.getOwnPropertyNames(CanvasPaintEvent.prototype),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "paint": ["paint", "Array", 0, "[object CanvasPaintEvent]"],
+            "geo": ["1", 0, "[object ElementGeometryUpdateEvent]"],
+            "zero": "TypeError: Failed to construct 'CanvasPaintEvent': 1 argument required, but only 0 present.",
+            "forged": "TypeError: Illegal invocation",
+            "img": "TypeError: Failed to construct 'ElementImage': Illegal constructor",
+            "close": "TypeError: Illegal invocation",
+            "order": ["changedElements", "constructor"],
+        })
+    );
+}
+
+/// Chrome 157 Sanitizer. The default allow-list is Chrome's 121 elements
+/// and 58 attributes. setHTML does not read this object.
+#[test]
+fn chrome157_sanitizer() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { const r = fn(); return r === undefined ? 'undef' : String(r); } catch (e) { return e.name + ': ' + e.message; } };
+        const s = new Sanitizer();
+        const g = s.get();
+        const anchor = g.elements.filter((e) => e.name === 'a' && e.namespace === 'http://www.w3.org/1999/xhtml')[0];
+        s.allowElement('custom-x');
+        s.removeElement('p');
+        s.setComments(true);
+        s.setDataAttributes(true);
+        s.allowProcessingInstruction('xml');
+        const after = s.get();
+        s.removeProcessingInstruction('xml');
+        ({
+          counts: [g.elements.length, g.attributes.length, g.comments, g.dataAttributes, g.processingInstructions.length],
+          hasP: g.elements.some((e) => e.name === 'p'),
+          hasScript: g.elements.some((e) => e.name === 'script'),
+          href: anchor && anchor.attributes.map((a) => a.name),
+          custom: after.elements.some((e) => e.name === 'custom-x'),
+          dropped: after.elements.some((e) => e.name === 'p'),
+          flags: [after.comments, after.dataAttributes, after.processingInstructions.length, s.get().processingInstructions.length],
+          zero: err(() => s.allowElement()),
+          bad: err(() => Sanitizer.prototype.get.call({})),
+          order: Object.getOwnPropertyNames(Sanitizer.prototype),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "counts": [121, 58, false, false, 0],
+            "hasP": true,
+            "hasScript": false,
+            "href": ["href", "hreflang", "type"],
+            "custom": true,
+            "dropped": false,
+            "flags": [true, true, 1, 0],
+            "zero": "TypeError: Failed to execute 'allowElement' on 'Sanitizer': 1 argument required, but only 0 present.",
+            "bad": "TypeError: Illegal invocation",
+            "order": ["allowAttribute", "allowElement", "get", "removeAttribute", "removeElement", "removeUnsafe", "replaceElementWithChildren", "setComments", "setDataAttributes", "allowProcessingInstruction", "removeProcessingInstruction", "constructor"],
+        })
+    );
+}
+
 /// Chrome 157 datagram caps. 0 and non-finite numbers are stored as 1.
 /// A negative value wraps as an unsigned long.
 #[test]
