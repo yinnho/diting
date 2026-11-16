@@ -83,6 +83,9 @@
       if (changed) Promise.resolve().then(() => { try { this.dispatchEvent(new Event('sinkchange')); } catch (e) {} });
       return Promise.resolve();
     });
+    // Chrome 157 put this back (Chrome 145 did not have it). The render
+    // quantum is the spec default, 128 frames.
+    ro('BaseAudioContext', 'renderQuantumSize', () => 128);
     ro('BaseAudioContext', 'audioWorklet', (s) => {
       if (!s.v.worklet) { const C = G.AudioWorklet; s.v.worklet = (C && C.prototype) ? Object.create(C.prototype) : {}; }
       return s.v.worklet;
@@ -280,6 +283,56 @@
     // Chrome 157. The live object from startViewTransition carries its own
     // transitionRoot; this getter is the prototype member.
     ro('ViewTransition', 'transitionRoot', () => null);
+    // Chrome 157 AudioContext.playbackStats. Idle context: every counter is 0.
+    // One object per context. resetLatency clears only the latency trio.
+    section('playback-stats', () => {
+      const C = G.AudioPlaybackStats;
+      const AC = G.AudioContext;
+      if (typeof C !== 'function' || typeof AC !== 'function') return;
+      const P = C.prototype;
+      const KEYS = ['underrunDuration', 'underrunEvents', 'totalDuration', 'averageLatency', 'minimumLatency', 'maximumLatency'];
+      const slots = new WeakMap();
+      const byCtx = new WeakMap();
+      const brand = (self) => {
+        const s = slots.get(self);
+        if (!s) throw new TypeError('Illegal invocation');
+        return s;
+      };
+      for (const k of KEYS) {
+        const get = pin(function () { return brand(this)[k]; }, 'get ' + k);
+        def(P, k, { get, enumerable: true, configurable: true });
+      }
+      const resetLatency = pin(function resetLatency() {
+        const s = brand(this);
+        s.averageLatency = 0;
+        s.minimumLatency = 0;
+        s.maximumLatency = 0;
+      }, 'resetLatency', 0);
+      def(P, 'resetLatency', { value: resetLatency, writable: true, enumerable: true, configurable: true });
+      const toJSON = pin(function toJSON() {
+        const s = brand(this);
+        const o = {};
+        for (const k of KEYS) o[k] = s[k];
+        return o;
+      }, 'toJSON', 0);
+      def(P, 'toJSON', { value: toJSON, writable: true, enumerable: true, configurable: true });
+      const ctor = Object.getOwnPropertyDescriptor(P, 'constructor');
+      if (ctor && ctor.configurable) { delete P.constructor; Object.defineProperty(P, 'constructor', ctor); }
+      if (!Object.prototype.hasOwnProperty.call(P, Symbol.toStringTag)) {
+        Object.defineProperty(P, Symbol.toStringTag, { value: 'AudioPlaybackStats', configurable: true });
+      }
+      const getPs = pin(function () {
+        if (!(this instanceof AC)) throw new TypeError('Illegal invocation');
+        let obj = byCtx.get(this);
+        if (!obj) {
+          obj = Object.create(P);
+          slots.set(obj, { underrunDuration: 0, underrunEvents: 0, totalDuration: 0, averageLatency: 0, minimumLatency: 0, maximumLatency: 0 });
+          byCtx.set(this, obj);
+        }
+        return obj;
+      }, 'get playbackStats');
+      def(AC.prototype, 'playbackStats', { get: getPs, enumerable: true, configurable: true });
+    });
     fn('ViewTransition', 'waitUntil', 1, function waitUntil(p) { obj(this); argc(arguments, 1, 'waitUntil', 'ViewTransition'); });
     ro('ToggleEvent', 'source', () => null);
     for (const n of ['setAttributionReporting', 'setPrivateToken']) {

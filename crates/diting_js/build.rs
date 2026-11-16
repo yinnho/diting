@@ -719,6 +719,10 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     ("method_ladders.js", include_str!("js/method_ladders.js")),
     ("sym_fix.js", include_str!("js/sym_fix.js")),
     ("window_extras.js", include_str!("js/window_extras.js")),
+    // Chrome 157 sync HTML insertion (setHTML and the *HTML twins).
+    ("html_insert.js", include_str!("js/html_insert.js")),
+    // Chrome 157 ProcessingInstruction pseudo-attributes.
+    ("pi_attrs.js", include_str!("js/pi_attrs.js")),
     ("shape_fix.js", include_str!("js/shape_fix.js")),
     ("version_prune.js", include_str!("js/version_prune.js")),
     // #30: `get X`/`set X` names on every window accessor + the [Replaceable] setters (before the reorder).

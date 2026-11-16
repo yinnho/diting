@@ -255,6 +255,12 @@ fn knife57_singleton_extras_fold_to_chrome_truth() {
             tpl: [tpl.content.childNodes.length, tpl.content.firstChild.tagName, tpl.innerHTML],
             clone: [cl.childNodes.length, cl.firstChild.tagName],
             cf: [cf.childNodes.length, cf.firstChild.tagName],
+            q: new AudioContext().renderQuantumSize,
+            ps: (function () {
+              const ctx = new AudioContext();
+              const s = ctx.playbackStats;
+              return [ctx.playbackStats === s, s.underrunEvents, s.averageLatency, s.resetLatency() === undefined, s.toJSON().totalDuration, Object.prototype.toString.call(s)];
+            })(),
           });
         })()
     "#).unwrap();
@@ -263,10 +269,15 @@ fn knife57_singleton_extras_fold_to_chrome_truth() {
     assert_eq!(
         v["acOwn"],
         serde_json::json!(
-            "baseLatency,outputLatency,onerror,close,createMediaElementSource,createMediaStreamDestination,createMediaStreamSource,getOutputTimestamp,resume,suspend,constructor,sinkId,onsinkchange,setSinkId"
+            "baseLatency,outputLatency,onerror,close,createMediaElementSource,createMediaStreamDestination,createMediaStreamSource,getOutputTimestamp,resume,suspend,playbackStats,constructor,sinkId,onsinkchange,setSinkId"
         )
     );
-    assert!(!v["baseOwn"].as_str().unwrap().contains("renderQuantumSize"));
+    assert!(v["baseOwn"].as_str().unwrap().contains("renderQuantumSize"));
+    assert_eq!(v["q"], serde_json::json!(128));
+    assert_eq!(
+        v["ps"],
+        serde_json::json!([true, 0, 0, true, 0, "[object AudioPlaybackStats]"])
+    );
     assert_eq!(v["mediaOwn"], serde_json::json!("media,constructor"));
     assert_eq!(v["scopeOwn"], serde_json::json!("start,end,constructor")); // 刀75: Chrome 145 CSSScopeRule.start/end
     assert_eq!(v["condOwn"], serde_json::json!("conditionText,constructor"));
@@ -2540,6 +2551,211 @@ fn element_pseudo_returns_cached_css_pseudo_element() {
             "illegal": "TypeError: Illegal invocation",
             "ctor": "TypeError: Failed to construct 'CSSPseudoElement': Illegal constructor",
             "order": "type,element,parent,pseudo,constructor",
+        })
+    );
+}
+
+/// Chrome 157 setHTML drops script, handlers, javascript: URLs, and elements
+/// outside the default allow list. setHTMLUnsafe keeps them. The position
+/// methods insert around the node. A parentless beforeHTML does nothing.
+#[test]
+fn set_html_sanitizes_and_positions_like_chrome() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        function kids(n) {
+          return Array.from(n.childNodes).map(c => c.nodeType === 3 ? '#' + c.data : c.localName + (c.getAttribute ? '[' + (c.getAttribute('onclick') || '') + (c.getAttribute('href') || '') + ']' : '')).join(',');
+        }
+        const html = '<b onclick="x">t</b><script>1<\/script><a href="javascript:1">a</a>';
+        const safe = document.createElement('div');
+        const ret = safe.setHTML(html);
+        const unsafe = document.createElement('div');
+        unsafe.setHTMLUnsafe(html);
+        const box = document.createElement('div');
+        box.appendChild(document.createTextNode('Z'));
+        box.prependHTML('<i>a</i>');
+        const p = document.createElement('div');
+        const span = document.createElement('span');
+        p.appendChild(span);
+        span.beforeHTML('<i>b</i>');
+        span.afterHTML('<i>c</i>');
+        const orphan = document.createElement('span');
+        let orphanErr = '';
+        try { orphan.beforeHTML('<i>a</i>'); } catch (e) { orphanErr = e.name; }
+        const host = document.createElement('div');
+        const sr = host.attachShadow({ mode: 'open' });
+        sr.setHTML('<b>q</b><script>1<\/script>');
+        const text = document.createTextNode('T');
+        const tw = document.createElement('div');
+        tw.appendChild(text);
+        text.beforeHTML('<i>a</i>');
+        let missing = '';
+        try { document.createElement('div').setHTML(); } catch (e) { missing = e.name + ': ' + e.message; }
+        const nul = document.createElement('div');
+        nul.setHTML(null);
+        ({
+          ret: ret === undefined,
+          safe: kids(safe),
+          unsafe: kids(unsafe),
+          prepend: kids(box),
+          around: kids(p),
+          orphan: orphanErr + (orphan.parentNode ? ':has' : ':none'),
+          shadow: kids(sr),
+          text: kids(tw),
+          missing,
+          nul: kids(nul),
+          len: Element.prototype.setHTML.length,
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "ret": true,
+            "safe": "b[],a[]",
+            "unsafe": "b[x],script[],a[javascript:1]",
+            "prepend": "i[],#Z",
+            "around": "i[],span[],i[]",
+            "orphan": ":none",
+            "shadow": "b[]",
+            "text": "i[],#T",
+            "missing": "TypeError: Failed to execute 'setHTML' on 'Element': 1 argument required, but only 0 present.",
+            "nul": "#null",
+            "len": 1,
+        })
+    );
+}
+
+/// Chrome 157 streamHTML returns a WritableStream. The target is cleared
+/// when the stream is created. Each write reparses the whole buffer, so a
+/// tag opened in one chunk stays open for the next. The safe stream uses
+/// the same allow list as setHTML.
+#[test]
+fn stream_html_reparses_chunks_like_chrome() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        function kids(n) {
+          return Array.from(n.childNodes).map(c => c.nodeType === 3 ? '#' + c.data : c.localName + '[' + c.textContent + (c.getAttribute ? (c.getAttribute('onclick') || '') : '') + ']').join(',');
+        }
+        const el = document.createElement('div');
+        el.textContent = 'OLD';
+        const ws = el.streamHTML();
+        const cleared = el.childNodes.length === 0;
+        const w = ws.getWriter();
+        w.write('<b>');
+        const mid = kids(el);
+        w.write('x</b><i>y</i>');
+        const end = kids(el);
+        const safe = document.createElement('div');
+        const sw = safe.streamHTML().getWriter();
+        sw.write('<b onclick="x">t</b><script>1<\/script>');
+        const unsafe = document.createElement('div');
+        const uw = unsafe.streamHTMLUnsafe().getWriter();
+        uw.write('<b onclick="x">t</b><script>1<\/script>');
+        const box = document.createElement('div');
+        box.appendChild(document.createTextNode('Z'));
+        box.streamPrependHTML().getWriter().write('<i>a</i>');
+        const p = document.createElement('div');
+        const span = document.createElement('span');
+        p.appendChild(span);
+        span.streamBeforeHTML().getWriter().write('<i>b</i>');
+        const tw = document.createElement('div');
+        const text = document.createTextNode('T');
+        tw.appendChild(text);
+        text.streamBeforeHTML().getWriter().write('<i>a</i>');
+        const host = document.createElement('div');
+        const sr = host.attachShadow({ mode: 'open' });
+        sr.streamHTML().getWriter().write('<b>q</b>');
+        ({
+          ctor: ws.constructor.name,
+          len: Element.prototype.streamHTML.length,
+          cleared, mid, end,
+          safe: kids(safe),
+          unsafe: kids(unsafe),
+          prepend: kids(box),
+          before: kids(p),
+          text: kids(tw),
+          shadow: kids(sr),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "ctor": "WritableStream",
+            "len": 0,
+            "cleared": true,
+            "mid": "b[]",
+            "end": "b[x],i[y]",
+            "safe": "b[t]",
+            "unsafe": "b[tx],script[1]",
+            "prepend": "i[a],#Z",
+            "before": "i[b],span[]",
+            "text": "i[a],#T",
+            "shadow": "b[q]",
+        })
+    );
+}
+
+/// Chrome 157 ProcessingInstruction pseudo-attributes. Only quoted
+/// name="value" pairs count. setAttribute rewrites data, escaping & < > ".
+/// toggleAttribute adds an empty value or removes the pair.
+#[test]
+fn processing_instruction_pseudo_attributes_match_chrome() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const styled = document.createProcessingInstruction('xml-stylesheet', 'type="text/css" href="a.css"');
+        const bare = document.createProcessingInstruction('x', 'href=a.css');
+        const pi = document.createProcessingInstruction('x', 'a="1" b="2" c="3"');
+        pi.setAttribute('b', '9');
+        const afterSet = pi.data;
+        pi.setAttribute('d', 'm&n<o>"');
+        const escaped = pi.getAttribute('d');
+        pi.removeAttribute('a');
+        const afterRem = pi.data;
+        const t = document.createProcessingInstruction('x', 'k="1"');
+        t.toggleAttribute('k');
+        const off = t.data;
+        t.toggleAttribute('k');
+        const on = [t.data, t.getAttribute('k')];
+        let missing = '';
+        try { pi.getAttribute(); } catch (e) { missing = e.name + ': ' + e.message; }
+        ({
+          href: styled.getAttribute('href'),
+          type: styled.getAttribute('type'),
+          names: styled.getAttributeNames(),
+          bare: bare.getAttributeNames(),
+          caseHref: document.createProcessingInstruction('x', 'Href="Z"').getAttribute('href'),
+          afterSet, escaped, afterRem, off, on, missing,
+          has: styled.hasAttributes(),
+          order: Object.getOwnPropertyNames(ProcessingInstruction.prototype).join(','),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "href": "a.css",
+            "type": "text/css",
+            "names": ["type", "href"],
+            "bare": [],
+            "caseHref": null,
+            "afterSet": "a=\"1\" b=\"9\" c=\"3\"",
+            "escaped": "m&n<o>\"",
+            "afterRem": "b=\"9\" c=\"3\" d=\"m&amp;n&lt;o&gt;&quot;\"",
+            "off": "",
+            "on": ["k=\"\"", ""],
+            "missing": "TypeError: Failed to execute 'getAttribute' on 'ProcessingInstruction': 1 argument required, but only 0 present.",
+            "has": true,
+            "order": "target,sheet,getAttribute,getAttributeNames,hasAttribute,hasAttributes,removeAttribute,setAttribute,toggleAttribute,constructor",
         })
     );
 }
