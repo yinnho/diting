@@ -2452,6 +2452,106 @@ fn chrome157_xr_composition_layer() {
     );
 }
 
+/// Chrome 157 NavigationPrecommitController.addHandler. Brand check wins
+/// over the argument count.
+#[test]
+fn chrome157_precommit_handler() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { fn(); return 'ok'; } catch (e) { return e.name + ': ' + e.message; } };
+        const o = Object.create(NavigationPrecommitController.prototype);
+        ({
+          zero: err(() => o.addHandler()),
+          fn: err(() => o.addHandler(function () {})),
+          bad: err(() => NavigationPrecommitController.prototype.addHandler.call({}, function () {})),
+          len: NavigationPrecommitController.prototype.addHandler.length,
+          order: Object.getOwnPropertyNames(NavigationPrecommitController.prototype),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "zero": "TypeError: Illegal invocation",
+            "fn": "TypeError: Illegal invocation",
+            "bad": "TypeError: Illegal invocation",
+            "len": 1,
+            "order": ["addHandler", "redirect", "constructor"],
+        })
+    );
+}
+
+/// Chrome 157 XSLTProcessor. Parameters round-trip. A single root template
+/// of elements and value-of is applied; other stylesheets yield null.
+#[test]
+fn chrome157_xslt_processor() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { const r = fn(); return r === undefined ? 'undef' : (r === null ? 'null' : String(r)); } catch (e) { return e.name + ': ' + e.message; } };
+        const p = new XSLTProcessor();
+        const doc = document.createElement('a');
+        doc.textContent = 'hi';
+        const sheet = document.createElement('stylesheet');
+        const tmpl = document.createElement('template');
+        const outEl = document.createElement('out');
+        const valueOf = document.createElement('value-of');
+        valueOf.setAttribute('select', 'a');
+        outEl.appendChild(valueOf);
+        (tmpl.content || tmpl).appendChild(outEl);
+        sheet.appendChild(tmpl);
+        const before = p.transformToDocument(doc);
+        p.importStylesheet(sheet);
+        const made = p.transformToDocument(doc);
+        const frag = p.transformToFragment(doc, document);
+        p.setParameter(null, 'x', 'v');
+        p.setParameter('', 'y', 2);
+        const got = [p.getParameter(null, 'x'), p.getParameter('', 'y'), p.getParameter(null, 'missing')];
+        p.removeParameter(null, 'x');
+        p.clearParameters();
+        p.reset();
+        ({
+          before: before === null,
+          tag: made && made.documentElement && made.documentElement.localName,
+          text: made && made.documentElement && made.documentElement.textContent,
+          frag: frag && frag.constructor.name,
+          fragText: frag && frag.textContent,
+          got,
+          removed: p.getParameter(null, 'x'),
+          cleared: p.getParameter('', 'y'),
+          afterReset: p.transformToDocument(doc) === null,
+          imp0: err(() => p.importStylesheet()),
+          impNull: err(() => p.importStylesheet(null)),
+          bad: err(() => XSLTProcessor.prototype.getParameter.call({}, null, 'x')),
+          order: Object.getOwnPropertyNames(XSLTProcessor.prototype),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "before": true,
+            "tag": "out",
+            "text": "hi",
+            "frag": "DocumentFragment",
+            "fragText": "hi",
+            "got": ["v", 2, null],
+            "removed": null,
+            "cleared": null,
+            "afterReset": true,
+            "imp0": "TypeError: Failed to execute 'importStylesheet' on 'XSLTProcessor': 1 argument required, but only 0 present.",
+            "impNull": "TypeError: Failed to execute 'importStylesheet' on 'XSLTProcessor': parameter 1 is not of type 'Node'.",
+            "bad": "TypeError: Illegal invocation",
+            "order": ["clearParameters", "getParameter", "importStylesheet", "removeParameter", "reset", "setParameter", "transformToDocument", "transformToFragment", "constructor"],
+        })
+    );
+}
+
 /// Chrome 157 datagram caps. 0 and non-finite numbers are stored as 1.
 /// A negative value wraps as an unsigned long.
 #[test]

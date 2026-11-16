@@ -999,6 +999,138 @@
     seat('XREquirectLayer', ['space', 'transform', 'radius', 'centralHorizontalAngle', 'upperVerticalAngle', 'lowerVerticalAngle', 'onredraw', 'constructor']);
   });
 
+  // Chrome 157 precommit handler. No live controller is minted, so the
+  // call fails the brand check before the argument is examined.
+  section('nav-precommit', () => {
+    const C = G.NavigationPrecommitController;
+    if (typeof C !== 'function' || !C.prototype) return;
+    const live = new WeakSet();
+    fn('NavigationPrecommitController', 'addHandler', 1, function addHandler() {
+      if (!live.has(this)) throw new TypeError('Illegal invocation');
+    });
+  });
+
+  // Chrome 157 XSLTProcessor. Parameters are stored for real. A stylesheet
+  // is applied only when it is one root template of elements and value-of;
+  // anything else transforms to null, same as importing a non-stylesheet.
+  section('xslt', () => {
+    const C = G.XSLTProcessor;
+    if (typeof C !== 'function' || !C.prototype) return;
+    const slots = new WeakMap();
+    const use = (self) => {
+      if (!(self instanceof C)) throw new TypeError('Illegal invocation');
+      let s = slots.get(self);
+      if (!s) { s = { sheet: null, params: new Map() }; slots.set(self, s); }
+      return s;
+    };
+    const isNode = (v) => v !== null && typeof v === 'object' && typeof v.nodeType === 'number';
+    const lname = (n) => n.localName || String(n.nodeName || '').replace(/^.*:/, '');
+    const nsKey = (ns) => ns == null ? '' : String(ns);
+    const produce = (sheetNode, source) => {
+      const root = sheetNode.nodeType === 9 ? sheetNode.documentElement : sheetNode;
+      if (!root || lname(root) !== 'stylesheet') return null;
+      const nodesOf = (node) => (node.content && node.content.childNodes && node.content.childNodes.length) ? node.content.childNodes : node.childNodes;
+      let tmpl = null;
+      const rootKids = nodesOf(root);
+      for (let i = 0; i < rootKids.length; i++) {
+        const c = rootKids[i];
+        if (c.nodeType === 1 && lname(c) === 'template') { tmpl = c; break; }
+      }
+      if (!tmpl) return null;
+      const src = source.nodeType === 9 ? source.documentElement : source;
+      const select = (sel) => {
+        if (!src || !sel) return '';
+        if (lname(src) === sel) return src.textContent || '';
+        const list = src.getElementsByTagName && src.getElementsByTagName(sel);
+        return list && list[0] ? (list[0].textContent || '') : '';
+      };
+      const fill = (parent, node) => {
+        const kids = nodesOf(node);
+        for (let i = 0; i < kids.length; i++) {
+          const c = kids[i];
+          if (c.nodeType === 3) {
+            if (c.data && c.data.trim()) parent.appendChild(document.createTextNode(c.data));
+          } else if (c.nodeType === 1 && lname(c) === 'value-of') {
+            parent.appendChild(document.createTextNode(select(c.getAttribute('select') || '')));
+          } else if (c.nodeType === 1) {
+            const e = document.createElement(lname(c));
+            fill(e, c);
+            parent.appendChild(e);
+          }
+        }
+      };
+      const elems = [];
+      const tmplKids = nodesOf(tmpl);
+      for (let i = 0; i < tmplKids.length; i++) {
+        const c = tmplKids[i];
+        if (c.nodeType === 1) elems.push(c);
+      }
+      if (elems.length !== 1) return null;
+      const e = document.createElement(lname(elems[0]));
+      fill(e, elems[0]);
+      return { nodeType: 9, documentElement: e };
+    };
+    fn('XSLTProcessor', 'importStylesheet', 1, function importStylesheet(node) {
+      const s = use(this);
+      argc(arguments, 1, 'importStylesheet', 'XSLTProcessor');
+      if (!isNode(node)) throw new TypeError("Failed to execute 'importStylesheet' on 'XSLTProcessor': parameter 1 is not of type 'Node'.");
+      s.sheet = node;
+    });
+    fn('XSLTProcessor', 'transformToDocument', 1, function transformToDocument(source) {
+      const s = use(this);
+      argc(arguments, 1, 'transformToDocument', 'XSLTProcessor');
+      if (!isNode(source)) throw new TypeError("Failed to execute 'transformToDocument' on 'XSLTProcessor': parameter 1 is not of type 'Node'.");
+      return s.sheet ? produce(s.sheet, source) : null;
+    });
+    fn('XSLTProcessor', 'transformToFragment', 2, function transformToFragment(source, owner) {
+      const s = use(this);
+      argc(arguments, 2, 'transformToFragment', 'XSLTProcessor');
+      if (!isNode(source)) throw new TypeError("Failed to execute 'transformToFragment' on 'XSLTProcessor': parameter 1 is not of type 'Node'.");
+      if (!owner || owner.nodeType !== 9) throw new TypeError("Failed to execute 'transformToFragment' on 'XSLTProcessor': parameter 2 is not of type 'Document'.");
+      const made = s.sheet ? produce(s.sheet, source) : null;
+      if (!made || !made.documentElement) return null;
+      const frag = owner.createDocumentFragment();
+      frag.appendChild(made.documentElement.cloneNode(true));
+      return frag;
+    });
+    fn('XSLTProcessor', 'setParameter', 3, function setParameter(ns, name, value) {
+      const s = use(this);
+      argc(arguments, 3, 'setParameter', 'XSLTProcessor');
+      s.params.set(nsKey(ns) + '\0' + String(name), value);
+    });
+    fn('XSLTProcessor', 'getParameter', 2, function getParameter(ns, name) {
+      const s = use(this);
+      argc(arguments, 2, 'getParameter', 'XSLTProcessor');
+      const v = s.params.get(nsKey(ns) + '\0' + String(name));
+      return v === undefined ? null : v;
+    });
+    fn('XSLTProcessor', 'removeParameter', 2, function removeParameter(ns, name) {
+      const s = use(this);
+      argc(arguments, 2, 'removeParameter', 'XSLTProcessor');
+      s.params.delete(nsKey(ns) + '\0' + String(name));
+    });
+    fn('XSLTProcessor', 'clearParameters', 0, function clearParameters() {
+      use(this).params.clear();
+    });
+    fn('XSLTProcessor', 'reset', 0, function reset() {
+      const s = use(this);
+      s.sheet = null;
+      s.params.clear();
+    });
+    const P = C.prototype;
+    const names = Object.getOwnPropertyNames(P);
+    const want = ['clearParameters', 'getParameter', 'importStylesheet', 'removeParameter', 'reset', 'setParameter', 'transformToDocument', 'transformToFragment', 'constructor'];
+    const seq = want.filter((k) => names.indexOf(k) >= 0).concat(names.filter((k) => want.indexOf(k) < 0));
+    if (!seq.every((k, i) => k === names[i])) {
+      const saved = [];
+      for (const k of seq) {
+        const d = Object.getOwnPropertyDescriptor(P, k);
+        if (d && d.configurable) { saved.push([k, d]); delete P[k]; }
+      }
+      for (const [k, d] of saved) Object.defineProperty(P, k, d);
+    }
+  });
+
   // Chrome 157 iterator helpers. join defaults to ",". includes uses
   // SameValueZero, so NaN matches NaN. A receiver without next throws when
   // next is called.
