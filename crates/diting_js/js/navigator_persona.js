@@ -43,6 +43,17 @@ const __navStore = {
   webkitPersistentStorage: { queryUsageAndQuota(cb) { if (cb) cb(0, 500000000); }, requestQuota() {} },
   windowControlsOverlay: { visible: false, ontitlebarchange: null, addEventListener(){}, removeEventListener(){}, dispatchEvent(){ return false; } },
   hardwareConcurrency: 8,
+  // WICG cpu-performance: tier from the reported core count. 1 core → 1,
+  // 2–4 → 2, 5–10 → 3, 11+ → 4, unknown → 0. Model-specific bumps are
+  // not applied; the tier follows the persona's hardwareConcurrency.
+  get cpuPerformance() {
+    const n = Number(__navStore.hardwareConcurrency);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    if (n < 2) return 1;
+    if (n <= 4) return 2;
+    if (n <= 10) return 3;
+    return 4;
+  },
   cookieEnabled: true,
   appCodeName: "Mozilla",
   appName: "Netscape",
@@ -329,7 +340,7 @@ try {
     'webkitTemporaryStorage','webkitPersistentStorage','windowControlsOverlay','hardwareConcurrency','cookieEnabled',
     'appCodeName','appName','appVersion','platform','product','userAgent','language','languages','onLine','webdriver',
     'plugins','mimeTypes','pdfViewerEnabled','connection','getGamepads','javaEnabled','sendBeacon','vibrate','constructor',
-    'bluetooth','clipboard','credentials',
+    'cpuPerformance','bluetooth','clipboard','credentials',
     'keyboard','managed','mediaDevices','serviceWorker','virtualKeyboard','wakeLock','deviceMemory','userAgentData',
     'locks','storage','gpu','login','ink','mediaCapabilities','permissions','devicePosture','hid','mediaSession',
     'presentation','serial','usb','xr','storageBuckets',

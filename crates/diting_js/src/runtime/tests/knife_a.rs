@@ -240,7 +240,12 @@ fn knife57_singleton_extras_fold_to_chrome_truth() {
             pcOwn: own(PasswordCredential), dfHas: Object.getOwnPropertyDescriptor(DocumentFragment.prototype, 'innerHTML') === undefined,
             srHas: typeof Object.getOwnPropertyDescriptor(ShadowRoot.prototype, 'innerHTML').get,
             roOwn: own(ResizeObserver), lqOwn: own(LaunchQueue), gpuOwn: own(GPUAdapter),
-            wtOwn: own(WebTransport), navCPU: typeof navigator.cpuPerformance,
+            wtOwn: own(WebTransport),
+            navCPU: (function () {
+              const n = navigator.hardwareConcurrency;
+              const tier = !Number.isFinite(n) || n <= 0 ? 0 : n < 2 ? 1 : n <= 4 ? 2 : n <= 10 ? 3 : 4;
+              return navigator.cpuPerformance === tier;
+            })(),
             docRP: typeof Object.getOwnPropertyDescriptor(Document.prototype, 'referrerPolicy'),
             cond: [rs['CSSMediaRule'].conditionText, rs['CSSSupportsRule'].conditionText, rs['CSSContainerRule'].conditionText],
             scopeCond: typeof rs['CSSScopeRule'].conditionText,
@@ -301,7 +306,8 @@ fn knife57_singleton_extras_fold_to_chrome_truth() {
         serde_json::json!("features,limits,info,requestDevice,constructor")
     );
     assert!(!v["wtOwn"].as_str().unwrap().contains("congestionControl"));
-    assert_eq!(v["navCPU"], serde_json::json!("undefined"));
+    // Tier follows the live hardwareConcurrency, not a fixed core count.
+    assert_eq!(v["navCPU"], serde_json::json!(true));
     assert_eq!(v["docRP"], serde_json::json!("undefined"));
     // ---- behavior through the moved/deleted faces ----
     assert_eq!(
