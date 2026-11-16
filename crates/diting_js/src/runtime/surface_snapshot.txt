@@ -2110,6 +2110,7 @@ P StyleSheet :: constructor,disabled,href,media,ownerNode,parentStyleSheet,title
 P StyleSheetList :: constructor,item,length
 P SubmitEvent :: constructor,submitter
 P Subscriber :: active,addTeardown,complete,constructor,error,next,signal
+S SubtleCrypto :: supports
 P SubtleCrypto :: constructor,decapsulateBits,decapsulateKey,decrypt,deriveBits,deriveKey,digest,encapsulateBits,encapsulateKey,encrypt,exportKey,generateKey,getPublicKey,importKey,sign,unwrapKey,verify,wrapKey
 S Summarizer :: availability,create
 P Summarizer :: constructor,destroy,expectedContextLanguages,expectedInputLanguages,format,inputQuota,length,measureInputUsage,outputLanguage,sharedContext,summarize,summarizeStreaming,type

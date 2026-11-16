@@ -1406,6 +1406,44 @@ if (!globalThis.crypto.subtle) {
 
   globalThis.CryptoKey = CryptoKey;
   globalThis.SubtleCrypto = function SubtleCrypto() { throw new TypeError("Failed to construct '" + ((new.target && new.target.name) || "?") + "': Illegal constructor"); };
+  // Chrome 157. Operation names are case-sensitive; algorithm names are not.
+  // A bare name is enough only when the operation needs no extra parameters.
+  // deriveBits and deriveKey stay false even with a full dictionary.
+  const SUPPORTS = {
+    digest: ["SHA-1", "SHA-256", "SHA-384", "SHA-512"],
+    generateKey: ["Ed25519", "X25519", "ML-KEM-768", "ML-KEM-1024"],
+    sign: ["Ed25519", "HMAC", "RSASSA-PKCS1-v1_5"],
+    verify: ["Ed25519", "HMAC", "RSASSA-PKCS1-v1_5"],
+    encrypt: ["RSA-OAEP"], decrypt: ["RSA-OAEP"],
+    wrapKey: ["AES-KW", "RSA-OAEP"], unwrapKey: ["AES-KW", "RSA-OAEP"],
+    importKey: ["AES-CBC", "AES-CTR", "AES-GCM", "AES-KW", "Ed25519", "HKDF", "ML-KEM-768", "ML-KEM-1024", "PBKDF2", "X25519"],
+    exportKey: ["AES-CBC", "AES-CTR", "AES-GCM", "AES-KW", "ECDH", "ECDSA", "Ed25519", "HMAC", "ML-KEM-768", "ML-KEM-1024", "RSA-OAEP", "RSA-PSS", "RSASSA-PKCS1-v1_5", "X25519"],
+    getPublicKey: ["ECDH", "ECDSA", "Ed25519", "ML-KEM-768", "ML-KEM-1024", "RSA-OAEP", "RSA-PSS", "RSASSA-PKCS1-v1_5", "X25519"],
+    encapsulateBits: ["ML-KEM-768", "ML-KEM-1024"], encapsulateKey: ["ML-KEM-768", "ML-KEM-1024"],
+    decapsulateBits: ["ML-KEM-768", "ML-KEM-1024"], decapsulateKey: ["ML-KEM-768", "ML-KEM-1024"],
+  };
+  function supports(operation, algorithm) {
+    if (arguments.length < 2) throw new TypeError("Failed to execute 'supports' on 'SubtleCrypto': 2 arguments required, but only " + arguments.length + " present.");
+    const ok = SUPPORTS[operation];
+    if (!ok) return false;
+    const raw = typeof algorithm === "string" ? algorithm : algorithm && typeof algorithm === "object" ? algorithm.name : "";
+    if (typeof raw !== "string" || !raw) return false;
+    const name = KNOWN_ALGOS[raw.toUpperCase()] || raw.toUpperCase();
+    if (ok.indexOf(name) >= 0) return true;
+    const d = algorithm && typeof algorithm === "object" ? algorithm : null;
+    if (!d) return false;
+    if (operation === "generateKey" && name.indexOf("AES-") === 0 && (d.length === 128 || d.length === 256)) return true;
+    if (operation === "generateKey" && name === "HMAC" && d.hash != null) return true;
+    if (operation === "generateKey" && (name === "ECDSA" || name === "ECDH") && d.namedCurve) return true;
+    if (operation === "generateKey" && (name === "RSA-OAEP" || name === "RSA-PSS" || name === "RSASSA-PKCS1-v1_5") && d.modulusLength && d.publicExponent && d.hash) return true;
+    if ((operation === "sign" || operation === "verify") && name === "ECDSA" && d.hash) return true;
+    if (operation === "importKey" && (name === "ECDSA" || name === "ECDH") && d.namedCurve) return true;
+    return false;
+  }
+  Object.defineProperty(supports, "name", { value: "supports", configurable: true });
+  Object.defineProperty(supports, "length", { value: 2, configurable: true });
+  if (typeof _markNative === "function") _markNative(supports);
+  Object.defineProperty(globalThis.SubtleCrypto, "supports", { value: supports, writable: true, enumerable: true, configurable: true });
   Object.setPrototypeOf(subtle, globalThis.SubtleCrypto.prototype);
   globalThis.crypto.subtle = subtle;
   globalThis.__diting_subtle_hooks = { makeKey, keyBytes, toBytes, bufferOf, b64urlToBytes, bytesToB64url, runOp };
