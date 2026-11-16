@@ -212,7 +212,7 @@ if (!globalThis.crypto.subtle) {
   // an unrecognized usage string is a TypeError; empty usages are a
   // SyntaxError except on public keys; out-of-family usages are a different
   // SyntaxError.
-  const KNOWN_USAGES = ["encrypt", "decrypt", "sign", "verify", "deriveKey", "deriveBits", "wrapKey", "unwrapKey"];
+  const KNOWN_USAGES = ["encrypt", "decrypt", "sign", "verify", "deriveKey", "deriveBits", "wrapKey", "unwrapKey", "encapsulateKey", "encapsulateBits", "decapsulateKey", "decapsulateBits"];
   function checkUsageStrings(method, usages) {
     for (const u of usages || []) {
       if (!KNOWN_USAGES.includes(u)) {
@@ -575,6 +575,163 @@ if (!globalThis.crypto.subtle) {
     })();
   }
 
+  // Chrome 157 ML-KEM. This BoringSSL has 768 and 1024 only; 512 is an
+  // unrecognized name (probed on 157.0.8103.52). Ciphertext / public lengths
+  // are the FIPS 203 sizes. PKCS#8 stores the 64-byte seed as a [0] IMPLICIT
+  // octet string; JWK kty is AKP.
+  const KEM_PUB = { "ML-KEM-768": 1184, "ML-KEM-1024": 1568 };
+  const KEM_CT = { "ML-KEM-768": 1088, "ML-KEM-1024": 1568 };
+  const KEM_PUB_USAGES = ["encapsulateBits", "encapsulateKey"];
+  const KEM_PRIV_USAGES = ["decapsulateBits", "decapsulateKey"];
+  function kemName(algorithm) {
+    const alg = normalizeAlgo(algorithm);
+    if (KEM_PUB[alg.name]) return alg.name;
+    return null;
+  }
+  function kemResolve(algorithm, method) {
+    const alg = normalizeAlgo(algorithm);
+    const pre = "Failed to execute '" + method + "' on 'SubtleCrypto': ";
+    const known = KEM_PUB[alg.name] ? alg.name : KNOWN_ALGOS[String(alg.name).toUpperCase()];
+    if (!known) throw new DOMException(pre + "Algorithm: Unrecognized name", "NotSupportedError");
+    if (!KEM_PUB[known]) {
+      const op = method.indexOf("decapsulate") === 0 ? "decapsulate" : "encapsulate";
+      throw new DOMException(pre + known + ": Unsupported operation: " + op, "NotSupportedError");
+    }
+    alg.name = known;
+    return alg;
+  }
+  function kemDerived(derived, method) {
+    const d = normalizeAlgo(derived);
+    const known = KEM_PUB[d.name] ? d.name : KNOWN_ALGOS[String(d.name).toUpperCase()];
+    if (!known) {
+      throw new DOMException("Failed to execute '" + method + "' on 'SubtleCrypto': Algorithm: Unrecognized name", "NotSupportedError");
+    }
+    d.name = known;
+    return d;
+  }
+  function kemUse(alg, key, usage) {
+    if (!key.algorithm || key.algorithm.name !== alg.name) {
+      throw new DOMException("key.algorithm does not match that of operation", "InvalidAccessError");
+    }
+    if (!key.usages.includes(usage)) {
+      throw new DOMException("key.usages does not permit this operation", "InvalidAccessError");
+    }
+    const m = keyBytes(key);
+    if (!m || !m.pub) throw new DOMException("Argument is not a valid CryptoKey", "InvalidAccessError");
+    return m;
+  }
+  function kemBytes(method, data) {
+    if (!(data instanceof ArrayBuffer) && !ArrayBuffer.isView(data)) {
+      throw new TypeError("Failed to execute '" + method + "' on 'SubtleCrypto': parameter 3 is not of type 'ArrayBuffer'.");
+    }
+    return toBytes(data);
+  }
+  function readUsageSequence(method, value) {
+    const pre = "Failed to execute '" + method + "' on 'SubtleCrypto': ";
+    if (value === null || value === undefined || typeof value !== "object") {
+      throw new TypeError(pre + "The provided value cannot be converted to a sequence.");
+    }
+    let seq;
+    try { seq = Array.from(value); }
+    catch (e) { throw new TypeError(pre + "The object must have a callable @@iterator property."); }
+    for (const u of seq) {
+      if (typeof u !== "string" || !KNOWN_USAGES.includes(u)) throw new TypeError(pre + "Invalid keyUsages argument");
+    }
+    return seq;
+  }
+  function publicUsagesFor(name) {
+    if (KEM_PUB[name]) return KEM_PUB_USAGES;
+    if (name === "ECDSA" || name === "ECDH") return ecUsagesFor(name, "public");
+    if (name === "RSA-OAEP" || name === "RSASSA-PKCS1-v1_5" || name === "RSA-PSS") return rsaFace(name).pub;
+    return [];
+  }
+  function kemOid(name) {
+    return [0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x04, name === "ML-KEM-768" ? 2 : 3];
+  }
+  function kemSpki(name, pub) {
+    const oid = kemOid(name);
+    const bitLen = pub.length + 1;
+    const seqLen = 13 + 4 + bitLen;
+    const out = new Uint8Array(4 + seqLen);
+    out[0] = 0x30; out[1] = 0x82; out[2] = seqLen >> 8; out[3] = seqLen & 255;
+    out[4] = 0x30; out[5] = 0x0b; out[6] = 0x06; out[7] = 0x09;
+    out.set(oid, 8);
+    let o = 17;
+    out[o++] = 0x03; out[o++] = 0x82; out[o++] = bitLen >> 8; out[o++] = bitLen & 255; out[o++] = 0x00;
+    out.set(pub, o);
+    return out;
+  }
+  function kemPkcs8(name, seed) {
+    const out = new Uint8Array(86);
+    out.set([0x30, 0x54, 0x02, 0x01, 0x00, 0x30, 0x0b, 0x06, 0x09], 0);
+    out.set(kemOid(name), 9);
+    out.set([0x04, 0x42, 0x80, 0x40], 18);
+    out.set(seed, 22);
+    return out;
+  }
+  function kemEq(a, b) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+  function kemMaterialOf(name, pub, seed) {
+    const pubBytes = new Uint8Array(pub);
+    if (seed) return { pub: pubBytes, seed: new Uint8Array(seed) };
+    return { pub: pubBytes };
+  }
+  function kemImport(format, keyData, name, extractable, usages) {
+    checkUsageStrings("importKey", usages);
+    const pubLen = KEM_PUB[name];
+    let pub, seed, type;
+    if (format === "raw") throw new DOMException("Unsupported import key format for algorithm", "NotSupportedError");
+    if (format === "spki") {
+      const bytes = toBytes(keyData);
+      const hdr = kemSpki(name, new Uint8Array(pubLen)).subarray(0, 22);
+      if (bytes.length !== hdr.length + pubLen || !kemEq(bytes.subarray(0, hdr.length), hdr)) {
+        throw new DOMException("", "DataError");
+      }
+      pub = bytes.subarray(22);
+      type = "public";
+    } else if (format === "pkcs8") {
+      const bytes = toBytes(keyData);
+      const hdr = kemPkcs8(name, new Uint8Array(64)).subarray(0, 22);
+      if (bytes.length !== 86 || !kemEq(bytes.subarray(0, 22), hdr)) throw new DOMException("", "DataError");
+      seed = bytes.subarray(22);
+      pub = runOp(() => _OPS.op_subtle_mlkem_public(name, seed));
+      type = "private";
+    } else if (format === "jwk") {
+      const jwk = keyData;
+      if (!jwk || jwk.kty !== "AKP") throw new DOMException("The JWK \"kty\" member was not \"AKP\"", "DataError");
+      jwkValidateCommon(jwk, extractable, usages, name);
+      jwkRequire(jwk, "pub");
+      pub = jwk.pub === "" ? new Uint8Array(0) : jwkMemberBytes(jwk, "pub");
+      if (pub.length !== pubLen) throw new DOMException("", "DataError");
+      if (jwk.priv !== undefined) {
+        const raw = jwk.priv === "" ? new Uint8Array(0) : jwkMemberBytes(jwk, "priv");
+        if (raw.length !== 64) throw new DOMException("", "DataError");
+        const got = runOp(() => _OPS.op_subtle_mlkem_public(name, raw));
+        if (!kemEq(got, pub)) throw new DOMException("", "DataError");
+        seed = raw;
+        type = "private";
+      } else {
+        type = "public";
+      }
+    } else {
+      throw new DOMException("Unsupported import key format for algorithm", "NotSupportedError");
+    }
+    const allowed = type === "private" ? KEM_PRIV_USAGES : KEM_PUB_USAGES;
+    checkKeyUsages(usages, allowed, type === "public");
+    return makeKey(type, extractable, { name: name }, usages, kemMaterialOf(name, pub, seed));
+  }
+  async function secretFromShared(method, bytes, derived, extractable, usages) {
+    try { return await subtle.importKey("raw", bytes, derived, extractable, usages); }
+    catch (e) {
+      const msg = e && e.message !== undefined ? String(e.message).split("importKey").join(method) : String(e);
+      if (e instanceof TypeError) throw new TypeError(msg);
+      throw new DOMException(msg, e && e.name ? e.name : "OperationError");
+    }
+  }
+
   const subtle = {
     async digest(algorithm, data) {
       const name = (typeof algorithm === "string" ? algorithm : algorithm && algorithm.name || "").toUpperCase().replace("_", "-");
@@ -587,6 +744,8 @@ if (!globalThis.crypto.subtle) {
 
     async importKey(format, keyData, algorithm, extractable, keyUsages) {
       requireFormat(format, "importKey");
+      const kem = kemName(algorithm);
+      if (kem) return kemImport(format, keyData, kem, extractable, keyUsages || []);
       const alg = normalizeFor(algorithm, "importKey", IMPORT_ALGS);
       if (alg.name === "ECDSA" || alg.name === "ECDH") {
         const crv = String(alg.namedCurve || "");
@@ -741,6 +900,24 @@ if (!globalThis.crypto.subtle) {
         throw new DOMException("Failed to execute 'exportKey' on 'SubtleCrypto': " + key.algorithm.name + ": Unsupported operation: exportKey", "NotSupportedError");
       }
       if (!key.extractable) throw new DOMException("Failed to execute 'exportKey' on 'SubtleCrypto': key is not extractable", "InvalidAccessError");
+      if (key.algorithm && KEM_PUB[key.algorithm.name]) {
+        const m = keyBytes(key);
+        if (format === "spki") {
+          if (key.type !== "public") throw new DOMException("The key is not of the expected type", "InvalidAccessError");
+          return bufferOf(kemSpki(key.algorithm.name, m.pub));
+        }
+        if (format === "pkcs8") {
+          if (key.type !== "private") throw new DOMException("The key is not of the expected type", "InvalidAccessError");
+          return bufferOf(kemPkcs8(key.algorithm.name, m.seed));
+        }
+        if (format === "jwk") {
+          const jwk = { alg: key.algorithm.name, ext: key.extractable, key_ops: key.usages.slice(), kty: "AKP" };
+          if (key.type === "private") jwk.priv = bytesToB64url(m.seed);
+          jwk.pub = bytesToB64url(m.pub);
+          return jwk;
+        }
+        throw new DOMException("Unsupported export key format for algorithm", "NotSupportedError");
+      }
       if (key.algorithm && (key.algorithm.name === "ECDSA" || key.algorithm.name === "ECDH")) {
         const m = ecMaterial(key);
         if (format === "raw" || format === "spki") {
@@ -823,6 +1000,29 @@ if (!globalThis.crypto.subtle) {
 
     async generateKey(algorithm, extractable, keyUsages) {
       const alg = normalizeAlgo(algorithm);
+      if (KEM_PUB[alg.name]) {
+        const usages = keyUsages || [];
+        checkUsageStrings("generateKey", usages);
+        for (const u of usages) {
+          if (!KEM_PUB_USAGES.includes(u) && !KEM_PRIV_USAGES.includes(u)) {
+            throw new DOMException("Cannot create a key using the specified key usages.", "SyntaxError");
+          }
+        }
+        const privUsages = usages.filter((u) => KEM_PRIV_USAGES.includes(u));
+        // A private key with no decapsulate usage is refused. A public key
+        // may carry an empty usage set (Chrome 157: decapsulate-only succeeds).
+        if (!privUsages.length) throw new DOMException("Usages cannot be empty when creating a key.", "SyntaxError");
+        const flat = runOp(() => _OPS.op_subtle_mlkem_generate(alg.name));
+        const seed = new Uint8Array(flat.subarray(0, 64));
+        const pubBytes = new Uint8Array(flat.subarray(64));
+        const face = { name: alg.name };
+        const pub = makeKey("public", true, face, usages.filter((u) => KEM_PUB_USAGES.includes(u)), { pub: pubBytes });
+        const priv = makeKey("private", !!extractable, face, privUsages, { pub: pubBytes, seed: seed });
+        return { publicKey: pub, privateKey: priv };
+      }
+      if (String(alg.name).indexOf("ML-KEM") === 0) {
+        throw new DOMException("Failed to execute 'generateKey' on 'SubtleCrypto': Algorithm: Unrecognized name", "NotSupportedError");
+      }
       if (alg.name === "RSA-OAEP" || alg.name === "RSASSA-PKCS1-v1_5" || alg.name === "RSA-PSS") {
         return rsaGenerateKey(alg, extractable, keyUsages || []);
       }
@@ -1052,6 +1252,76 @@ if (!globalThis.crypto.subtle) {
         }
       }
       return this.importKey(format, keyData, unwrappedKeyAlgorithm, extractable, keyUsages);
+    },
+
+    async encapsulateBits(algorithm, key) {
+      if (!(this instanceof SubtleCrypto)) throw new TypeError("Failed to execute 'encapsulateBits' on 'SubtleCrypto': Illegal invocation");
+      if (arguments.length < 2) throw new TypeError("Failed to execute 'encapsulateBits' on 'SubtleCrypto': 2 arguments required, but only " + arguments.length + " present.");
+      const alg = kemResolve(algorithm, "encapsulateBits");
+      requireCryptoKey(key, "encapsulateBits", 2);
+      const m = kemUse(alg, key, "encapsulateBits");
+      const flat = runOp(() => _OPS.op_subtle_mlkem_encap(alg.name, m.pub));
+      const n = KEM_CT[alg.name];
+      return { ciphertext: bufferOf(flat.subarray(0, n)), sharedKey: bufferOf(flat.subarray(n)) };
+    },
+    async encapsulateKey(algorithm, key, derivedKeyType, extractable, keyUsages) {
+      if (!(this instanceof SubtleCrypto)) throw new TypeError("Failed to execute 'encapsulateKey' on 'SubtleCrypto': Illegal invocation");
+      if (arguments.length < 5) throw new TypeError("Failed to execute 'encapsulateKey' on 'SubtleCrypto': 5 arguments required, but only " + arguments.length + " present.");
+      const alg = kemResolve(algorithm, "encapsulateKey");
+      kemDerived(derivedKeyType, "encapsulateKey");
+      requireCryptoKey(key, "encapsulateKey", 2);
+      const m = kemUse(alg, key, "encapsulateKey");
+      const flat = runOp(() => _OPS.op_subtle_mlkem_encap(alg.name, m.pub));
+      const n = KEM_CT[alg.name];
+      const sharedKey = await secretFromShared("encapsulateKey", flat.subarray(n), derivedKeyType, extractable, keyUsages);
+      return { sharedKey: sharedKey, ciphertext: bufferOf(flat.subarray(0, n)) };
+    },
+    async decapsulateBits(algorithm, key, ciphertext) {
+      if (!(this instanceof SubtleCrypto)) throw new TypeError("Failed to execute 'decapsulateBits' on 'SubtleCrypto': Illegal invocation");
+      if (arguments.length < 3) throw new TypeError("Failed to execute 'decapsulateBits' on 'SubtleCrypto': 3 arguments required, but only " + arguments.length + " present.");
+      const ct = kemBytes("decapsulateBits", ciphertext);
+      const alg = kemResolve(algorithm, "decapsulateBits");
+      requireCryptoKey(key, "decapsulateBits", 2);
+      const m = kemUse(alg, key, "decapsulateBits");
+      if (ct.length !== KEM_CT[alg.name]) throw new DOMException("", "DataError");
+      return bufferOf(runOp(() => _OPS.op_subtle_mlkem_decap(alg.name, m.seed, ct)));
+    },
+    async decapsulateKey(algorithm, key, ciphertext, derivedKeyType, extractable, keyUsages) {
+      if (!(this instanceof SubtleCrypto)) throw new TypeError("Failed to execute 'decapsulateKey' on 'SubtleCrypto': Illegal invocation");
+      if (arguments.length < 6) throw new TypeError("Failed to execute 'decapsulateKey' on 'SubtleCrypto': 6 arguments required, but only " + arguments.length + " present.");
+      const ct = kemBytes("decapsulateKey", ciphertext);
+      const alg = kemResolve(algorithm, "decapsulateKey");
+      kemDerived(derivedKeyType, "decapsulateKey");
+      requireCryptoKey(key, "decapsulateKey", 2);
+      const m = kemUse(alg, key, "decapsulateKey");
+      if (ct.length !== KEM_CT[alg.name]) throw new DOMException("", "DataError");
+      const shared = runOp(() => _OPS.op_subtle_mlkem_decap(alg.name, m.seed, ct));
+      return secretFromShared("decapsulateKey", shared, derivedKeyType, extractable, keyUsages);
+    },
+    async getPublicKey(key, keyUsages) {
+      if (!(this instanceof SubtleCrypto)) throw new TypeError("Failed to execute 'getPublicKey' on 'SubtleCrypto': Illegal invocation");
+      if (arguments.length < 2) throw new TypeError("Failed to execute 'getPublicKey' on 'SubtleCrypto': 2 arguments required, but only " + arguments.length + " present.");
+      requireCryptoKey(key, "getPublicKey", 1);
+      const seq = readUsageSequence("getPublicKey", keyUsages);
+      const allowed = publicUsagesFor(key.algorithm && key.algorithm.name);
+      for (const u of seq) {
+        if (!allowed.includes(u)) throw new DOMException("Cannot create a key using the specified key usages.", "SyntaxError");
+      }
+      if (key.type !== "private") {
+        throw new DOMException("Failed to execute 'getPublicKey' on 'SubtleCrypto': getPublicKey can only be called with a private key", "InvalidAccessError");
+      }
+      const name = key.algorithm.name;
+      if (KEM_PUB[name]) {
+        const m = keyBytes(key);
+        return makeKey("public", true, { name: name }, seq, { pub: m.pub });
+      }
+      if (name === "ECDSA" || name === "ECDH") {
+        return makeKey("public", true, { name: name, namedCurve: key.algorithm.namedCurve }, seq, ecMaterial(key));
+      }
+      if (name === "RSA-OAEP" || name === "RSASSA-PKCS1-v1_5" || name === "RSA-PSS") {
+        return makeKey("public", true, key.algorithm, seq, rsaMaterial(key));
+      }
+      throw new DOMException("Failed to execute 'getPublicKey' on 'SubtleCrypto': getPublicKey can only be called with a private key", "InvalidAccessError");
     },
   };
 

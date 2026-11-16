@@ -49,6 +49,10 @@ pub(crate) use ed25519::{
     op_subtle_ed25519_check, op_subtle_ed25519_public, op_subtle_ed25519_sign,
     op_subtle_ed25519_verify,
 };
+mod mlkem;
+pub(crate) use mlkem::{
+    op_subtle_mlkem_decap, op_subtle_mlkem_encap, op_subtle_mlkem_generate, op_subtle_mlkem_public,
+};
 mod cors;
 mod crypto_secret;
 mod referrer;
@@ -136,6 +140,10 @@ pub fn our_decls() -> Vec<diting_runtime::op_reg::OpDecl> {
         op_subtle_ed25519_public(),
         op_subtle_ed25519_sign(),
         op_subtle_ed25519_verify(),
+        op_subtle_mlkem_generate(),
+        op_subtle_mlkem_public(),
+        op_subtle_mlkem_encap(),
+        op_subtle_mlkem_decap(),
         op_random_bytes(),
         url_ops::op_url_parse(),
         url_ops::op_url_set(),

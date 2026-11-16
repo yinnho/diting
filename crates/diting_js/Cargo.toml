@@ -98,6 +98,9 @@ rsa = { version = "=0.10.0-rc.21", features = ["hazmat"] }
 # rsa rc (rand_core 0.6 → getrandom 0.2 is gone); sys_rng exposes SysRng
 # implementing rand_core 0.10's TryRng.
 getrandom = { version = "0.4", features = ["sys_rng"] }
+# ML-KEM-768/1024. Same vendored BoringSSL the TLS stack already links;
+# `mlkem` only checks the symbols exist. ML-KEM-512 is not in this snapshot.
+btls-sys = { path = "../diting_btls_sys", features = ["mlkem"] }
 
 [build-dependencies]
 # 10d host flip: the snapshot is baked by OUR runtime crate (container
