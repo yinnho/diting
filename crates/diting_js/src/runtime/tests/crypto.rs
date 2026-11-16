@@ -139,6 +139,49 @@ async fn mlkem_encapsulation_roundtrips() {
     );
 }
 
+#[test]
+fn subtle_supports_matches_chrome() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { return String(fn()); } catch (e) { return e.name + ': ' + e.message; } };
+        ({
+          zero: err(() => SubtleCrypto.supports()),
+          one: err(() => SubtleCrypto.supports('digest')),
+          dig: SubtleCrypto.supports('digest', 'sha-256'),
+          digCase: SubtleCrypto.supports('DIGEST', 'SHA-256'),
+          aesStr: SubtleCrypto.supports('encrypt', 'AES-GCM'),
+          aesObj: SubtleCrypto.supports('generateKey', { name: 'AES-GCM', length: 256 }),
+          aes192: SubtleCrypto.supports('generateKey', { name: 'AES-GCM', length: 192 }),
+          ml: SubtleCrypto.supports('generateKey', 'ML-KEM-768'),
+          ml512: SubtleCrypto.supports('generateKey', 'ML-KEM-512'),
+          der: SubtleCrypto.supports('deriveBits', { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: new Uint8Array(0) }),
+          inst: err(() => crypto.subtle.supports('digest', 'SHA-256')),
+          len: SubtleCrypto.supports.length,
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "zero": "TypeError: Failed to execute 'supports' on 'SubtleCrypto': 2 arguments required, but only 0 present.",
+            "one": "TypeError: Failed to execute 'supports' on 'SubtleCrypto': 2 arguments required, but only 1 present.",
+            "dig": true,
+            "digCase": false,
+            "aesStr": false,
+            "aesObj": true,
+            "aes192": false,
+            "ml": true,
+            "ml512": false,
+            "der": false,
+            "inst": "TypeError: crypto.subtle.supports is not a function",
+            "len": 2,
+        })
+    );
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn crypto_derive_output_lengths_are_capped() {
     let mut rt = setup_runtime("<html><body></body></html>");
