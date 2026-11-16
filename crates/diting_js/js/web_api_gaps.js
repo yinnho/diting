@@ -374,16 +374,10 @@
     }
   }
 
-  // ---- GPUSupportedLimits 31 limit getters (刀60) --------------------------
-  // Chrome 145 lists 31 ro:ec limit getters on GPUSupportedLimits.prototype;
-  // the engine's mint carried only `constructor`. No instance is reachable in
-  // EITHER world — Chrome for Testing 145 headless answers requestAdapter()
-  // with null (probed), and so does the engine — so this face is pure
-  // prototype shape: the getters read an internal _lim store and answer
-  // undefined on bare objects, exactly what an un-slotted read would show.
-  // Order follows truth with `constructor` moved LAST in-file (刀59 trick:
-  // the raw order then equals truth, gen_shape_fix emits no ORDER entry, and
-  // nothing ever reorders against this prototype).
+  // ---- GPUSupportedLimits limit getters (刀60, Chrome 157 adds five) ----
+  // The getters read an internal _lim store and answer undefined when it is
+  // missing. Order follows Chrome, then `constructor` is moved last so the
+  // raw order stays put (this prototype is not in shape_fix ORDER).
   if (typeof GPUSupportedLimits === 'function') {
     const LIM = ['maxTextureDimension1D', 'maxTextureDimension2D', 'maxTextureDimension3D',
       'maxTextureArrayLayers', 'maxBindGroups', 'maxBindGroupsPlusVertexBuffers',
@@ -398,7 +392,9 @@
       'maxColorAttachmentBytesPerSample', 'maxComputeWorkgroupStorageSize',
       'maxComputeInvocationsPerWorkgroup', 'maxComputeWorkgroupSizeX',
       'maxComputeWorkgroupSizeY', 'maxComputeWorkgroupSizeZ',
-      'maxComputeWorkgroupsPerDimension'];
+      'maxComputeWorkgroupsPerDimension', 'maxImmediateSize',
+      'maxStorageBuffersInFragmentStage', 'maxStorageTexturesInFragmentStage',
+      'maxStorageBuffersInVertexStage', 'maxStorageTexturesInVertexStage'];
     const P = GPUSupportedLimits.prototype;
     for (const k of LIM) {
       const g = new Function('k', 'return function ' + k + '() { const l = this._lim; return l ? l[k] : undefined; };')(k);
@@ -407,6 +403,38 @@
     }
     const cd = Object.getOwnPropertyDescriptor(P, 'constructor');
     if (cd && cd.configurable) { delete P.constructor; Object.defineProperty(P, 'constructor', cd); }
+  }
+
+  // Chrome 157 immediate-data and element-image entry points. A valid call
+  // returns undefined; the engine does not upload the bytes.
+  const gpuBrand = (self, P) => {
+    if (self === null || (typeof self !== 'object' && typeof self !== 'function') || !Object.prototype.isPrototypeOf.call(P, self)) {
+      throw new TypeError('Illegal invocation');
+    }
+  };
+  const gpuFn = (iface, name, len, body) => {
+    const C = globalThis[iface];
+    if (typeof C !== 'function' || !C.prototype || Object.prototype.hasOwnProperty.call(C.prototype, name)) return;
+    const f = function () { body.call(this, arguments); };
+    try { Object.defineProperty(f, 'name', { value: name, configurable: true }); } catch (e) {}
+    Object.defineProperty(f, 'length', { value: len, configurable: true });
+    _markNative(f);
+    Object.defineProperty(C.prototype, name, { value: f, writable: true, enumerable: true, configurable: true });
+  };
+  for (const iface of ['GPUComputePassEncoder', 'GPURenderBundleEncoder', 'GPURenderPassEncoder']) {
+    gpuFn(iface, 'setImmediates', 2, function (args) {
+      gpuBrand(this, globalThis[iface].prototype);
+      if (args.length < 2) throw new TypeError("Failed to execute 'setImmediates' on '" + iface + "': 2 arguments required, but only " + args.length + " present.");
+    });
+  }
+  gpuFn('GPUQueue', 'drawElementImageToTexture', 2, function (args) {
+    gpuBrand(this, GPUQueue.prototype);
+    if (args.length < 2) throw new TypeError("Failed to execute 'drawElementImageToTexture' on 'GPUQueue': 2 arguments required, but only " + args.length + " present.");
+  });
+  if (typeof GPUTexture === 'function' && GPUTexture.prototype && !Object.prototype.hasOwnProperty.call(GPUTexture.prototype, 'textureBindingViewDimension')) {
+    const g = function textureBindingViewDimension() { gpuBrand(this, GPUTexture.prototype); };
+    _markNative(g);
+    Object.defineProperty(GPUTexture.prototype, 'textureBindingViewDimension', { get: g, enumerable: true, configurable: true });
   }
 })();
 

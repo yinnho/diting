@@ -275,6 +275,52 @@
     ro('PerformancePaintTiming', 'paintTime', function () { return this.startTime; });
     ro('PerformancePaintTiming', 'presentationTime', () => null);
     fn('PerformancePaintTiming', 'toJSON', 0, function toJSON() { obj(this); return { name: this.name, entryType: this.entryType, startTime: this.startTime, duration: this.duration, paintTime: this.paintTime, presentationTime: this.presentationTime }; });
+    // Chrome 157 interaction paint and soft navigation. No interaction is
+    // recorded, so the counters stay at rest: paint time follows startTime,
+    // presentation time is null, and the largest paint is null.
+    const roBrand = (cn, name, get) => {
+      const C = G[cn];
+      if (typeof C !== 'function') return;
+      def(C.prototype, name, { get: pin(function () {
+        if (!(this instanceof C)) throw new TypeError('Illegal invocation');
+        return get.call(this);
+      }, 'get ' + name), enumerable: true, configurable: true });
+    };
+    const paintNum = function () { return typeof this.startTime === 'number' && isFinite(this.startTime) ? this.startTime : 0; };
+    for (const cn of ['InteractionContentfulPaint', 'PerformanceSoftNavigation']) {
+      roBrand(cn, 'interactionId', () => 0);
+      roBrand(cn, 'paintTime', paintNum);
+      roBrand(cn, 'presentationTime', () => null);
+    }
+    roBrand('InteractionContentfulPaint', 'largestContentfulPaint', () => 0);
+    roBrand('PerformanceSoftNavigation', 'navigationType', () => '');
+    fn('InteractionContentfulPaint', 'toJSON', 0, function toJSON() {
+      if (!(this instanceof G.InteractionContentfulPaint)) throw new TypeError('Illegal invocation');
+      return Object.assign(G.PerformanceEntry.prototype.toJSON.call(this), {
+        largestContentfulPaint: this.largestContentfulPaint,
+        interactionId: this.interactionId,
+        paintTime: this.paintTime,
+        presentationTime: this.presentationTime,
+      });
+    });
+    fn('PerformanceSoftNavigation', 'getLargestInteractionContentfulPaint', 0, function getLargestInteractionContentfulPaint() {
+      if (!(this instanceof G.PerformanceSoftNavigation)) throw new TypeError('Illegal invocation');
+      return null;
+    });
+    const seat = (P, want) => {
+      if (!P) return;
+      const names = Object.getOwnPropertyNames(P);
+      const seq = want.filter((k) => names.indexOf(k) >= 0).concat(names.filter((k) => want.indexOf(k) < 0));
+      if (seq.every((k, i) => k === names[i])) return;
+      const saved = [];
+      for (const k of seq) {
+        const d = Object.getOwnPropertyDescriptor(P, k);
+        if (d && d.configurable) { saved.push([k, d]); delete P[k]; }
+      }
+      for (const [k, d] of saved) Object.defineProperty(P, k, d);
+    };
+    seat(G.InteractionContentfulPaint && G.InteractionContentfulPaint.prototype, ['largestContentfulPaint', 'interactionId', 'paintTime', 'presentationTime', 'toJSON', 'constructor']);
+    seat(G.PerformanceSoftNavigation && G.PerformanceSoftNavigation.prototype, ['navigationType', 'interactionId', 'paintTime', 'presentationTime', 'getLargestInteractionContentfulPaint', 'constructor']);
     ro('Performance', 'interactionCount', () => 0);
     fn('Performance', 'toJSON', 0, function toJSON() {
       obj(this);
