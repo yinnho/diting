@@ -220,6 +220,7 @@ async fn canvas_jpeg_readout_and_audio_face_p4() {
             "getOutputTimestamp",
             "resume",
             "suspend",
+            "playbackStats",
             "constructor",
             "sinkId",
             "onsinkchange",
@@ -268,6 +269,7 @@ async fn canvas_jpeg_readout_and_audio_face_p4() {
             "createWaveShaper",
             "decodeAudioData",
             "constructor",
+            "renderQuantumSize",
             "audioWorklet"
         ]),
         "BaseAudioContext.prototype names (no resume/suspend — they moved up a level; 刀57: renderQuantumSize deleted)"

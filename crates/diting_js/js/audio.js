@@ -172,7 +172,6 @@ globalThis.BaseAudioContext = class BaseAudioContext extends EventTarget {
   createStereoPanner() { return _audioNode(this, {pan:_audioParam(0,-1,1)}); }
   createWaveShaper() { return _audioNode(this, {curve:null,oversample:'none'}); }
   decodeAudioData(buf) { return Promise.resolve(this.createBuffer(2,44100,44100)); }
-  // 刀57: renderQuantumSize deleted — Chrome 145's BaseAudioContext does not expose it.
 };
 globalThis.AudioContext = class AudioContext extends BaseAudioContext {
   constructor(options) {
@@ -194,7 +193,6 @@ globalThis.AudioContext = class AudioContext extends BaseAudioContext {
   getOutputTimestamp() { return {contextTime:this.currentTime,performanceTime:0}; }
   resume() { _ctxSetState(this, 'running'); return Promise.resolve(); }
   suspend() { _ctxSetState(this, 'suspended'); return Promise.resolve(); }
-  // 刀57: playbackStats deleted — invented face Chrome never had.
 };
 globalThis.OfflineAudioContext = class OfflineAudioContext extends BaseAudioContext {
   // 刀87: Chrome 145 ladder (k87-ctor-e/f) — 0 args / 1 non-object / exactly 2
