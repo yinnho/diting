@@ -54,6 +54,19 @@
     for (const [n, v] of [['CONNECTING', 0], ['OPEN', 1], ['CLOSING', 2], ['CLOSED', 3]]) cst('WebSocket', n, v, true);
     for (const [n, v] of [['CONNECTING', 0], ['OPEN', 1], ['CLOSED', 2]]) cst('EventSource', n, v, true);
     for (const [n, v] of [['TEMPORARY', 0], ['PERSISTENT', 1]]) cst('Window', n, v, true);
+    // Chrome 157 side-of-path constants. Configurable here so shape_fix can
+    // seat them after the spacing constants; the flag pass then seals e--.
+    // Both the prototype and the constructor get a copy, same as the older
+    // TEXTPATH_* constants from the stub table.
+    const TP = proto('SVGTextPathElement');
+    const TC = G.SVGTextPathElement;
+    if (TP && typeof TC === 'function') {
+      for (const [n, v] of [['TEXTPATH_SIDETYPE_UNKNOWN', 0], ['TEXTPATH_SIDETYPE_LEFT', 1], ['TEXTPATH_SIDETYPE_RIGHT', 2]]) {
+        for (const obj of [TP, TC]) {
+          if (!Object.prototype.hasOwnProperty.call(obj, n)) Object.defineProperty(obj, n, { value: v, enumerable: true, configurable: true });
+        }
+      }
+    }
   });
 
   // ---- audio --------------------------------------------------------------------
@@ -135,6 +148,92 @@
       this.lineTo(x + r, y + h); if (this.arcTo) this.arcTo(x, y + h, x, y + h - r, r);
       this.lineTo(x, y + r); if (this.arcTo) this.arcTo(x, y, x + r, y, r); if (this.closePath) this.closePath();
     });
+  });
+
+  // ---- Chrome 157 element-image canvas face --------------------------------------
+  // Validation only. Nothing here records a paint, so the methods that need a
+  // cached paint record throw Chrome's message. clearElementGeometry accepts
+  // any Element and returns. getElementTransform returns an identity matrix.
+  section('element-image', () => {
+    const isEl = (v) => v !== null && typeof v === 'object' && typeof G.Element === 'function' && v instanceof G.Element;
+    const failType = (iface, method, union) => {
+      throw new TypeError("Failed to execute '" + method + "' on '" + iface + "': " + (union
+        ? "The provided value is not of type '(Element or ElementImage)'."
+        : "parameter 1 is not of type 'Element'."));
+    };
+    const failState = (iface, method, msg) => {
+      throw new DOMException("Failed to execute '" + method + "' on '" + iface + "': " + msg, 'InvalidStateError');
+    };
+    const toNum = (v, iface, method) => {
+      if (typeof v === 'symbol') throw new TypeError("Failed to execute '" + method + "' on '" + iface + "': Cannot convert a Symbol value to a number");
+      try { return +v; } catch (e) { throw new TypeError("Failed to execute '" + method + "' on '" + iface + "': " + e.message); }
+    };
+    const canvasDrawable = (canvas) => {
+      const v = canvas.getAttribute && canvas.getAttribute('content');
+      return v != null && String(v).toLowerCase() === 'drawable';
+    };
+    const nearestCanvas = (el) => {
+      let n = el.parentNode;
+      while (n) {
+        if (n.localName === 'canvas' || (typeof n.tagName === 'string' && n.tagName.toUpperCase() === 'CANVAS')) return n;
+        n = n.parentNode;
+      }
+      return null;
+    };
+    // Type is checked before the canvas content attribute. Then the element
+    // needs drawable, then it has to belong to this canvas.
+    const prepare = (canvas, el, method, union) => {
+      if (!isEl(el)) failType('HTMLCanvasElement', method, union);
+      if (!canvasDrawable(canvas)) failState('HTMLCanvasElement', method, method + " requires the canvas to have the content=drawable attribute.");
+      if (!el.hasAttribute('drawable')) failState('HTMLCanvasElement', method, "Descendants passed to " + method + " must have the 'drawable' attribute.");
+      if (nearestCanvas(el) !== canvas) failState('HTMLCanvasElement', method, 'The element can only be drawn into its nearest ancestor <canvas>.');
+    };
+    const noPaint = (method) => failState('HTMLCanvasElement', method, 'No cached paint record for element.');
+    rw('HTMLCanvasElement', 'content', function () {
+      const v = this.getAttribute('content');
+      return v != null && String(v).toLowerCase() === 'drawable' ? 'drawable' : 'fallback';
+    }, function (v) { this.setAttribute('content', String(v)); });
+    on('HTMLCanvasElement', 'paint', 'elementgeometryupdate');
+    fn('HTMLCanvasElement', 'captureElementImage', 1, function captureElementImage(el) {
+      obj(this); argc(arguments, 1, 'captureElementImage', 'HTMLCanvasElement');
+      prepare(this, el, 'captureElementImage', false);
+      noPaint('captureElementImage');
+    });
+    fn('HTMLCanvasElement', 'clearElementGeometry', 1, function clearElementGeometry(el) {
+      obj(this); argc(arguments, 1, 'clearElementGeometry', 'HTMLCanvasElement');
+      if (!isEl(el)) failType('HTMLCanvasElement', 'clearElementGeometry', true);
+    });
+    fn('HTMLCanvasElement', 'getElementImageDefaultSize', 1, function getElementImageDefaultSize(el) {
+      obj(this); argc(arguments, 1, 'getElementImageDefaultSize', 'HTMLCanvasElement');
+      prepare(this, el, 'getElementImageDefaultSize', true);
+      noPaint('getElementImageDefaultSize');
+    });
+    fn('HTMLCanvasElement', 'getElementTransform', 1, function getElementTransform(el) {
+      obj(this); argc(arguments, 1, 'getElementTransform', 'HTMLCanvasElement');
+      prepare(this, el, 'getElementTransform', false);
+      return new G.DOMMatrix();
+    });
+    fn('HTMLCanvasElement', 'requestPaint', 0, function requestPaint() { obj(this); });
+    fn('HTMLCanvasElement', 'updateElementGeometry', 1, function updateElementGeometry(el) {
+      obj(this); argc(arguments, 1, 'updateElementGeometry', 'HTMLCanvasElement');
+      prepare(this, el, 'updateElementGeometry', true);
+    });
+    const draw = (iface, offscreen) => function drawElementImage(el, x, y) {
+      obj(this);
+      argc(arguments, 3, 'drawElementImage', iface);
+      if (!isEl(el)) failType(iface, 'drawElementImage', true);
+      toNum(x, iface, 'drawElementImage');
+      toNum(y, iface, 'drawElementImage');
+      if (offscreen) failState(iface, 'drawElementImage', 'Elements cannot be drawn into an OffscreenCanvas.');
+      const canvas = this.canvas;
+      if (!canvas || typeof canvas.getAttribute !== 'function') throw new TypeError('Illegal invocation');
+      if (!canvasDrawable(canvas)) failState(iface, 'drawElementImage', 'DrawElementImage requires the canvas to have the content=drawable attribute.');
+      if (!el.hasAttribute('drawable')) failState(iface, 'drawElementImage', "Descendants passed to DrawElementImage must have the 'drawable' attribute.");
+      if (nearestCanvas(el) !== canvas) failState(iface, 'drawElementImage', 'The element can only be drawn into its nearest ancestor <canvas>.');
+      failState(iface, 'drawElementImage', 'No cached paint record for element.');
+    };
+    fn('CanvasRenderingContext2D', 'drawElementImage', 3, draw('CanvasRenderingContext2D', false));
+    fn('OffscreenCanvasRenderingContext2D', 'drawElementImage', 3, draw('OffscreenCanvasRenderingContext2D', true));
   });
 
   // ---- File / FileList-adjacent / media / geometry -------------------------------
@@ -342,6 +441,78 @@
       });
     }
     // SourceBuffer mode/updating/timestampOffset/appendWindow*: the class assigns them in its constructor — lifted by lift_own
+  });
+
+  // Chrome 157 HTMLInputElement.createValueRange. Two offsets into the value
+  // string. end < start collapses at start. Out of range is IndexSizeError.
+  // The result is an OpaqueRange: offsets and collapsed, no containers.
+  section('input-value-range', () => {
+    const C = G.HTMLInputElement;
+    const OR = G.OpaqueRange;
+    if (typeof C !== 'function' || typeof OR !== 'function') return;
+    const P = C.prototype;
+    if (Object.prototype.hasOwnProperty.call(P, 'createValueRange')) return;
+    const fn = function createValueRange(start, end) {
+      if (!(this instanceof C)) throw new TypeError('Illegal invocation');
+      if (arguments.length < 2) {
+        throw new TypeError("Failed to execute 'createValueRange' on 'HTMLInputElement': 2 arguments required, but only " + arguments.length + " present.");
+      }
+      const len = String(this.value == null ? '' : this.value).length;
+      const off = (v) => {
+        const n = typeof v === 'symbol' ? NaN : Number(v);
+        if (!Number.isFinite(n)) return NaN;
+        return Math.trunc(n);
+      };
+      let s = off(start), e = off(end);
+      if (!(s >= 0 && e >= 0 && s <= len && e <= len)) {
+        throw new DOMException("Failed to execute 'createValueRange' on 'HTMLInputElement': Start or end offset exceeds value length.", 'IndexSizeError');
+      }
+      if (e < s) e = s;
+      const r = Object.create(OR.prototype);
+      r._so = s;
+      r._eo = e;
+      return r;
+    };
+    pin(fn, 'createValueRange', 2);
+    def(P, 'createValueRange', { value: fn, writable: true, enumerable: true, configurable: true });
+  });
+
+  // Chrome 157 iterator helpers. join defaults to ",". includes uses
+  // SameValueZero, so NaN matches NaN. A receiver without next throws when
+  // next is called.
+  section('iterator-helpers-157', () => {
+    const It = G.Iterator;
+    if (typeof It !== 'function' || !It.prototype) return;
+    const P = It.prototype;
+    const same = (a, b) => a === b || (a !== a && b !== b);
+    if (!Object.prototype.hasOwnProperty.call(P, 'join')) {
+      const join = function join(separator) {
+        const sep = arguments.length ? String(separator) : ',';
+        let out = '', first = true, step = this.next();
+        while (!step.done) {
+          if (!first) out += sep;
+          first = false;
+          const v = step.value;
+          out += v == null ? '' : String(v);
+          step = this.next();
+        }
+        return out;
+      };
+      pin(join, 'join', 1);
+      def(P, 'join', { value: join, writable: true, enumerable: true, configurable: true });
+    }
+    if (!Object.prototype.hasOwnProperty.call(P, 'includes')) {
+      const includes = function includes(value) {
+        let step = this.next();
+        while (!step.done) {
+          if (same(step.value, value)) return true;
+          step = this.next();
+        }
+        return false;
+      };
+      pin(includes, 'includes', 1);
+      def(P, 'includes', { value: includes, writable: true, enumerable: true, configurable: true });
+    }
   });
 
   // Chrome 157 Element.pseudo / CSSPseudoElement. Only these types return an

@@ -217,6 +217,29 @@ function bodyMethods(proto, cls, slotOf, ctOf) {
     return consume(s.rec, 'text', cls, fn).then((b) => utf8.decode(b));
   });
 }
+// Chrome 157. Synchronous. Disturbs a non-null body immediately. The stream
+// yields one string chunk, or none when the text is empty.
+function textStreamMethod(proto, cls, slotOf) {
+  P.method(proto, 'textStream', 0, function __f() {
+    const s = slotOf(this, __f);
+    const rec = s.rec;
+    const pre = "Failed to execute 'textStream' on '" + cls + "'";
+    if (disturbed(rec)) P.fail(__f, 'body stream already read', pre);
+    if (locked(rec)) P.fail(__f, 'body stream is locked', pre);
+    let bytes = new Uint8Array(0);
+    if (rec.body !== null) {
+      rec.used = true;
+      if (rec.body.bytes !== undefined) bytes = rec.body.bytes;
+    }
+    const text = utf8.decode(bytes);
+    return new ReadableStream({
+      start(c) {
+        if (text.length) c.enqueue(text);
+        c.close();
+      },
+    });
+  });
+}
 function bodyGetters(proto, slotOf) {
   P.getter(proto, 'body', function __f() { const s = slotOf(this, __f); return ownStream(s.rec); });
   P.getter(proto, 'bodyUsed', function __f() { return disturbed(slotOf(this, __f).rec); });
@@ -357,11 +380,13 @@ P.getter(RP, 'bodyUsed', function __f() { return disturbed(reqSlot(this, __f).re
 // arrayBuffer, blob, clone, formData, json, text
 bodyMethods(RP, 'Request', reqSlot, (s) => s.headers.get('content-type') || '');
 P.getter(RP, 'targetAddressSpace', function __f() { reqSlot(this, __f); return 'unknown'; });
+P.getter(RP, 'isReloadNavigation', function __f() { reqSlot(this, __f); return false; });
 P.getter(RP, 'body', function __f() { return ownStream(reqSlot(this, __f).rec); });
 asyncMethod(RP, 'bytes', 0, function (fn) {
   const s = reqSlot(this, fn);
   return consume(s.rec, 'bytes', 'Request', fn).then((b) => new Uint8Array(b));
 });
+textStreamMethod(RP, 'Request', reqSlot);
 P.seal(Request);
 
 // ---------------------------------------------------------------- Response
@@ -435,6 +460,7 @@ asyncMethod(SP, 'bytes', 0, function (fn) {
   const s = resSlot(this, fn);
   return consume(s.rec, 'bytes', 'Response', fn).then((b) => new Uint8Array(b));
 });
+textStreamMethod(SP, 'Response', resSlot);
 P.seal(Response);
 
 const SX = "Failed to execute 'redirect' on 'Response'";

@@ -101,13 +101,14 @@ if (!has(MED, 'captureStream')) P.method(MED, 'captureStream', 0, function __f()
 // load: engine-owned, kept (reseat relocates)
 // pause: engine-owned, kept (reseat relocates)
 // play: engine-owned, kept (reseat relocates)
+// loading: engine-owned, kept (reseat relocates)
 if (!has(MED, 'sinkId')) P.getter(MED, 'sinkId', function __f() { return ''; });
 if (!has(MED, 'remote')) P.getter(MED, 'remote', function __f() { return B.get('remote', this); });
 if (!has(MED, 'disableRemotePlayback')) P.reflector(MED, 'disableRemotePlayback', {"attr": "disableremoteplayback", "iface": "HTMLMediaElement", "kind": "boolean-presence"});
 if (!has(MED, 'setSinkId')) P.method(MED, 'setSinkId', 1, function __f() { const ctx = "Failed to execute 'setSinkId' on 'HTMLMediaElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('setSinkId', this, ctx, arguments); });
 if (!has(MED, 'mediaKeys')) P.getter(MED, 'mediaKeys', function __f() { return B.get('mediaKeys', this); });
 if (!has(MED, 'setMediaKeys')) P.method(MED, 'setMediaKeys', 1, function __f() { const ctx = "Failed to execute 'setMediaKeys' on 'HTMLMediaElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('setMediaKeys', this, ctx, arguments); });
-reseat(MED, ["error", "src", "currentSrc", "crossOrigin", "networkState", "preload", "buffered", "readyState", "seeking", "currentTime", "duration", "paused", "defaultPlaybackRate", "playbackRate", "played", "seekable", "ended", "autoplay", "loop", "preservesPitch", "controls", "controlsList", "volume", "muted", "defaultMuted", "textTracks", "webkitAudioDecodedByteCount", "webkitVideoDecodedByteCount", "onencrypted", "onwaitingforkey", "srcObject", "NETWORK_EMPTY", "NETWORK_IDLE", "NETWORK_LOADING", "NETWORK_NO_SOURCE", "HAVE_NOTHING", "HAVE_METADATA", "HAVE_CURRENT_DATA", "HAVE_FUTURE_DATA", "HAVE_ENOUGH_DATA", "addTextTrack", "canPlayType", "captureStream", "load", "pause", "play", "sinkId", "remote", "disableRemotePlayback", "setSinkId", "constructor", "mediaKeys", "setMediaKeys"]);
+reseat(MED, ["error", "src", "currentSrc", "crossOrigin", "networkState", "preload", "buffered", "readyState", "seeking", "currentTime", "duration", "paused", "defaultPlaybackRate", "playbackRate", "played", "seekable", "ended", "autoplay", "loop", "preservesPitch", "controls", "controlsList", "volume", "muted", "defaultMuted", "textTracks", "webkitAudioDecodedByteCount", "webkitVideoDecodedByteCount", "onencrypted", "onwaitingforkey", "srcObject", "NETWORK_EMPTY", "NETWORK_IDLE", "NETWORK_LOADING", "NETWORK_NO_SOURCE", "HAVE_NOTHING", "HAVE_METADATA", "HAVE_CURRENT_DATA", "HAVE_FUTURE_DATA", "HAVE_ENOUGH_DATA", "addTextTrack", "canPlayType", "captureStream", "load", "pause", "play", "loading", "sinkId", "remote", "disableRemotePlayback", "setSinkId", "constructor", "mediaKeys", "setMediaKeys"]);
 
 // ---- HTMLVideoElement.prototype (Chrome own order VID.order; installs guarded,
 // kind fixes applied, reseat() walk last)

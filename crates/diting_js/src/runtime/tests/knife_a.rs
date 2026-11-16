@@ -217,6 +217,10 @@ fn knife57_singleton_extras_fold_to_chrome_truth() {
           const st = document.createElement('style');
           st.textContent = '@media (min-width:100px){a{color:red}} @supports (display:grid){b{c:d}} @container card (min-width:400px){e{f:g}} @scope (div) to (p) { i {color:red} }';
           document.head.appendChild(st);
+          const st2 = document.createElement('style');
+          st2.textContent = '@container a (width > 1px), b (height > 2px) { z { color: red } } @container style(--a: 1) { q { color: blue } }';
+          document.head.appendChild(st2);
+          const multi = [...st2.sheet.cssRules].filter((r) => r.constructor.name === 'CSSContainerRule').map((r) => [r.containerName, r.containerQuery, r.conditions.map((c) => [c.name, c.query])]);
           const rs = {}; for (const r of st.sheet.cssRules) rs[r.constructor.name] = r;
           const tpl = document.createElement('template');
           tpl.innerHTML = '<s>s</s><t>t</t>';
@@ -248,6 +252,10 @@ fn knife57_singleton_extras_fold_to_chrome_truth() {
             })(),
             docRP: typeof Object.getOwnPropertyDescriptor(Document.prototype, 'referrerPolicy'),
             cond: [rs['CSSMediaRule'].conditionText, rs['CSSSupportsRule'].conditionText, rs['CSSContainerRule'].conditionText],
+            conds: rs['CSSContainerRule'].conditions.map((c) => [c.name, c.query]),
+            condsFrozen: Object.isFrozen(rs['CSSContainerRule'].conditions),
+            one: [rs['CSSContainerRule'].containerName, rs['CSSContainerRule'].containerQuery],
+            multi,
             scopeCond: typeof rs['CSSScopeRule'].conditionText,
             cred: [pc.id, pc.type, pc.name, pc.password],
             sr: [sr.innerHTML, sr.firstChild.tagName],
@@ -329,6 +337,19 @@ fn knife57_singleton_extras_fold_to_chrome_truth() {
             "card (min-width: 400px)"
         ]),
         "conditionText inherits from CSSConditionRule with real values"
+    );
+    assert_eq!(
+        v["conds"],
+        serde_json::json!([["card", "(min-width: 400px)"]])
+    );
+    assert_eq!(v["condsFrozen"], serde_json::json!(true));
+    assert_eq!(v["one"], serde_json::json!(["card", "(min-width: 400px)"]));
+    assert_eq!(
+        v["multi"],
+        serde_json::json!([
+            ["", "", [["a", "(width > 1px)"], ["b", "(height > 2px)"]]],
+            ["", "style(--a: 1)", [["", "style(--a: 1)"]]]
+        ])
     );
     assert_eq!(
         v["scopeCond"],

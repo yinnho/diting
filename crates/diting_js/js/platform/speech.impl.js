@@ -157,7 +157,7 @@ function SpeechRecognition() {
   const r = Reflect.construct(EventTarget, [], new.target);
   const h = {}; for (const n of HANDLERS) h[n] = null;
   recSlots.set(r, { lang: '', continuous: false, interimResults: false, maxAlternatives: 1, grammars: new SpeechGrammarList(),
-    processLocally: false, phrases: [], handlers: h, started: false, timer: null });
+    processLocally: false, phrases: [], unspokenPunctuation: false, quality: 'command', handlers: h, started: false, timer: null });
   return r;
 }
 const RP = P.iface(SpeechRecognition, 'SpeechRecognition', 0, EventTarget);
@@ -210,6 +210,14 @@ P.method(RP, 'stop', 0, function __f() {
   if (!s.started) return;
   if (s.timer !== null) clearTimeout(s.timer);
   fireEnd(this, s);
+});
+// Chrome 157. unspokenPunctuation is a boolean. quality is the enum
+// command | dictation | conversation; anything else leaves the previous value.
+P.accessor(RP, 'unspokenPunctuation', function __f() { return rslot(this, __f).unspokenPunctuation; }, function __f(v) { rslot(this, __f).unspokenPunctuation = !!v; });
+P.accessor(RP, 'quality', function __f() { return rslot(this, __f).quality; }, function __f(v) {
+  const s = rslot(this, __f);
+  const next = P.conv.DOMString(v, rpre('quality'), __f);
+  if (next === 'command' || next === 'dictation' || next === 'conversation') s.quality = next;
 });
 P.accessor(RP, 'processLocally', function __f() { return rslot(this, __f).processLocally; }, function __f(v) { rslot(this, __f).processLocally = !!v; });
 P.accessor(RP, 'phrases', function __f() { return rslot(this, __f).phrases; }, function __f(v) {

@@ -2042,6 +2042,64 @@ async fn headers_match_chrome_truth() {
     );
 }
 
+/// Chrome 157 textStream yields one decoded string chunk. A blob can be
+/// read again. A Request body is disturbed as soon as textStream() is called.
+#[tokio::test(flavor = "current_thread")]
+async fn text_stream_yields_decoded_text() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let result = rt
+        .call_function_on_remote(
+            r#"async () => {
+            async function read(stream) {
+              const r = stream.getReader();
+              const parts = [];
+              for (;;) {
+                const x = await r.read();
+                if (x.done) break;
+                parts.push(x.value);
+              }
+              return parts;
+            }
+            const blob = new Blob(['héllo', '世界']);
+            const once = await read(blob.textStream());
+            const twice = await read(blob.textStream());
+            const req = new Request('http://example.com/', { method: 'POST', body: 'héllo' });
+            const stream = req.textStream();
+            const usedNow = req.bodyUsed;
+            const reqParts = await read(stream);
+            let again = '';
+            try { await req.text(); } catch (e) { again = e.name; }
+            const empty = await read(new Response(null).textStream());
+            const res = await read(new Response('abc').textStream());
+            return JSON.stringify({
+              once, twice, usedNow, reqParts, again, empty, res,
+              reload: new Request('http://example.com/').isReloadNavigation,
+            });
+            }"#,
+            None,
+            &[],
+            true,
+            true,
+        )
+        .await
+        .unwrap();
+    let v =
+        serde_json::from_str::<serde_json::Value>(result.value.unwrap().as_str().unwrap()).unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "once": ["héllo世界"],
+            "twice": ["héllo世界"],
+            "usedNow": true,
+            "reqParts": ["héllo"],
+            "again": "TypeError",
+            "empty": [],
+            "res": ["abc"],
+            "reload": false,
+        })
+    );
+}
+
 /// M4 knife 16: Request / Response (reqres-probe.js, 96 keys, real Chrome 145):
 /// prototype shape and member order, `headers` as a prototype getter, construction
 /// validation with exact wording (URL parse / credentials, method tokens and

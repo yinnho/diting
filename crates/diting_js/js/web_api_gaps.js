@@ -60,6 +60,23 @@
     });
     _markNative(Blob.prototype.stream);
   }
+  // Chrome 157. One string chunk of the decoded bytes. A blob can be read
+  // again; this does not disturb a Request or Response body.
+  if (typeof Blob === 'function' && typeof Blob.prototype.textStream !== 'function' && typeof ReadableStream === 'function') {
+    const textStream = function textStream() {
+      const blob = this;
+      return new ReadableStream({
+        start(controller) {
+          const text = new TextDecoder().decode(blob._bytes || new Uint8Array(0));
+          if (text.length) controller.enqueue(text);
+          controller.close();
+        },
+      });
+    };
+    Object.defineProperty(textStream, 'length', { value: 0, configurable: true });
+    Object.defineProperty(Blob.prototype, 'textStream', { value: textStream, writable: true, enumerable: true, configurable: true });
+    _markNative(Blob.prototype.textStream);
+  }
 
   // ---- View Transitions -------------------------------------------------
   // Document and Element each keep their own active transition (Chrome 157:

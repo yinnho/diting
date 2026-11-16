@@ -27,6 +27,14 @@
   t('chain', function () { return [Object.getPrototypeOf(SpeechRecognition) === EventTarget, new SpeechRecognition() instanceof EventTarget, Object.getPrototypeOf(SpeechRecognitionEvent) === Event, Object.getPrototypeOf(SpeechRecognitionErrorEvent) === Event, Object.getPrototypeOf(ClipboardChangeEvent) === Event]; });
   // ---- SpeechRecognition
   t('sr.fresh', function () { var s = new SpeechRecognition(); return [s.lang, s.continuous, s.interimResults, s.maxAlternatives, s.grammars && s.grammars.constructor.name, s.grammars && s.grammars.length, s.onstart, s.onerror, s.onresult, Object.getOwnPropertyNames(s), s.processLocally, s.phrases && s.phrases.constructor.name, s.phrases && s.phrases.length, s.phrases === s.phrases, s.grammars === s.grammars]; });
+  t('sr.quality', function () {
+    var s = new SpeechRecognition();
+    var def = [s.unspokenPunctuation, s.quality];
+    s.quality = 'dictation';
+    s.quality = 'nope';
+    s.unspokenPunctuation = 'x';
+    return [def[0], def[1], s.quality, s.unspokenPunctuation];
+  });
   t('sr.set', function () { var s = new SpeechRecognition(); s.lang = 'zh-CN'; s.continuous = 1; s.interimResults = true; s.maxAlternatives = 3; return [s.lang, s.continuous, s.interimResults, s.maxAlternatives]; });
   t('sr.maxalt', function () { var s = new SpeechRecognition(), o = {}; [['str', '5'], ['neg', -1], ['big', 4294967297], ['nan', NaN], ['zero', 0]].forEach(function (c) { s.maxAlternatives = c[1]; o[c[0]] = s.maxAlternatives; }); return o; });
   t('sr.lang', function () { var s = new SpeechRecognition(); s.lang = null; var a = s.lang; s.lang = undefined; var b = s.lang; s.lang = 5; return [a, b, s.lang]; });

@@ -1842,3 +1842,220 @@ async fn element_prototype_members_match_chrome_truth() {
         "Element.prototype member set drifted from Chrome 157: extra {extra:?} missing {missing:?}"
     );
 }
+
+/// Chrome 157 batch: media loading, input value range, iterator helpers,
+/// and the idle WebTransport face.
+#[test]
+fn chrome157_loading_range_iterator_transport() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const video = document.createElement('video');
+        const lazy = document.createElement('video');
+        lazy.loading = 'LAZY';
+        const input = document.createElement('input');
+        input.value = 'abcdef';
+        const mid = input.createValueRange(1, 4);
+        const swapped = input.createValueRange(4, 1);
+        let bad = '';
+        try { input.createValueRange(-1, 2); } catch (e) { bad = e.name; }
+        let argc = '';
+        try { input.createValueRange(0); } catch (e) { argc = e.name + ': ' + e.message; }
+        const nums = [1, 2, 3].values();
+        const wt = new WebTransport('https://example.com/wt');
+        ({
+          def: video.loading,
+          attr: [lazy.loading, lazy.getAttribute('loading')],
+          badAttr: (function () { const e = document.createElement('video'); e.loading = 'nope'; return [e.loading, e.getAttribute('loading')]; })(),
+          mid: [mid.startOffset, mid.endOffset, mid.collapsed, mid.constructor.name],
+          swapped: [swapped.startOffset, swapped.endOffset, swapped.collapsed],
+          bad, argc,
+          join: [1, 2, 3].values().join('-'),
+          joinDef: [1, 2].values().join(),
+          nan: [1, NaN].values().includes(NaN),
+          miss: [1].values().includes(),
+          rel: wt.reliability,
+          hdr: wt.responseHeaders,
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "def": "eager",
+            "attr": ["lazy", "LAZY"],
+            "badAttr": ["eager", "nope"],
+            "mid": [1, 4, false, "OpaqueRange"],
+            "swapped": [4, 4, true],
+            "bad": "IndexSizeError",
+            "argc": "TypeError: Failed to execute 'createValueRange' on 'HTMLInputElement': 2 arguments required, but only 1 present.",
+            "join": "1-2-3",
+            "joinDef": "1,2",
+            "nan": true,
+            "miss": false,
+            "rel": "pending",
+            "hdr": null,
+        })
+    );
+}
+
+/// Chrome 157 element-image canvas face. The engine does not paint elements,
+/// so a call that needs a cached paint record throws. Transforms that pass
+/// the drawable checks return an identity matrix.
+#[test]
+fn chrome157_element_image_canvas() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const c = document.createElement('canvas');
+        const d = document.createElement('div');
+        const t = document.createTextNode('t');
+        const ctx = c.getContext('2d');
+        const err = (fn) => { try { const r = fn(); return r === undefined ? 'undef' : String(r); } catch (e) { return e.name + ': ' + e.message; } };
+        c.content = 'paint';
+        const painted = [c.content, c.getAttribute('content')];
+        c.content = null;
+        const nulled = [c.content, c.getAttribute('content')];
+        c.removeAttribute('content');
+        c.onpaint = 'nope';
+        const handler = c.onpaint;
+        c.onpaint = function () {};
+        const bare = {
+          size: err(() => c.getElementImageDefaultSize(d)),
+          xfText: err(() => c.getElementTransform(t)),
+          upd: err(() => c.updateElementGeometry(d)),
+          clear: err(() => c.clearElementGeometry(d)),
+          clearText: err(() => c.clearElementGeometry(t)),
+          paint: err(() => c.requestPaint()),
+          cap0: err(() => c.captureElementImage()),
+          draw0: err(() => ctx.drawElementImage()),
+          drawText: err(() => ctx.drawElementImage(t, 0, 0)),
+          drawSym: err(() => ctx.drawElementImage(d, Symbol('x'), 0)),
+        };
+        c.setAttribute('content', 'drawable');
+        const needAttr = err(() => c.getElementTransform(d));
+        d.setAttribute('drawable', '');
+        document.body.appendChild(d);
+        const outside = err(() => c.getElementImageDefaultSize(d));
+        c.appendChild(d);
+        const m = c.getElementTransform(d);
+        const inner = document.createElement('canvas');
+        const nested = document.createElement('div');
+        nested.setAttribute('drawable', '');
+        inner.appendChild(nested);
+        c.appendChild(inner);
+        const gl = document.createElement('canvas').getContext('webgl');
+        const gl2 = document.createElement('canvas').getContext('webgl2');
+        const names = Object.getOwnPropertyNames(HTMLCanvasElement.prototype);
+        const ctxNames = Object.getOwnPropertyNames(CanvasRenderingContext2D.prototype);
+        const offNames = Object.getOwnPropertyNames(OffscreenCanvasRenderingContext2D.prototype);
+        const glNames = Object.getOwnPropertyNames(WebGLRenderingContext.prototype);
+        ({
+          def: document.createElement('canvas').content,
+          painted, nulled, handler, handlerFn: typeof c.onpaint,
+          bare, needAttr, outside,
+          xf: [m.constructor.name, String(m), m.isIdentity],
+          upd: err(() => c.updateElementGeometry(d)),
+          size: err(() => c.getElementImageDefaultSize(d)),
+          cap: err(() => c.captureElementImage(d)),
+          draw: err(() => ctx.drawElementImage(d, 1, 2)),
+          nested: err(() => c.getElementImageDefaultSize(nested)),
+          tail: names.slice(names.indexOf('constructor')),
+          drawTail: ctxNames.slice(-2),
+          offTail: offNames.slice(-3),
+          off: err(() => OffscreenCanvasRenderingContext2D.prototype.drawElementImage.call({}, d, 0, 0)),
+          gl0: err(() => gl.texElementSubImage2D()),
+          gl2_0: err(() => gl2.texElementSubImage2D()),
+          glText: err(() => gl.texElementSubImage2D(gl.TEXTURE_2D, 0, 0, 0, t)),
+          glOk: err(() => gl.texElementSubImage2D(gl.TEXTURE_2D, 0, 0, 0, d)),
+          glForeign: err(() => WebGLRenderingContext.prototype.texElementSubImage2D.call({})),
+          glTail: glNames.slice(-3),
+          glLen: gl.texElementSubImage2D.length,
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "def": "fallback",
+            "painted": ["fallback", "paint"],
+            "nulled": ["fallback", "null"],
+            "handler": null,
+            "handlerFn": "function",
+            "bare": {
+                "size": "InvalidStateError: Failed to execute 'getElementImageDefaultSize' on 'HTMLCanvasElement': getElementImageDefaultSize requires the canvas to have the content=drawable attribute.",
+                "xfText": "TypeError: Failed to execute 'getElementTransform' on 'HTMLCanvasElement': parameter 1 is not of type 'Element'.",
+                "upd": "InvalidStateError: Failed to execute 'updateElementGeometry' on 'HTMLCanvasElement': updateElementGeometry requires the canvas to have the content=drawable attribute.",
+                "clear": "undef",
+                "clearText": "TypeError: Failed to execute 'clearElementGeometry' on 'HTMLCanvasElement': The provided value is not of type '(Element or ElementImage)'.",
+                "paint": "undef",
+                "cap0": "TypeError: Failed to execute 'captureElementImage' on 'HTMLCanvasElement': 1 argument required, but only 0 present.",
+                "draw0": "TypeError: Failed to execute 'drawElementImage' on 'CanvasRenderingContext2D': 3 arguments required, but only 0 present.",
+                "drawText": "TypeError: Failed to execute 'drawElementImage' on 'CanvasRenderingContext2D': The provided value is not of type '(Element or ElementImage)'.",
+                "drawSym": "TypeError: Failed to execute 'drawElementImage' on 'CanvasRenderingContext2D': Cannot convert a Symbol value to a number",
+            },
+            "needAttr": "InvalidStateError: Failed to execute 'getElementTransform' on 'HTMLCanvasElement': Descendants passed to getElementTransform must have the 'drawable' attribute.",
+            "outside": "InvalidStateError: Failed to execute 'getElementImageDefaultSize' on 'HTMLCanvasElement': The element can only be drawn into its nearest ancestor <canvas>.",
+            "xf": ["DOMMatrix", "matrix(1, 0, 0, 1, 0, 0)", true],
+            "upd": "undef",
+            "size": "InvalidStateError: Failed to execute 'getElementImageDefaultSize' on 'HTMLCanvasElement': No cached paint record for element.",
+            "cap": "InvalidStateError: Failed to execute 'captureElementImage' on 'HTMLCanvasElement': No cached paint record for element.",
+            "draw": "InvalidStateError: Failed to execute 'drawElementImage' on 'CanvasRenderingContext2D': No cached paint record for element.",
+            "nested": "InvalidStateError: Failed to execute 'getElementImageDefaultSize' on 'HTMLCanvasElement': The element can only be drawn into its nearest ancestor <canvas>.",
+            "tail": ["constructor", "content", "onpaint", "onelementgeometryupdate", "captureElementImage", "clearElementGeometry", "getElementImageDefaultSize", "getElementTransform", "requestPaint", "updateElementGeometry"],
+            "drawTail": ["constructor", "drawElementImage"],
+            "offTail": ["getContextAttributes", "constructor", "drawElementImage"],
+            "off": "InvalidStateError: Failed to execute 'drawElementImage' on 'OffscreenCanvasRenderingContext2D': Elements cannot be drawn into an OffscreenCanvas.",
+            "gl0": "TypeError: Failed to execute 'texElementSubImage2D' on 'WebGLRenderingContext': 5 arguments required, but only 0 present.",
+            "gl2_0": "TypeError: Failed to execute 'texElementSubImage2D' on 'WebGL2RenderingContext': 5 arguments required, but only 0 present.",
+            "glText": "TypeError: Failed to execute 'texElementSubImage2D' on 'WebGLRenderingContext': The provided value is not of type '(Element or ElementImage)'.",
+            "glOk": "undef",
+            "glForeign": "TypeError: Illegal invocation",
+            "glTail": ["constructor", "makeXRCompatible", "texElementSubImage2D"],
+            "glLen": 5,
+        })
+    );
+}
+
+/// Chrome 157 SVGTextPathElement side constants. They sit after the spacing
+/// constants on both the prototype and the constructor, and they are sealed.
+#[test]
+fn chrome157_textpath_side_constants() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const P = SVGTextPathElement.prototype;
+        const C = SVGTextPathElement;
+        const desc = (obj, n) => {
+          const d = Object.getOwnPropertyDescriptor(obj, n);
+          return [d.value, d.enumerable, d.writable, d.configurable];
+        };
+        const names = ['TEXTPATH_SIDETYPE_UNKNOWN', 'TEXTPATH_SIDETYPE_LEFT', 'TEXTPATH_SIDETYPE_RIGHT'];
+        const proto = Object.getOwnPropertyNames(P);
+        const stat = Object.getOwnPropertyNames(C).filter((k) => k !== 'length' && k !== 'name' && k !== 'prototype');
+        ({
+          vals: names.map((n) => [P[n], C[n], P[n] === C[n]]),
+          desc: names.map((n) => desc(P, n)),
+          statDesc: desc(C, 'TEXTPATH_SIDETYPE_LEFT'),
+          protoTail: proto.slice(proto.indexOf('TEXTPATH_SPACINGTYPE_EXACT')),
+          statTail: stat.slice(stat.indexOf('TEXTPATH_SPACINGTYPE_EXACT')),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "vals": [[0, 0, true], [1, 1, true], [2, 2, true]],
+            "desc": [[0, true, false, false], [1, true, false, false], [2, true, false, false]],
+            "statDesc": [1, true, false, false],
+            "protoTail": ["TEXTPATH_SPACINGTYPE_EXACT", "TEXTPATH_SIDETYPE_UNKNOWN", "TEXTPATH_SIDETYPE_LEFT", "TEXTPATH_SIDETYPE_RIGHT", "constructor"],
+            "statTail": ["TEXTPATH_SPACINGTYPE_EXACT", "TEXTPATH_SIDETYPE_UNKNOWN", "TEXTPATH_SIDETYPE_LEFT", "TEXTPATH_SIDETYPE_RIGHT"],
+        })
+    );
+}

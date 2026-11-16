@@ -526,15 +526,15 @@ fn test_stealth_fingerprint_apis_pluginarray_and_webgl() {
 
 #[test]
 fn test_stealth_webgl_chrome_truth_interface_shape() {
-    // (P8 #300015) The WebGL interface must match Chrome 154 byte-for-byte
-    // at the reflection level: the INSTANCE carries zero own properties,
-    // the PROTOTYPE carries exactly 442/791 own names (constants +
-    // methods + 6 accessors), constants are enumerable/non-writable/
-    // non-configurable, and extension objects keep their constants on the
-    // carrier prototype. The old shape leaked ~80 own props on the
-    // instance and a 29-entry constant table — a counting detector's
-    // one-liner. Truth captured from real Chrome 154.0.8037.98 (macOS);
-    // 154 lacks makeXRCompatible (155 added it), hence -1 vs the 155 pin.
+    // (P8 #300015) The WebGL interface must match Chrome at the reflection
+    // level: the INSTANCE carries zero own properties, the PROTOTYPE carries
+    // the constant table plus methods plus 6 accessors, constants are
+    // enumerable/non-writable/non-configurable, and extension objects keep
+    // their constants on the carrier prototype. The old shape leaked ~80 own
+    // props on the instance and a 29-entry constant table — a counting
+    // detector's one-liner. Chrome 155 added makeXRCompatible. Chrome 157
+    // added texElementSubImage2D, which is why the counts sit one above the
+    // 155 pin (444 / 793 own names).
     let mut rt = setup_runtime(
         "<html><body><canvas id='c' width='320' height='200'></canvas></body></html>",
     );
@@ -597,23 +597,23 @@ fn test_stealth_webgl_chrome_truth_interface_shape() {
     );
     assert_eq!(
         v["protoNames1"].as_i64().unwrap(),
-        443,
-        "GL1 prototype own-name count must be exactly Chrome 145's 443 (298 consts + 138 methods + 6 accessors + makeXRCompatible)"
+        444,
+        "GL1 prototype own-name count must be 444 (298 consts + 138 methods + 6 accessors + makeXRCompatible + texElementSubImage2D)"
     );
     assert_eq!(
         v["protoNames2"].as_i64().unwrap(),
-        792,
-        "GL2 prototype own-name count must be exactly Chrome 145's 792 (559 + 226 + 6 + makeXRCompatible)"
+        793,
+        "GL2 prototype own-name count must be 793 (559 + 226 + 6 + makeXRCompatible + texElementSubImage2D)"
     );
     assert_eq!(
         v["protoKeys1"].as_i64().unwrap(),
-        442,
-        "GL1 enumerable proto keys = 442 (constructor is non-enumerable)"
+        443,
+        "GL1 enumerable proto keys = 443 (constructor is non-enumerable)"
     );
     assert_eq!(
         v["protoKeys2"].as_i64().unwrap(),
-        791,
-        "GL2 enumerable proto keys = 791"
+        792,
+        "GL2 enumerable proto keys = 792"
     );
     assert_eq!(
         v["constDesc"],

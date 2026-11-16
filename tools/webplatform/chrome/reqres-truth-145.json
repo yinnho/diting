@@ -55,7 +55,7 @@
   "hdr": [],
   "integrity": "",
   "isHist": false,
-  "isReload": "#undef",
+  "isReload": false,
   "keepalive": false,
   "method": "GET",
   "mode": "cors",
@@ -499,6 +499,7 @@
    "headers": "ro",
    "integrity": "ro",
    "isHistoryNavigation": "ro",
+   "isReloadNavigation": "ro",
    "json": "function:0",
    "keepalive": "ro",
    "method": "ro",
@@ -509,6 +510,7 @@
    "signal": "ro",
    "targetAddressSpace": "ro",
    "text": "function:0",
+   "textStream": "function:0",
    "url": "ro"
   },
   "len": 1,
@@ -536,8 +538,10 @@
    "json",
    "text",
    "targetAddressSpace",
+   "isReloadNavigation",
    "body",
    "bytes",
+   "textStream",
    "constructor"
   ],
   "statics": [],
@@ -560,6 +564,7 @@
    "status": "ro",
    "statusText": "ro",
    "text": "function:0",
+   "textStream": "function:0",
    "type": "ro",
    "url": "ro"
   },
@@ -581,6 +586,7 @@
    "json",
    "text",
    "bytes",
+   "textStream",
    "constructor"
   ],
   "statics": [

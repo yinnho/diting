@@ -501,7 +501,8 @@ async fn knife68_idb_family() {
 /// M4 刀69: the WebGL context surface against Chrome 145 (real software-WebGL
 /// captures, k69 probes): every GL constant exists TWICE (prototype + static,
 /// both e--), the member order is Chrome's (constants after the colorSpace
-/// faces, makeXRCompatible after `constructor`), `new` is an illegal
+/// faces, makeXRCompatible after `constructor`, texElementSubImage2D after
+/// that), `new` is an illegal
 /// constructor, the colorSpace faces are per-context rw attributes that
 /// silently ignore bad values, makeXRCompatible is one cached never-settling
 /// promise, creators are distinct functions returning real resource classes,
@@ -574,15 +575,15 @@ async fn knife69_webgl_surface() {
     assert_eq!(
         o["orderTail"],
         serde_json::json!([
-            "RGBA8",
             "drawingBufferStorage",
             "constructor",
-            "makeXRCompatible"
+            "makeXRCompatible",
+            "texElementSubImage2D"
         ])
     );
     assert_eq!(
         o["orderTail2"],
-        serde_json::json!(["drawingBufferStorage", "constructor", "makeXRCompatible"])
+        serde_json::json!(["constructor", "makeXRCompatible", "texElementSubImage2D"])
     );
     assert_eq!(
         o["illegal"],

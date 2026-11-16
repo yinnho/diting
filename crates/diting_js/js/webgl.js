@@ -277,6 +277,22 @@ for (const [_GLC, _isGL2] of [[globalThis.WebGLRenderingContext, false], [global
     return pr;
   }, writable: true, enumerable: true, configurable: true });
   Object.defineProperty(P, 'drawingBufferFormat', _acc(function() { return 0x8058; }));
+  // Chrome 157. Brand check before the arity ladder. The four leading
+  // arguments are numbers; the last is Element or ElementImage. A passing
+  // call does not read a paint record — it returns undefined.
+  const texElementSubImage2D = function texElementSubImage2D(target, level, xoffset, yoffset, element) {
+    const b = _glBaseOf.get(this) || this;
+    if (!_glCanvasMap.has(b)) throw new TypeError('Illegal invocation');
+    if (arguments.length < 5) throw new TypeError("Failed to execute 'texElementSubImage2D' on '" + _GLC.name + "': 5 arguments required, but only " + arguments.length + " present.");
+    for (const v of [target, level, xoffset, yoffset]) {
+      if (typeof v === 'symbol') throw new TypeError("Failed to execute 'texElementSubImage2D' on '" + _GLC.name + "': Cannot convert a Symbol value to a number");
+      try { +v; } catch (e) { throw new TypeError("Failed to execute 'texElementSubImage2D' on '" + _GLC.name + "': " + e.message); }
+    }
+    if (element === null || typeof element !== 'object' || typeof Element !== 'function' || !(element instanceof Element)) {
+      throw new TypeError("Failed to execute 'texElementSubImage2D' on '" + _GLC.name + "': The provided value is not of type '(Element or ElementImage)'.");
+    }
+  };
+  Object.defineProperty(P, 'texElementSubImage2D', { value: texElementSubImage2D, writable: true, enumerable: true, configurable: true });
 }
 // ---------- (刀92) WebGL extension method behavior ----------
 // webgl_ext.js forwards every extension method here carrying (iface, method, nreq);
