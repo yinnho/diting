@@ -980,6 +980,23 @@
     seat('XRQuadLayer', ['space', 'transform', 'width', 'height', 'onredraw', 'constructor']);
     seat('XRCylinderLayer', ['space', 'transform', 'radius', 'centralAngle', 'aspectRatio', 'onredraw', 'constructor']);
     seat('XRPlane', ['planeSpace', 'polygon', 'orientation', 'lastChangedTime', 'semanticLabel', 'constructor']);
+    const method = (iface, name, len) => fn(iface, name, len, function () {
+      if (!live.has(this)) throw new TypeError('Illegal invocation');
+    });
+    for (const n of ['entries', 'keys', 'values']) method('XRPlaneSet', n, 0);
+    method('XRPlaneSet', 'forEach', 1);
+    method('XRPlaneSet', 'has', 1);
+    acc('XRPlaneSet', 'size', false);
+    for (const n of ['textureWidth', 'textureHeight', 'textureArrayLength', 'ignoreDepthValues']) acc('XRProjectionLayer', n, false);
+    for (const n of ['fixedFoveation', 'deltaPose']) acc('XRProjectionLayer', n, true);
+    seat('XRPlaneSet', ['size', 'entries', 'forEach', 'has', 'keys', 'values', 'constructor']);
+    seat('XRProjectionLayer', ['textureWidth', 'textureHeight', 'textureArrayLength', 'ignoreDepthValues', 'fixedFoveation', 'deltaPose', 'constructor']);
+    for (const n of ['layout', 'mipLevels', 'needsRedraw']) acc('XRCompositionLayer', n, false);
+    for (const n of ['blendTextureSourceAlpha', 'forceMonoPresentation', 'opacity']) acc('XRCompositionLayer', n, true);
+    method('XRCompositionLayer', 'destroy', 0);
+    for (const n of ['space', 'transform', 'radius', 'centralHorizontalAngle', 'upperVerticalAngle', 'lowerVerticalAngle', 'onredraw']) acc('XREquirectLayer', n, true);
+    seat('XRCompositionLayer', ['layout', 'blendTextureSourceAlpha', 'forceMonoPresentation', 'opacity', 'mipLevels', 'needsRedraw', 'destroy', 'constructor']);
+    seat('XREquirectLayer', ['space', 'transform', 'radius', 'centralHorizontalAngle', 'upperVerticalAngle', 'lowerVerticalAngle', 'onredraw', 'constructor']);
   });
 
   // Chrome 157 iterator helpers. join defaults to ",". includes uses

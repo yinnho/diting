@@ -2378,6 +2378,80 @@ fn chrome157_xr_layers() {
     );
 }
 
+/// Chrome 157 plane set and projection layer. Brand check wins over arity,
+/// and the read-only texture sizes have no setter.
+#[test]
+fn chrome157_xr_plane_set() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { const r = fn(); return r === undefined ? 'undef' : String(r); } catch (e) { return e.name + ': ' + e.message; } };
+        const set = Object.create(XRPlaneSet.prototype);
+        const layer = Object.create(XRProjectionLayer.prototype);
+        ({
+          has: err(() => set.has()),
+          size: err(() => set.size),
+          width: err(() => layer.textureWidth),
+          fov: err(() => { layer.fixedFoveation = Symbol('x'); }),
+          assign: err(() => { layer.textureWidth = 4; return layer.textureWidth; }),
+          setOrder: Object.getOwnPropertyNames(XRPlaneSet.prototype),
+          layerOrder: Object.getOwnPropertyNames(XRProjectionLayer.prototype),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "has": "TypeError: Illegal invocation",
+            "size": "TypeError: Illegal invocation",
+            "width": "TypeError: Illegal invocation",
+            "fov": "TypeError: Illegal invocation",
+            "assign": "TypeError: Illegal invocation",
+            "setOrder": ["size", "entries", "forEach", "has", "keys", "values", "constructor"],
+            "layerOrder": ["textureWidth", "textureHeight", "textureArrayLength", "ignoreDepthValues", "fixedFoveation", "deltaPose", "constructor"],
+        })
+    );
+}
+
+/// Chrome 157 composition and equirect layers. Brand check runs before
+/// value conversion. layout, mipLevels, and needsRedraw are read-only.
+#[test]
+fn chrome157_xr_composition_layer() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { const r = fn(); return r === undefined ? 'undef' : String(r); } catch (e) { return e.name + ': ' + e.message; } };
+        const comp = Object.create(XRCompositionLayer.prototype);
+        const eq = Object.create(XREquirectLayer.prototype);
+        ({
+          layout: err(() => comp.layout),
+          opacity: err(() => { comp.opacity = Symbol('x'); }),
+          destroy: err(() => comp.destroy()),
+          space: err(() => eq.space),
+          angle: err(() => { eq.radius = Symbol('x'); }),
+          compOrder: Object.getOwnPropertyNames(XRCompositionLayer.prototype),
+          eqOrder: Object.getOwnPropertyNames(XREquirectLayer.prototype),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "layout": "TypeError: Illegal invocation",
+            "opacity": "TypeError: Illegal invocation",
+            "destroy": "TypeError: Illegal invocation",
+            "space": "TypeError: Illegal invocation",
+            "angle": "TypeError: Illegal invocation",
+            "compOrder": ["layout", "blendTextureSourceAlpha", "forceMonoPresentation", "opacity", "mipLevels", "needsRedraw", "destroy", "constructor"],
+            "eqOrder": ["space", "transform", "radius", "centralHorizontalAngle", "upperVerticalAngle", "lowerVerticalAngle", "onredraw", "constructor"],
+        })
+    );
+}
+
 /// Chrome 157 datagram caps. 0 and non-finite numbers are stored as 1.
 /// A negative value wraps as an unsigned long.
 #[test]

@@ -2262,12 +2262,12 @@ P XRAnchorSet :: constructor,entries,forEach,has,keys,size,values
 P XRBoundedReferenceSpace :: boundsGeometry,constructor
 P XRCPUDepthInformation :: constructor,data,getDepthInMeters
 P XRCamera :: constructor,height,width
-P XRCompositionLayer :: constructor
+P XRCompositionLayer :: blendTextureSourceAlpha,constructor,destroy,forceMonoPresentation,layout,mipLevels,needsRedraw,opacity
 P XRCubeLayer :: constructor,onredraw,orientation,space
 P XRCylinderLayer :: aspectRatio,centralAngle,constructor,onredraw,radius,space,transform
 P XRDOMOverlayState :: constructor,type
 P XRDepthInformation :: constructor,height,normDepthBufferFromNormView,projectionMatrix,rawValueToMeters,transform,width
-P XREquirectLayer :: constructor
+P XREquirectLayer :: centralHorizontalAngle,constructor,lowerVerticalAngle,onredraw,radius,space,transform,upperVerticalAngle
 P XRFrame :: constructor,createAnchor,detectedPlanes,fillJointRadii,fillPoses,getDepthInformation,getHitTestResults,getHitTestResultsForTransientInput,getJointPose,getLightEstimate,getPose,getViewerPose,session,trackedAnchors
 P XRHand :: constructor,entries,forEach,get,keys,size,values
 P XRHitTestResult :: constructor,createAnchor,getPose
@@ -2283,9 +2283,9 @@ P XRLayerEvent :: constructor,layer
 P XRLightEstimate :: constructor,primaryLightDirection,primaryLightIntensity,sphericalHarmonicsCoefficients
 P XRLightProbe :: constructor,onreflectionchange,probeSpace
 P XRPlane :: constructor,lastChangedTime,orientation,planeSpace,polygon,semanticLabel
-P XRPlaneSet :: constructor
+P XRPlaneSet :: constructor,entries,forEach,has,keys,size,values
 P XRPose :: constructor,emulatedPosition,transform
-P XRProjectionLayer :: constructor
+P XRProjectionLayer :: constructor,deltaPose,fixedFoveation,ignoreDepthValues,textureArrayLength,textureHeight,textureWidth
 P XRQuadLayer :: constructor,height,onredraw,space,transform,width
 P XRRay :: constructor,direction,matrix,origin
 P XRReferenceSpace :: constructor,getOffsetReferenceSpace,onreset
