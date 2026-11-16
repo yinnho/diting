@@ -1248,7 +1248,7 @@ P AnimationEffect :: constructor,getComputedTiming,getTiming,updateTiming
 P AnimationEvent :: animation,animationName,constructor,elapsedTime,pseudoElement,pseudoTarget
 P AnimationPlaybackEvent :: constructor,currentTime,timelineTime
 P AnimationTimeline :: constructor,currentTime,duration
-P AnimationTrigger :: constructor
+P AnimationTrigger :: addAnimation,constructor,getAnimations,removeAnimation
 S Array :: from,fromAsync,isArray,of
 P Array :: at,concat,constructor,copyWithin,entries,every,fill,filter,find,findIndex,findLast,findLastIndex,flat,flatMap,forEach,includes,indexOf,join,keys,lastIndexOf,length,map,pop,push,reduce,reduceRight,reverse,shift,slice,some,sort,splice,toLocaleString,toReversed,toSorted,toSpliced,toString,unshift,values,with
 S ArrayBuffer :: isView
@@ -1853,7 +1853,7 @@ P PeriodicSyncManager :: constructor,getTags,register,unregister
 P PeriodicWave :: constructor
 P PermissionStatus :: constructor,name,onchange,state
 P Permissions :: constructor,query
-P PermissionsPolicy :: constructor
+P PermissionsPolicy :: allowedFeatures,allowsFeature,constructor,features,getAllowlistForFeature
 P PictureInPictureEvent :: constructor,pictureInPictureWindow
 P PictureInPictureWindow :: constructor,height,onresize,width
 P Plugin :: constructor,description,filename,item,length,name,namedItem
@@ -2132,9 +2132,9 @@ P TextTrackCueList :: constructor,getCueById,length
 P TextTrackList :: constructor,getTrackById,length,onaddtrack,onchange,onremovetrack
 P TextUpdateEvent :: constructor,selectionEnd,selectionStart,text,updateRangeEnd,updateRangeStart
 P TimeRanges :: constructor,end,length,start
-P TimelineTrigger :: constructor
+P TimelineTrigger :: constructor,ranges
 P TimelineTriggerRange :: constructor
-P TimelineTriggerRangeList :: constructor
+P TimelineTriggerRangeList :: constructor,entries,forEach,item,keys,length,values
 P ToggleEvent :: constructor,newState,oldState,source
 P Touch :: clientX,clientY,constructor,force,identifier,pageX,pageY,radiusX,radiusY,rotationAngle,screenX,screenY,target
 P TouchEvent :: altKey,changedTouches,constructor,ctrlKey,metaKey,shiftKey,targetTouches,touches

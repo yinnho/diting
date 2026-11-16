@@ -690,6 +690,78 @@
     });
   });
 
+  // Chrome 157 animation triggers. Behaviors are none, pause, play, reset.
+  // A trigger keeps each Animation once. ranges is one empty list.
+  section('animation-trigger', () => {
+    const AT = G.AnimationTrigger;
+    const TT = G.TimelineTrigger;
+    const List = G.TimelineTriggerRangeList;
+    const Anim = G.Animation;
+    if (typeof AT !== 'function' || typeof TT !== 'function' || typeof List !== 'function' || typeof Anim !== 'function') return;
+    const BEHAVIORS = ['none', 'pause', 'play', 'reset'];
+    const state = new WeakMap();
+    const bag = (self) => {
+      let s = state.get(self);
+      if (!s) { s = { anims: [] }; state.set(self, s); }
+      return s;
+    };
+    const brand = (self, C) => { if (!(self instanceof C)) throw new TypeError('Illegal invocation'); };
+    const seat = (P, want) => {
+      const names = Object.getOwnPropertyNames(P);
+      const seq = want.filter((k) => names.indexOf(k) >= 0).concat(names.filter((k) => want.indexOf(k) < 0));
+      if (seq.every((k, i) => k === names[i])) return;
+      const saved = [];
+      for (const k of seq) {
+        const d = Object.getOwnPropertyDescriptor(P, k);
+        if (d && d.configurable) { saved.push([k, d]); delete P[k]; }
+      }
+      for (const [k, d] of saved) Object.defineProperty(P, k, d);
+    };
+    fn('AnimationTrigger', 'addAnimation', 2, function addAnimation(animation, behavior) {
+      brand(this, AT);
+      argc(arguments, 2, 'addAnimation', 'AnimationTrigger');
+      if (!(animation instanceof Anim)) throw new TypeError("Failed to execute 'addAnimation' on 'AnimationTrigger': parameter 1 is not of type 'Animation'.");
+      const b = String(behavior);
+      if (BEHAVIORS.indexOf(b) < 0) throw new TypeError("Failed to execute 'addAnimation' on 'AnimationTrigger': The provided value '" + b + "' is not a valid enum value of type AnimationTriggerBehavior.");
+      const anims = bag(this).anims;
+      if (anims.indexOf(animation) < 0) anims.push(animation);
+    });
+    fn('AnimationTrigger', 'removeAnimation', 1, function removeAnimation(animation) {
+      brand(this, AT);
+      argc(arguments, 1, 'removeAnimation', 'AnimationTrigger');
+      if (!(animation instanceof Anim)) throw new TypeError("Failed to execute 'removeAnimation' on 'AnimationTrigger': parameter 1 is not of type 'Animation'.");
+      const anims = bag(this).anims;
+      const i = anims.indexOf(animation);
+      if (i >= 0) anims.splice(i, 1);
+    });
+    fn('AnimationTrigger', 'getAnimations', 0, function getAnimations() {
+      brand(this, AT);
+      return bag(this).anims.slice();
+    });
+    const lists = new WeakMap();
+    def(TT.prototype, 'ranges', { get: pin(function () {
+      brand(this, TT);
+      let list = lists.get(this);
+      if (!list) { list = Object.create(List.prototype); lists.set(this, list); }
+      return list;
+    }, 'get ranges'), enumerable: true, configurable: true });
+    def(List.prototype, 'length', { get: pin(function () { brand(this, List); return 0; }, 'get length'), enumerable: true, configurable: true });
+    fn('TimelineTriggerRangeList', 'item', 1, function item() {
+      brand(this, List);
+      argc(arguments, 1, 'item', 'TimelineTriggerRangeList');
+      return null;
+    });
+    fn('TimelineTriggerRangeList', 'forEach', 1, function forEach() {
+      brand(this, List);
+      argc(arguments, 1, 'forEach', 'TimelineTriggerRangeList');
+    });
+    const empty = () => [][Symbol.iterator]();
+    for (const n of ['entries', 'keys', 'values']) fn('TimelineTriggerRangeList', n, 0, function () { brand(this, List); return empty(); });
+    seat(AT.prototype, ['addAnimation', 'getAnimations', 'removeAnimation', 'constructor']);
+    seat(TT.prototype, ['ranges', 'constructor']);
+    seat(List.prototype, ['entries', 'keys', 'values', 'forEach', 'length', 'item', 'constructor']);
+  });
+
   // Chrome 157 iterator helpers. join defaults to ",". includes uses
   // SameValueZero, so NaN matches NaN. A receiver without next throws when
   // next is called.
