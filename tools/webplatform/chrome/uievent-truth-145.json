@@ -517,6 +517,19 @@
   "strABC": "THROW TypeError: Failed to construct 'WheelEvent': Failed to read the 'deltaX' property from 'WheelEventInit': The provided dou",
   "undef": 0
  },
+ "conv.WheelEvent.momentum": {
+  "big": true,
+  "bool": true,
+  "float": true,
+  "nan": false,
+  "neg": true,
+  "null": false,
+  "num": true,
+  "obj": true,
+  "str": true,
+  "strABC": true,
+  "undef": false
+ },
  "ctor0.CompositionEvent": "THROW TypeError: Failed to construct 'CompositionEvent': 1 argument required, but only 0 present.",
  "ctor0.FocusEvent": "THROW TypeError: Failed to construct 'FocusEvent': 1 argument required, but only 0 present.",
  "ctor0.InputEvent": "THROW TypeError: Failed to construct 'InputEvent': 1 argument required, but only 0 present.",
@@ -604,6 +617,7 @@
  },
  "def.UIEvent": {
   "detail": 0,
+  "pseudoTarget": null,
   "sourceCapabilities": null,
   "view": null,
   "which": 0
@@ -613,6 +627,7 @@
   "deltaX": 0,
   "deltaY": 0,
   "deltaZ": 0,
+  "momentum": false,
   "wheelDelta": 0,
   "wheelDeltaX": 0,
   "wheelDeltaY": 0,
@@ -1098,6 +1113,7 @@
     "constructor": "function",
     "detail": "ro",
     "initUIEvent": "function",
+    "pseudoTarget": "ro",
     "sourceCapabilities": "ro",
     "view": "ro",
     "which": "ro"
@@ -1112,6 +1128,7 @@
     "sourceCapabilities",
     "which",
     "initUIEvent",
+    "pseudoTarget",
     "constructor"
    ],
    "parent": "Event",
@@ -1134,6 +1151,7 @@
     "deltaX": "ro",
     "deltaY": "ro",
     "deltaZ": "ro",
+    "momentum": "ro",
     "wheelDelta": "ro",
     "wheelDeltaX": "ro",
     "wheelDeltaY": "ro"
@@ -1152,6 +1170,7 @@
     "DOM_DELTA_PIXEL",
     "DOM_DELTA_LINE",
     "DOM_DELTA_PAGE",
+    "momentum",
     "constructor"
    ],
    "parent": "MouseEvent",

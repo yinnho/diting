@@ -2151,7 +2151,7 @@ P TrustedScriptURL :: constructor,toJSON,toString
 P TrustedTypePolicy :: constructor,createHTML,createScript,createScriptURL,name
 P TrustedTypePolicyFactory :: constructor,createPolicy,defaultPolicy,emptyHTML,emptyScript,getAttributeType,getPropertyType,getTypeMapping,isHTML,isScript,isScriptURL
 P TypeError :: constructor,message,name
-P UIEvent :: constructor,detail,initUIEvent,sourceCapabilities,view,which
+P UIEvent :: constructor,detail,initUIEvent,pseudoTarget,sourceCapabilities,view,which
 P URIError :: constructor,message,name
 S URL :: canParse,createObjectURL,parse,revokeObjectURL
 P URL :: constructor,hash,host,hostname,href,origin,password,pathname,port,protocol,search,searchParams,toJSON,toString,username
@@ -2235,7 +2235,7 @@ P WebTransportBidirectionalStream :: constructor,readable,writable
 P WebTransportDatagramDuplexStream :: constructor,incomingHighWaterMark,incomingMaxAge,maxDatagramSize,outgoingHighWaterMark,outgoingMaxAge,readable,writable
 P WebTransportError :: constructor,source,streamErrorCode
 S WheelEvent :: DOM_DELTA_LINE,DOM_DELTA_PAGE,DOM_DELTA_PIXEL
-P WheelEvent :: DOM_DELTA_LINE,DOM_DELTA_PAGE,DOM_DELTA_PIXEL,constructor,deltaMode,deltaX,deltaY,deltaZ,wheelDelta,wheelDeltaX,wheelDeltaY
+P WheelEvent :: DOM_DELTA_LINE,DOM_DELTA_PAGE,DOM_DELTA_PIXEL,constructor,deltaMode,deltaX,deltaY,deltaZ,momentum,wheelDelta,wheelDeltaX,wheelDeltaY
 S Window :: PERSISTENT,TEMPORARY
 P Window :: PERSISTENT,TEMPORARY,constructor
 P WindowControlsOverlay :: constructor,getTitlebarAreaRect,ongeometrychange,visible

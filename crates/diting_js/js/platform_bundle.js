@@ -10257,7 +10257,7 @@ const D = {
     button: ['short', 0], buttons: ['ushort', 0], clientX: ['dtrunc', 0], clientY: ['dtrunc', 0],
     movementX: ['long', 0], movementY: ['long', 0], relatedTarget: ['EventTarget', null],
     screenX: ['dtrunc', 0], screenY: ['dtrunc', 0] } },
-  WHEEL: { dict: 'WheelEventInit', m: { deltaMode: ['ulong', 0], deltaX: ['double', 0], deltaY: ['double', 0], deltaZ: ['double', 0] } },
+  WHEEL: { dict: 'WheelEventInit', m: { deltaMode: ['ulong', 0], deltaX: ['double', 0], deltaY: ['double', 0], deltaZ: ['double', 0], momentum: ['bool', false] } },
   KEY: { dict: 'KeyboardEventInit', m: {
     charCode: ['long', 0], code: ['DOMString', ''], isComposing: ['bool', false], key: ['DOMString', ''],
     keyCode: ['long', 0], location: ['ulong', 0], repeat: ['bool', false] } },
@@ -10388,6 +10388,8 @@ P.method(UIP, 'initUIEvent', 1, function initUIEvent() {
   s.view = CONV.Window(arguments[3], initUIEvent, "Failed to execute 'initUIEvent' on 'UIEvent': parameter 4");
   s.detail = wrap(Number(arguments[4]), 32, true);
 });
+// Chrome 157: not an init-dictionary field. A script constructor reads null.
+getter(UIP, 'pseudoTarget', () => null);
 P.seal(UIEvent);
 
 // ================= MouseEvent
@@ -10449,6 +10451,7 @@ getter(WP, 'wheelDelta', (s) => (Math.trunc(s.deltaY) !== 0 ? Math.trunc(s.delta
 constant(WheelEvent, 'DOM_DELTA_PIXEL', 0);
 constant(WheelEvent, 'DOM_DELTA_LINE', 1);
 constant(WheelEvent, 'DOM_DELTA_PAGE', 2);
+getter(WP, 'momentum', (s) => s.momentum);
 P.seal(WheelEvent);
 
 // ================= KeyboardEvent
