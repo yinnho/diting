@@ -55267,6 +55267,635 @@
       "read": false
      }
     }
+   },
+   "shadowRootCustomElementRegistry": {
+    "attr": "shadowrootcustomelementregistry",
+    "def": "",
+    "fromAttr": {
+     "": "",
+     "-3": "-3",
+     "/rel/p?q=1": "/rel/p?q=1",
+     "0": "0",
+     "1e2": "1e2",
+     "2147483648": "2147483648",
+     "5": "5",
+     "99999999999": "99999999999",
+     "9px": "9px",
+     "ABC": "ABC",
+     "abc": "abc",
+     "anonymous": "anonymous",
+     "false": "false",
+     "http://x.test/a b": "http://x.test/a b",
+     "true": "true",
+     "use-credentials": "use-credentials"
+    },
+    "set": {
+     "big": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "2147483648"
+      ],
+      "read": "2147483648"
+     },
+     "empty": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       ""
+      ],
+      "read": ""
+     },
+     "false": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "false"
+      ],
+      "read": "false"
+     },
+     "neg1": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "-1"
+      ],
+      "read": "-1"
+     },
+     "null": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "null"
+      ],
+      "read": "null"
+     },
+     "num1.9": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "1.9"
+      ],
+      "read": "1.9"
+     },
+     "num5": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "5"
+      ],
+      "read": "5"
+     },
+     "rel": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "/rel/p?q=1"
+      ],
+      "read": "/rel/p?q=1"
+     },
+     "str": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "ABC"
+      ],
+      "read": "ABC"
+     },
+     "true": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "true"
+      ],
+      "read": "true"
+     },
+     "undef": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "undefined"
+      ],
+      "read": "undefined"
+     },
+     "zero": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "0"
+      ],
+      "read": "0"
+     }
+    }
+   },
+   "shadowRootSlotAssignment": {
+    "attr": "shadowrootslotassignment",
+    "def": "named",
+    "fromAttr": {
+     "": "named",
+     "-3": "named",
+     "/rel/p?q=1": "named",
+     "0": "named",
+     "1e2": "named",
+     "2147483648": "named",
+     "5": "named",
+     "99999999999": "named",
+     "9px": "named",
+     "ABC": "named",
+     "abc": "named",
+     "anonymous": "named",
+     "false": "named",
+     "http://x.test/a b": "named",
+     "true": "named",
+     "use-credentials": "named"
+    },
+    "set": {
+     "big": {
+      "attr": [
+       "shadowrootslotassignment",
+       "2147483648"
+      ],
+      "read": "named"
+     },
+     "empty": {
+      "attr": [
+       "shadowrootslotassignment",
+       ""
+      ],
+      "read": "named"
+     },
+     "false": {
+      "attr": [
+       "shadowrootslotassignment",
+       "false"
+      ],
+      "read": "named"
+     },
+     "neg1": {
+      "attr": [
+       "shadowrootslotassignment",
+       "-1"
+      ],
+      "read": "named"
+     },
+     "null": {
+      "attr": [
+       "shadowrootslotassignment",
+       "null"
+      ],
+      "read": "named"
+     },
+     "num1.9": {
+      "attr": [
+       "shadowrootslotassignment",
+       "1.9"
+      ],
+      "read": "named"
+     },
+     "num5": {
+      "attr": [
+       "shadowrootslotassignment",
+       "5"
+      ],
+      "read": "named"
+     },
+     "rel": {
+      "attr": [
+       "shadowrootslotassignment",
+       "/rel/p?q=1"
+      ],
+      "read": "named"
+     },
+     "str": {
+      "attr": [
+       "shadowrootslotassignment",
+       "ABC"
+      ],
+      "read": "named"
+     },
+     "true": {
+      "attr": [
+       "shadowrootslotassignment",
+       "true"
+      ],
+      "read": "named"
+     },
+     "undef": {
+      "attr": [
+       "shadowrootslotassignment",
+       "undefined"
+      ],
+      "read": "named"
+     },
+     "zero": {
+      "attr": [
+       "shadowrootslotassignment",
+       "0"
+      ],
+      "read": "named"
+     }
+    },
+    "vocab": {
+     "": "named",
+     "ANONYMOUS": "named",
+     "APPLICATION/X-WWW-FORM-URLENCODED": "named",
+     "ASYNC": "named",
+     "AUDIO": "named",
+     "AUDIOWORKLET": "named",
+     "AUTO": "named",
+     "BOTTOM": "named",
+     "BUTTON": "named",
+     "CAPTIONS": "named",
+     "CENTER": "named",
+     "CHAPTERS": "named",
+     "CHARACTERS": "named",
+     "CHECKBOX": "named",
+     "CIRC": "named",
+     "CIRCLE": "named",
+     "CLOSED": "named",
+     "DECIMAL": "named",
+     "DEFAULT": "named",
+     "DESCRIPTIONS": "named",
+     "DIALOG": "named",
+     "DOCUMENT": "named",
+     "DONE": "named",
+     "EAGER": "named",
+     "EMAIL": "named",
+     "EMBED": "named",
+     "ENTER": "named",
+     "FALSE": "named",
+     "FETCH": "named",
+     "FONT": "named",
+     "FRAME": "named",
+     "GET": "named",
+     "GO": "named",
+     "HIGH": "named",
+     "IFRAME": "named",
+     "IMAGE": "named",
+     "INHERIT": "named",
+     "JSON": "named",
+     "JUSTIFY": "named",
+     "LAZY": "named",
+     "LEFT": "named",
+     "LOW": "named",
+     "LTR": "named",
+     "MANIFEST": "named",
+     "MANUAL": "manual",
+     "METADATA": "named",
+     "MIDDLE": "named",
+     "MULTIPART/FORM-DATA": "named",
+     "NEXT": "named",
+     "NO": "named",
+     "NO-REFERRER": "named",
+     "NO-REFERRER-WHEN-DOWNGRADE": "named",
+     "NONE": "named",
+     "NUMERIC": "named",
+     "OBJECT": "named",
+     "OFF": "named",
+     "ON": "named",
+     "OPEN": "named",
+     "ORIGIN": "named",
+     "ORIGIN-WHEN-CROSS-ORIGIN": "named",
+     "PAINTWORKLET": "named",
+     "PLAINTEXT-ONLY": "named",
+     "POLY": "named",
+     "POLYGON": "named",
+     "POST": "named",
+     "PREVIOUS": "named",
+     "RADIO": "named",
+     "RECT": "named",
+     "RECTANGLE": "named",
+     "RENDER-BLOCKING": "named",
+     "REPORT": "named",
+     "RESET": "named",
+     "RIGHT": "named",
+     "RTL": "named",
+     "SAME-ORIGIN": "named",
+     "SCRIPT": "named",
+     "SEARCH": "named",
+     "SEND": "named",
+     "SENTENCES": "named",
+     "SERVICEWORKER": "named",
+     "SHAREDWORKER": "named",
+     "STRICT-ORIGIN": "named",
+     "STRICT-ORIGIN-WHEN-CROSS-ORIGIN": "named",
+     "STYLE": "named",
+     "SUBMIT": "named",
+     "SUBTITLES": "named",
+     "SYNC": "named",
+     "TEL": "named",
+     "TEXT": "named",
+     "TEXT/PLAIN": "named",
+     "TOP": "named",
+     "TRACK": "named",
+     "TRUE": "named",
+     "UNSAFE-URL": "named",
+     "URL": "named",
+     "USE-CREDENTIALS": "named",
+     "VIDEO": "named",
+     "WORDS": "named",
+     "WORKER": "named",
+     "XSLT": "named",
+     "YES": "named",
+     "anonymous": "named",
+     "application/x-www-form-urlencoded": "named",
+     "async": "named",
+     "audio": "named",
+     "audioworklet": "named",
+     "auto": "named",
+     "bottom": "named",
+     "button": "named",
+     "captions": "named",
+     "center": "named",
+     "chapters": "named",
+     "characters": "named",
+     "checkbox": "named",
+     "circ": "named",
+     "circle": "named",
+     "closed": "named",
+     "decimal": "named",
+     "default": "named",
+     "descriptions": "named",
+     "dialog": "named",
+     "document": "named",
+     "done": "named",
+     "eager": "named",
+     "email": "named",
+     "embed": "named",
+     "enter": "named",
+     "false": "named",
+     "fetch": "named",
+     "font": "named",
+     "frame": "named",
+     "get": "named",
+     "go": "named",
+     "high": "named",
+     "iframe": "named",
+     "image": "named",
+     "inherit": "named",
+     "json": "named",
+     "justify": "named",
+     "lazy": "named",
+     "left": "named",
+     "low": "named",
+     "ltr": "named",
+     "manifest": "named",
+     "manual": "manual",
+     "metadata": "named",
+     "middle": "named",
+     "multipart/form-data": "named",
+     "next": "named",
+     "no": "named",
+     "no-referrer": "named",
+     "no-referrer-when-downgrade": "named",
+     "none": "named",
+     "numeric": "named",
+     "object": "named",
+     "off": "named",
+     "on": "named",
+     "open": "named",
+     "origin": "named",
+     "origin-when-cross-origin": "named",
+     "paintworklet": "named",
+     "plaintext-only": "named",
+     "poly": "named",
+     "polygon": "named",
+     "post": "named",
+     "previous": "named",
+     "radio": "named",
+     "rect": "named",
+     "rectangle": "named",
+     "render-blocking": "named",
+     "report": "named",
+     "reset": "named",
+     "right": "named",
+     "rtl": "named",
+     "same-origin": "named",
+     "script": "named",
+     "search": "named",
+     "send": "named",
+     "sentences": "named",
+     "serviceworker": "named",
+     "sharedworker": "named",
+     "strict-origin": "named",
+     "strict-origin-when-cross-origin": "named",
+     "style": "named",
+     "submit": "named",
+     "subtitles": "named",
+     "sync": "named",
+     "tel": "named",
+     "text": "named",
+     "text/plain": "named",
+     "top": "named",
+     "track": "named",
+     "true": "named",
+     "unsafe-url": "named",
+     "url": "named",
+     "use-credentials": "named",
+     "video": "named",
+     "words": "named",
+     "worker": "named",
+     "xslt": "named",
+     "yes": "named"
+    }
+   },
+   "htmlFor": {
+    "attr": "for",
+    "def": "",
+    "fromAttr": {
+     "": "",
+     "-3": "-3",
+     "/rel/p?q=1": "/rel/p?q=1",
+     "0": "0",
+     "1e2": "1e2",
+     "2147483648": "2147483648",
+     "5": "5",
+     "99999999999": "99999999999",
+     "9px": "9px",
+     "ABC": "ABC",
+     "abc": "abc",
+     "anonymous": "anonymous",
+     "false": "false",
+     "http://x.test/a b": "http://x.test/a b",
+     "true": "true",
+     "use-credentials": "use-credentials"
+    },
+    "set": {
+     "big": {
+      "attr": [
+       "for",
+       "2147483648"
+      ],
+      "read": "2147483648"
+     },
+     "empty": {
+      "attr": [
+       "for",
+       ""
+      ],
+      "read": ""
+     },
+     "false": {
+      "attr": [
+       "for",
+       "false"
+      ],
+      "read": "false"
+     },
+     "neg1": {
+      "attr": [
+       "for",
+       "-1"
+      ],
+      "read": "-1"
+     },
+     "null": {
+      "attr": [
+       "for",
+       "null"
+      ],
+      "read": "null"
+     },
+     "num1.9": {
+      "attr": [
+       "for",
+       "1.9"
+      ],
+      "read": "1.9"
+     },
+     "num5": {
+      "attr": [
+       "for",
+       "5"
+      ],
+      "read": "5"
+     },
+     "rel": {
+      "attr": [
+       "for",
+       "/rel/p?q=1"
+      ],
+      "read": "/rel/p?q=1"
+     },
+     "str": {
+      "attr": [
+       "for",
+       "ABC"
+      ],
+      "read": "ABC"
+     },
+     "true": {
+      "attr": [
+       "for",
+       "true"
+      ],
+      "read": "true"
+     },
+     "undef": {
+      "attr": [
+       "for",
+       "undefined"
+      ],
+      "read": "undefined"
+     },
+     "zero": {
+      "attr": [
+       "for",
+       "0"
+      ],
+      "read": "0"
+     }
+    }
+   },
+   "shadowRootReferenceTarget": {
+    "attr": "shadowrootreferencetarget",
+    "def": null,
+    "fromAttr": {
+     "": "",
+     "-3": "-3",
+     "/rel/p?q=1": "/rel/p?q=1",
+     "0": "0",
+     "1e2": "1e2",
+     "2147483648": "2147483648",
+     "5": "5",
+     "99999999999": "99999999999",
+     "9px": "9px",
+     "ABC": "ABC",
+     "abc": "abc",
+     "anonymous": "anonymous",
+     "false": "false",
+     "http://x.test/a b": "http://x.test/a b",
+     "true": "true",
+     "use-credentials": "use-credentials"
+    },
+    "set": {
+     "big": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "2147483648"
+      ],
+      "read": "2147483648"
+     },
+     "empty": {
+      "attr": [
+       "shadowrootreferencetarget",
+       ""
+      ],
+      "read": ""
+     },
+     "false": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "false"
+      ],
+      "read": "false"
+     },
+     "neg1": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "-1"
+      ],
+      "read": "-1"
+     },
+     "null": {
+      "attr": null,
+      "read": null
+     },
+     "num1.9": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "1.9"
+      ],
+      "read": "1.9"
+     },
+     "num5": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "5"
+      ],
+      "read": "5"
+     },
+     "rel": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "/rel/p?q=1"
+      ],
+      "read": "/rel/p?q=1"
+     },
+     "str": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "ABC"
+      ],
+      "read": "ABC"
+     },
+     "true": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "true"
+      ],
+      "read": "true"
+     },
+     "undef": {
+      "attr": null,
+      "read": null
+     },
+     "zero": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "0"
+      ],
+      "read": "0"
+     }
+    }
    }
   },
   "HTMLTextAreaElement": {
@@ -59706,7 +60335,11 @@
    "shadowRootClonable": "rw",
    "shadowRootDelegatesFocus": "rw",
    "shadowRootMode": "rw",
-   "shadowRootSerializable": "rw"
+   "shadowRootSerializable": "rw",
+   "shadowRootCustomElementRegistry": "rw",
+   "shadowRootSlotAssignment": "rw",
+   "htmlFor": "rw",
+   "shadowRootReferenceTarget": "rw"
   },
   "HTMLTextAreaElement": {
    "autocomplete": "rw",
@@ -60521,7 +61154,11 @@
    "shadowRootDelegatesFocus",
    "shadowRootClonable",
    "shadowRootSerializable",
-   "constructor"
+   "shadowRootCustomElementRegistry",
+   "shadowRootSlotAssignment",
+   "htmlFor",
+   "constructor",
+   "shadowRootReferenceTarget"
   ],
   "HTMLTextAreaElement": [
    "autocomplete",
@@ -61326,6 +61963,47 @@
    "stylesheet": false,
    "tag": false,
    "terms-of-service": false
+  },
+  "HTMLElement.focusGroup": {
+   "render-blocking": false,
+   "noopener": false,
+   "noreferrer": false,
+   "opener": false,
+   "stylesheet": false,
+   "preload": false,
+   "modulepreload": false,
+   "icon": false,
+   "allow-forms": false,
+   "allow-scripts": false,
+   "allow-same-origin": false,
+   "allow-popups": false,
+   "allow-modals": false,
+   "allow-downloads": false,
+   "nofollow": false,
+   "prefetch": false,
+   "dns-prefetch": false,
+   "preconnect": false,
+   "canonical": false,
+   "alternate": false,
+   "author": false,
+   "bookmark": false,
+   "external": false,
+   "help": false,
+   "license": false,
+   "next": false,
+   "prev": false,
+   "search": false,
+   "tag": false,
+   "privacy-policy": false,
+   "terms-of-service": false,
+   "manifest": false,
+   "compression-dictionary": false,
+   "expect": false,
+   "pingback": false,
+   "nonexistent": false,
+   "nodownload": false,
+   "nofullscreen": false,
+   "noremoteplayback": false
   }
  }
 }

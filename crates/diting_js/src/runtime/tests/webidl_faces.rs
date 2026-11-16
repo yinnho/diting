@@ -1652,9 +1652,11 @@ async fn element_prototype_members_match_chrome_truth() {
         .unwrap();
     let engine: Vec<String> = serde_json::from_str(out.as_str().unwrap()).unwrap();
     let chrome: Vec<&str> = [
+        "activeViewTransition",
         "after",
         "animate",
         "append",
+        "ariaActionsElements",
         "ariaActiveDescendantElement",
         "ariaAtomic",
         "ariaAutoComplete",
@@ -1723,6 +1725,7 @@ async fn element_prototype_members_match_chrome_truth() {
         "computedStyleMap",
         "constructor",
         "currentCSSZoom",
+        "customElementRegistry",
         "elementTiming",
         "firstElementChild",
         "getAnimations",
@@ -1765,6 +1768,7 @@ async fn element_prototype_members_match_chrome_truth() {
         "prefix",
         "prepend",
         "previousElementSibling",
+        "pseudo",
         "querySelector",
         "querySelectorAll",
         "releasePointerCapture",
@@ -1794,6 +1798,7 @@ async fn element_prototype_members_match_chrome_truth() {
         "setPointerCapture",
         "shadowRoot",
         "slot",
+        "startViewTransition",
         "tagName",
         "toggleAttribute",
         "webkitMatchesSelector",
@@ -1811,6 +1816,6 @@ async fn element_prototype_members_match_chrome_truth() {
         .collect();
     assert!(
         extra.is_empty() && missing.is_empty(),
-        "Element.prototype member set drifted from Chrome 145: extra {extra:?} missing {missing:?}"
+        "Element.prototype member set drifted from Chrome 157: extra {extra:?} missing {missing:?}"
     );
 }

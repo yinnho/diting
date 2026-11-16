@@ -402,8 +402,8 @@ fn knife58_element_internals_aria_reflection_family() {
     let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
     assert_eq!(
         v["own"],
-        serde_json::json!(63),
-        "Chrome's exact 63-member prototype face"
+        serde_json::json!(64),
+        "Chrome 157: 63 plus ariaActionsElements"
     );
     assert_eq!(
         v["absent"],
@@ -450,6 +450,54 @@ fn knife58_element_internals_aria_reflection_family() {
         "_aria/_refs and ctor state stay hidden on the instance"
     );
     assert_eq!(v["tag"], serde_json::json!("[object ElementInternals]"));
+}
+
+/// Chrome 157 ariaActionsElements: a frozen element list. Setting it writes
+/// aria-actions="" and keeps the elements; setAttribute of ids resolves them.
+/// ElementInternals stores its own list and does not touch the attribute.
+#[test]
+fn aria_actions_elements_match_chrome_157() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        if (!customElements.get('x-aria-act')) customElements.define('x-aria-act', class extends HTMLElement {});
+        const host = document.createElement('x-aria-act');
+        document.body.appendChild(host);
+        const inn = host.attachInternals();
+        const b = document.createElement('button');
+        b.id = 'act';
+        document.body.appendChild(b);
+        const el = document.createElement('div');
+        document.body.appendChild(el);
+        el.ariaActionsElements = [b];
+        const set = el.ariaActionsElements;
+        const afterSet = [set.length, set[0] === b, Object.isFrozen(set), el.getAttribute('aria-actions')];
+        el.setAttribute('aria-actions', 'act');
+        const fromAttr = [el.ariaActionsElements.length, el.ariaActionsElements[0] === b];
+        el.ariaActionsElements = [];
+        const empty = [el.ariaActionsElements.length, Object.isFrozen(el.ariaActionsElements)];
+        el.ariaActionsElements = null;
+        const cleared = [el.ariaActionsElements, el.hasAttribute('aria-actions')];
+        let bad = '';
+        try { el.ariaActionsElements = 'x'; } catch (e) { bad = e.message; }
+        inn.ariaActionsElements = [b];
+        const internals = [inn.ariaActionsElements.length, inn.ariaActionsElements[0] === b, host.getAttribute('aria-actions'), Object.isFrozen(inn.ariaActionsElements)];
+        ({ afterSet, fromAttr, empty, cleared, bad, internals })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "afterSet": [1, true, true, ""],
+            "fromAttr": [1, true],
+            "empty": [0, true],
+            "cleared": [null, false],
+            "bad": "Failed to set the 'ariaActionsElements' property on 'Element': The provided value cannot be converted to a sequence.",
+            "internals": [1, true, null, true],
+        })
+    );
 }
 
 /// M4 刀59 (2026-10-31): the SVG root face — SVGSVGElement's 34 missing
@@ -2264,6 +2312,23 @@ fn knife66_counter_style_and_shadowroot() {
           sel.removeAllRanges(); sel.addRange(rg);
           out.srSelRange = [sel.rangeCount, sel.type, sel.anchorNode === sr.querySelector('p')];
           out.srIllegal = [t(() => SP.fullscreenElement), t(() => SP.getSelection())];
+          // Chrome 157 referenceTarget: nullable DOMString slot, not an attribute.
+          const rtd = Object.getOwnPropertyDescriptor(SP, 'referenceTarget');
+          out.rtDsc = [rtd.enumerable, rtd.configurable, rtd.get.name, rtd.set.length];
+          const rtHost = document.createElement('div');
+          const rt = rtHost.attachShadow({ mode: 'open' });
+          out.rtMiss = rt.referenceTarget;
+          rt.referenceTarget = 'ABC';
+          out.rtStr = rt.referenceTarget;
+          rt.referenceTarget = null;
+          out.rtNull = rt.referenceTarget;
+          rt.referenceTarget = undefined;
+          out.rtUndef = rt.referenceTarget;
+          rt.referenceTarget = false;
+          out.rtFalse = rt.referenceTarget;
+          rt.referenceTarget = '';
+          out.rtEmpty = rt.referenceTarget;
+          out.rtSym = t(() => { rt.referenceTarget = Symbol('x'); });
           return JSON.stringify(out);
         })()
     "#).unwrap();
@@ -2345,5 +2410,136 @@ fn knife66_counter_style_and_shadowroot() {
             "E:TypeError:Illegal invocation",
             "E:TypeError:Illegal invocation"
         ])
+    );
+    assert_eq!(
+        g("rtDsc"),
+        serde_json::json!([true, true, "get referenceTarget", 1])
+    );
+    assert_eq!(g("rtMiss"), serde_json::json!(null));
+    assert_eq!(g("rtStr"), serde_json::json!("ABC"));
+    assert_eq!(g("rtNull"), serde_json::json!(null));
+    assert_eq!(g("rtUndef"), serde_json::json!(null));
+    assert_eq!(g("rtFalse"), serde_json::json!("false"));
+    assert_eq!(g("rtEmpty"), serde_json::json!(""));
+    assert_eq!(
+        g("rtSym"),
+        serde_json::json!(
+            "E:TypeError:Failed to set the 'referenceTarget' property on 'ShadowRoot': Cannot convert a Symbol value to a string"
+        )
+    );
+}
+
+/// Chrome 157: an element view transition is not the document's. transitionRoot
+/// is the element, or the documentElement for a document transition. types
+/// come from the options object; a function callback carries none.
+#[test]
+fn element_view_transition_is_separate_from_document() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const el = document.createElement('div');
+        document.body.appendChild(el);
+        const other = document.createElement('span');
+        const d = Object.getOwnPropertyDescriptor(Element.prototype, 'activeViewTransition');
+        const m = Object.getOwnPropertyDescriptor(Element.prototype, 'startViewTransition');
+        const rest = el.activeViewTransition;
+        const vt = el.startViewTransition(() => {});
+        const opt = other.startViewTransition({ types: ['x', 'y'] });
+        const docVt = document.startViewTransition(() => {});
+        ({
+          rest: rest === null,
+          during: el.activeViewTransition === vt,
+          notDoc: document.activeViewTransition !== vt,
+          other: other.activeViewTransition === opt,
+          root: vt.transitionRoot === el,
+          types: Array.from(opt.types),
+          fnTypes: Array.from(vt.types),
+          doc: document.activeViewTransition === docVt,
+          docRoot: docVt.transitionRoot === document.documentElement,
+          elKeeps: el.activeViewTransition === vt,
+          len: m.value.length,
+          ro: !!(d.get && !d.set && d.enumerable && d.configurable),
+          proto: Object.prototype.hasOwnProperty.call(ViewTransition.prototype, 'transitionRoot'),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "rest": true,
+            "during": true,
+            "notDoc": true,
+            "other": true,
+            "root": true,
+            "types": ["x", "y"],
+            "fnTypes": [],
+            "doc": true,
+            "docRoot": true,
+            "elKeeps": true,
+            "len": 0,
+            "ro": true,
+            "proto": true,
+        })
+    );
+}
+
+/// Chrome 157 Element.pseudo returns a cached CSSPseudoElement for ::before,
+/// ::after, ::marker, ::backdrop and ::view-transition. Other types are null.
+/// The parent's parent is the element; a nested pseudo's parent is the pseudo.
+#[test]
+fn element_pseudo_returns_cached_css_pseudo_element() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const el = document.createElement('div');
+        const b = el.pseudo('::before');
+        const again = el.pseudo('::before');
+        const nested = b.pseudo('::marker');
+        let missing = '';
+        try { el.pseudo(); } catch (e) { missing = e.name + ': ' + e.message; }
+        let illegal = '';
+        try { Element.prototype.pseudo.call(null, '::before'); } catch (e) { illegal = e.name + ': ' + e.message; }
+        let ctor = '';
+        try { new CSSPseudoElement(); } catch (e) { ctor = e.name + ': ' + e.message; }
+        ({
+          type: b.type,
+          element: b.element === el,
+          parent: b.parent === el,
+          same: b === again,
+          tag: Object.prototype.toString.call(b),
+          none: el.pseudo('::nope'),
+          bare: el.pseudo('before'),
+          nestType: nested.type,
+          nestParent: nested.parent === b,
+          nestEl: nested.element === el,
+          len: Element.prototype.pseudo.length,
+          missing, illegal, ctor,
+          order: Object.getOwnPropertyNames(CSSPseudoElement.prototype).join(','),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "type": "::before",
+            "element": true,
+            "parent": true,
+            "same": true,
+            "tag": "[object CSSPseudoElement]",
+            "none": null,
+            "bare": null,
+            "nestType": "::marker",
+            "nestParent": true,
+            "nestEl": true,
+            "len": 1,
+            "missing": "TypeError: Failed to execute 'pseudo' on 'Element': 1 argument required, but only 0 present.",
+            "illegal": "TypeError: Illegal invocation",
+            "ctor": "TypeError: Failed to construct 'CSSPseudoElement': Illegal constructor",
+            "order": "type,element,parent,pseudo,constructor",
+        })
     );
 }

@@ -17,7 +17,9 @@
   // (SVGPoint left this list at 刀91: Chrome throws Illegal constructor for
   // EVERY argument list, not just zero args — svg_root.js owns the always-
   // throwing face now that internal minting goes through __diting_svgPoint.)
-  const ILLEGAL0 = ['Node', 'Element', 'CharacterData', 'CDATASection', 'DocumentType', 'ProcessingInstruction', 'XMLDocument', 'BaseAudioContext', 'CustomElementRegistry', 'DOMTokenList', 'ElementInternals', 'GPU', 'GPUAdapter', 'MediaQueryList', 'MessagePort', 'MimeType', 'MimeTypeArray', 'PerformanceEntry', 'PerformanceObserverEntryList', 'Plugin', 'PluginArray', 'Selection', 'ServiceWorkerContainer', 'SourceBuffer', 'XMLHttpRequestEventTarget'];
+  // CustomElementRegistry left this list for Chrome 157: `new CustomElementRegistry()`
+  // is the scoped-registry constructor, not an illegal zero-arg call.
+  const ILLEGAL0 = ['Node', 'Element', 'CharacterData', 'CDATASection', 'DocumentType', 'ProcessingInstruction', 'XMLDocument', 'BaseAudioContext', 'DOMTokenList', 'ElementInternals', 'GPU', 'GPUAdapter', 'MediaQueryList', 'MessagePort', 'MimeType', 'MimeTypeArray', 'PerformanceEntry', 'PerformanceObserverEntryList', 'Plugin', 'PluginArray', 'Selection', 'ServiceWorkerContainer', 'SourceBuffer', 'XMLHttpRequestEventTarget'];
   const wrap = (name, check) => {
     const Orig = G[name];
     if (typeof Orig !== 'function' || !Orig.prototype) return;

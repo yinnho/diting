@@ -698,3 +698,78 @@ class Z extends HTMLElement{static get observedAttributes(){return ["p"]}}custom
     ];
     assert_eq!(got, want);
 }
+
+/// Chrome 157: Document, Element and ShadowRoot expose the registry the node
+/// was created with. The window registry is the default; createElement and
+/// attachShadow can pass another one, including null. initialize() fills
+/// only the nulls and upgrades those elements against that registry.
+#[test]
+fn custom_element_registry_association_matches_chrome_157() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const R = new CustomElementRegistry();
+        class E extends HTMLElement {}
+        R.define('x-cer-157', E);
+        const div = document.createElement('div');
+        const scoped = document.createElement('div', { customElementRegistry: R });
+        const blank = document.createElement('span', { customElementRegistry: null });
+        const host = document.createElement('div');
+        const sr = host.attachShadow({ mode: 'open', customElementRegistry: R });
+        const srNull = document.createElement('div').attachShadow({ mode: 'open', customElementRegistry: null });
+        const raw = document.createElement('x-cer-157', { customElementRegistry: null });
+        const born = raw instanceof E;
+        R.initialize(raw);
+        const innerHost = document.createElement('div');
+        const innerSr = innerHost.attachShadow({ mode: 'open', customElementRegistry: null });
+        const inner = document.createElement('b', { customElementRegistry: null });
+        innerSr.appendChild(inner);
+        R.initialize(innerSr);
+        let bad = '';
+        try { document.createElement('div', { customElementRegistry: {} }); }
+        catch (e) { bad = e.name + ': ' + e.message; }
+        let initNull = '';
+        try { R.initialize(null); }
+        catch (e) { initNull = e.name + ': ' + e.message; }
+        const d = Object.getOwnPropertyDescriptor(Element.prototype, 'customElementRegistry');
+        ({
+          doc: document.customElementRegistry === customElements,
+          div: div.customElementRegistry === customElements,
+          scoped: scoped.customElementRegistry === R,
+          blank: blank.customElementRegistry,
+          sr: sr.customElementRegistry === R,
+          srNull: srNull.customElementRegistry,
+          plainSr: document.createElement('div').attachShadow({ mode: 'open' }).customElementRegistry === customElements,
+          born, upgraded: raw instanceof E, rawReg: raw.customElementRegistry === R,
+          inner: inner.customElementRegistry === R,
+          shadowFilled: innerSr.customElementRegistry === R,
+          bad, initNull,
+          ro: !!(d && d.get && !d.set && d.enumerable && d.configurable),
+          constructed: R instanceof CustomElementRegistry && R !== customElements,
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "doc": true,
+            "div": true,
+            "scoped": true,
+            "blank": null,
+            "sr": true,
+            "srNull": null,
+            "plainSr": true,
+            "born": false,
+            "upgraded": true,
+            "rawReg": true,
+            "inner": true,
+            "shadowFilled": true,
+            "bad": "TypeError: Failed to execute 'createElement' on 'Document': Failed to read the 'customElementRegistry' property from 'ElementCreationOptions': Failed to convert value to 'CustomElementRegistry'.",
+            "initNull": "TypeError: Failed to execute 'initialize' on 'CustomElementRegistry': parameter 1 is not of type 'Node'.",
+            "ro": true,
+            "constructed": true,
+        })
+    );
+}

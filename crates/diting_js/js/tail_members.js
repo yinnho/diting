@@ -107,6 +107,15 @@
       return s.v.fp;
     });
     for (const [n, a] of [['media', 'media'], ['title', 'title']]) rw('SVGStyleElement', n, function () { const v = this.getAttribute(a); return v === null ? '' : v; }, function (v) { this.setAttribute(a, String(v)); });
+    // Chrome 157: ShadowRoot is not an Element, so this is a nullable DOMString
+    // slot, not a content attribute. Missing reads null; null and undefined
+    // clear it; every other value is String(v) (knife66 rt*).
+    rw('ShadowRoot', 'referenceTarget', function (s) {
+      return Object.prototype.hasOwnProperty.call(s.v, 'rt') ? s.v.rt : null;
+    }, function (v, s) {
+      if (typeof v === 'symbol') throw new TypeError("Failed to set the 'referenceTarget' property on 'ShadowRoot': Cannot convert a Symbol value to a string");
+      s.v.rt = v === null || v === undefined ? null : String(v);
+    });
     fn('HTMLCanvasElement', 'captureStream', 0, function captureStream() { obj(this); return new G.MediaStream(); });
     fn('HTMLCanvasElement', 'transferControlToOffscreen', 0, function transferControlToOffscreen() {
       obj(this);
@@ -268,6 +277,9 @@
     ro('GPUAdapter', 'info', (s) => s.v.i || (s.v.i = { vendor: '', architecture: '', device: '', description: '' }));
     ro('WritableStreamDefaultController', 'signal', (s) => s.v.sig || (s.v.sig = new G.AbortController().signal));
     ro('ViewTransition', 'types', (s) => s.v.ty || (s.v.ty = new Set()));
+    // Chrome 157. The live object from startViewTransition carries its own
+    // transitionRoot; this getter is the prototype member.
+    ro('ViewTransition', 'transitionRoot', () => null);
     fn('ViewTransition', 'waitUntil', 1, function waitUntil(p) { obj(this); argc(arguments, 1, 'waitUntil', 'ViewTransition'); });
     ro('ToggleEvent', 'source', () => null);
     for (const n of ['setAttributionReporting', 'setPrivateToken']) {
@@ -277,5 +289,64 @@
       });
     }
     // SourceBuffer mode/updating/timestampOffset/appendWindow*: the class assigns them in its constructor — lifted by lift_own
+  });
+
+  // Chrome 157 Element.pseudo / CSSPseudoElement. Only these types return an
+  // object; anything else is null. The same (parent, type) pair is cached.
+  // A top-level pseudo's parent is the element. A nested one's parent is the
+  // pseudo it was asked on. element is always the originating element.
+  section('css-pseudo', () => {
+    const C = G.CSSPseudoElement;
+    const E = G.Element;
+    if (typeof C !== 'function' || typeof E !== 'function') return;
+    const ALLOW = new Set(['::before', '::after', '::marker', '::backdrop', '::view-transition']);
+    const slots = new WeakMap();
+    const cache = new WeakMap();
+    const P = C.prototype;
+    const brand = (self) => {
+      const s = slots.get(self);
+      if (!s) throw new TypeError('Illegal invocation');
+      return s;
+    };
+    const getter = (name, pick) => {
+      const get = pin(function () { return pick(brand(this)); }, 'get ' + name);
+      def(P, name, { get, enumerable: true, configurable: true });
+    };
+    getter('type', (s) => s.type);
+    getter('element', (s) => s.element);
+    getter('parent', (s) => s.parent);
+    const pseudo = function pseudo(type) {
+      const parent = this;
+      const onEl = parent instanceof E;
+      const onPseudo = slots.has(parent);
+      if (!onEl && !onPseudo) throw new TypeError('Illegal invocation');
+      if (arguments.length < 1) {
+        const iface = onEl ? 'Element' : 'CSSPseudoElement';
+        throw new TypeError("Failed to execute 'pseudo' on '" + iface + "': 1 argument required, but only 0 present.");
+      }
+      const t = String(type);
+      if (!ALLOW.has(t)) return null;
+      let m = cache.get(parent);
+      if (!m) { m = new Map(); cache.set(parent, m); }
+      let obj = m.get(t);
+      if (!obj) {
+        const element = onEl ? parent : slots.get(parent).element;
+        obj = Object.create(P);
+        slots.set(obj, { type: t, element, parent });
+        m.set(t, obj);
+      }
+      return obj;
+    };
+    pin(pseudo, 'pseudo', 1);
+    def(P, 'pseudo', { value: pseudo, writable: true, enumerable: true, configurable: true });
+    def(E.prototype, 'pseudo', { value: pseudo, writable: true, enumerable: true, configurable: true });
+    const ctor = Object.getOwnPropertyDescriptor(P, 'constructor');
+    if (ctor && ctor.configurable) {
+      delete P.constructor;
+      Object.defineProperty(P, 'constructor', ctor);
+    }
+    if (!Object.prototype.hasOwnProperty.call(P, Symbol.toStringTag)) {
+      Object.defineProperty(P, Symbol.toStringTag, { value: 'CSSPseudoElement', configurable: true });
+    }
   });
 })();
