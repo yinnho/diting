@@ -2294,6 +2294,90 @@ fn chrome157_user_media_elements() {
     );
 }
 
+/// Chrome 157 XR members. No session is live, so the new getters reject
+/// every receiver. initiateRoomCapture returns a rejected promise.
+#[test]
+fn chrome157_xr_members() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { const r = fn(); return r === undefined ? 'undef' : String(r); } catch (e) { return e.name + ': ' + e.message; } };
+        const room = Object.create(XRSession.prototype).initiateRoomCapture();
+        room.catch(() => {});
+        const frame = Object.getOwnPropertyNames(XRFrame.prototype);
+        const session = Object.getOwnPropertyNames(XRSession.prototype);
+        ({
+          planes: err(() => Object.create(XRFrame.prototype).detectedPlanes),
+          layer: err(() => Object.create(XRLayerEvent.prototype).layer),
+          layers: err(() => Object.create(XRRenderState.prototype).layers),
+          view: err(() => Object.create(XRSubImage.prototype).viewport),
+          max: err(() => Object.create(XRSession.prototype).maxRenderLayers),
+          room: room instanceof Promise,
+          frameTail: frame.slice(frame.indexOf('constructor')),
+          layerOrder: Object.getOwnPropertyNames(XRLayerEvent.prototype),
+          subOrder: Object.getOwnPropertyNames(XRSubImage.prototype),
+          sessionAt: session.slice(session.indexOf('enabledFeatures'), session.indexOf('onvisibilitymaskchange') + 1).concat(session.slice(-1)),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "planes": "TypeError: Illegal invocation",
+            "layer": "TypeError: Illegal invocation",
+            "layers": "TypeError: Illegal invocation",
+            "view": "TypeError: Illegal invocation",
+            "max": "TypeError: Illegal invocation",
+            "room": true,
+            "frameTail": ["constructor", "detectedPlanes"],
+            "layerOrder": ["layer", "constructor"],
+            "subOrder": ["viewport", "constructor"],
+            "sessionAt": ["enabledFeatures", "maxRenderLayers", "onvisibilitymaskchange", "initiateRoomCapture"],
+        })
+    );
+}
+
+/// Chrome 157 XR layers and planes. Reads and writes fail the brand check
+/// before converting the assigned value. Plane attributes have no setter.
+#[test]
+fn chrome157_xr_layers() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { const r = fn(); return r === undefined ? 'undef' : String(r); } catch (e) { return e.name + ': ' + e.message; } };
+        const cube = Object.create(XRCubeLayer.prototype);
+        const plane = Object.create(XRPlane.prototype);
+        ({
+          get: err(() => cube.space),
+          set: err(() => { cube.orientation = Symbol('x'); }),
+          plane: err(() => plane.semanticLabel),
+          assign: err(() => { plane.orientation = 'horizontal'; return plane.orientation; }),
+          cubeOrder: Object.getOwnPropertyNames(XRCubeLayer.prototype),
+          quadOrder: Object.getOwnPropertyNames(XRQuadLayer.prototype),
+          cylOrder: Object.getOwnPropertyNames(XRCylinderLayer.prototype),
+          planeOrder: Object.getOwnPropertyNames(XRPlane.prototype),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "get": "TypeError: Illegal invocation",
+            "set": "TypeError: Illegal invocation",
+            "plane": "TypeError: Illegal invocation",
+            "assign": "TypeError: Illegal invocation",
+            "cubeOrder": ["space", "orientation", "onredraw", "constructor"],
+            "quadOrder": ["space", "transform", "width", "height", "onredraw", "constructor"],
+            "cylOrder": ["space", "transform", "radius", "centralAngle", "aspectRatio", "onredraw", "constructor"],
+            "planeOrder": ["planeSpace", "polygon", "orientation", "lastChangedTime", "semanticLabel", "constructor"],
+        })
+    );
+}
+
 /// Chrome 157 datagram caps. 0 and non-finite numbers are stored as 1.
 /// A negative value wraps as an unsigned long.
 #[test]
