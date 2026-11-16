@@ -2,6 +2,144 @@
 use super::common::setup_runtime;
 
 #[tokio::test(flavor = "current_thread")]
+async fn mlkem_encapsulation_roundtrips() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let script = r#"async () => {
+            const same = (x, y) => {
+                const a = new Uint8Array(x), b = new Uint8Array(y);
+                if (a.length !== b.length) return false;
+                let d = 0;
+                for (let i = 0; i < a.length; i++) d |= a[i] ^ b[i];
+                return d === 0;
+            };
+            const out = {};
+            const pair = await crypto.subtle.generateKey(
+                { name: 'ML-KEM-768' }, true,
+                ['encapsulateBits', 'decapsulateBits', 'encapsulateKey', 'decapsulateKey']);
+            out.pub = [pair.publicKey.type, pair.publicKey.algorithm.name, pair.publicKey.usages.slice()];
+            out.priv = [pair.privateKey.type, pair.privateKey.usages.slice()];
+            out.len = [
+                SubtleCrypto.prototype.encapsulateBits.length,
+                SubtleCrypto.prototype.decapsulateBits.length,
+                SubtleCrypto.prototype.encapsulateKey.length,
+                SubtleCrypto.prototype.decapsulateKey.length,
+                SubtleCrypto.prototype.getPublicKey.length,
+            ];
+            try { await crypto.subtle.encapsulateBits(); }
+            catch (e) { out.zero = e.name + ': ' + e.message; }
+            try { await crypto.subtle.generateKey({ name: 'ML-KEM-768' }, true, ['sign']); }
+            catch (e) { out.badUse = e.name + ': ' + e.message; }
+            const quiet = await crypto.subtle.generateKey(
+                { name: 'ML-KEM-768' }, false, ['encapsulateBits', 'decapsulateBits']);
+            out.x = [quiet.publicKey.extractable, quiet.privateKey.extractable];
+            const enc = await crypto.subtle.encapsulateBits({ name: 'ML-KEM-768' }, pair.publicKey);
+            const enc2 = await crypto.subtle.encapsulateBits({ name: 'ML-KEM-768' }, pair.publicKey);
+            out.ct = enc.ciphertext.byteLength;
+            out.ss = enc.sharedKey.byteLength;
+            out.fresh = !same(enc.ciphertext, enc2.ciphertext);
+            const back = await crypto.subtle.decapsulateBits({ name: 'ML-KEM-768' }, pair.privateKey, enc.ciphertext);
+            out.eq = same(enc.sharedKey, back);
+            const gpk = await crypto.subtle.getPublicKey(pair.privateKey, ['encapsulateBits', 'encapsulateKey']);
+            out.gpk = [gpk.type, gpk.algorithm.name, gpk.usages.slice(), gpk.extractable];
+            const wrapped = await crypto.subtle.encapsulateKey(
+                { name: 'ML-KEM-768' }, pair.publicKey,
+                { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+            out.ek = [wrapped.sharedKey.type, wrapped.sharedKey.algorithm.name, wrapped.sharedKey.algorithm.length, wrapped.ciphertext.byteLength, wrapped.sharedKey.usages.slice()];
+            const unwrapped = await crypto.subtle.decapsulateKey(
+                { name: 'ML-KEM-768' }, pair.privateKey, wrapped.ciphertext,
+                { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+            out.dk = [unwrapped.type, unwrapped.algorithm.name, unwrapped.usages.slice()];
+            const spki = await crypto.subtle.exportKey('spki', pair.publicKey);
+            const pkcs = await crypto.subtle.exportKey('pkcs8', pair.privateKey);
+            out.spki = spki.byteLength;
+            out.pkcs = pkcs.byteLength;
+            const imported = await crypto.subtle.importKey('spki', spki, { name: 'ML-KEM-768' }, true, ['encapsulateBits']);
+            const via = await crypto.subtle.encapsulateBits({ name: 'ML-KEM-768' }, imported);
+            const priv2 = await crypto.subtle.importKey('pkcs8', pkcs, { name: 'ML-KEM-768' }, true, ['decapsulateBits']);
+            const back2 = await crypto.subtle.decapsulateBits({ name: 'ML-KEM-768' }, priv2, via.ciphertext);
+            out.re = same(via.sharedKey, back2);
+            const jwk = await crypto.subtle.exportKey('jwk', pair.privateKey);
+            out.jwk = [jwk.kty, jwk.alg, jwk.key_ops.slice()];
+            const fromJwk = await crypto.subtle.importKey('jwk', jwk, { name: 'ML-KEM-768' }, true, ['decapsulateBits']);
+            const back3 = await crypto.subtle.decapsulateBits({ name: 'ML-KEM-768' }, fromJwk, enc.ciphertext);
+            out.jwkEq = same(enc.sharedKey, back3);
+            const p1024 = await crypto.subtle.generateKey({ name: 'ML-KEM-1024' }, true, ['encapsulateBits', 'decapsulateBits']);
+            const e1024 = await crypto.subtle.encapsulateBits({ name: 'ML-KEM-1024' }, p1024.publicKey);
+            const b1024 = await crypto.subtle.decapsulateBits({ name: 'ML-KEM-1024' }, p1024.privateKey, e1024.ciphertext);
+            out.ct1024 = e1024.ciphertext.byteLength;
+            out.eq1024 = same(e1024.sharedKey, b1024);
+            try { await crypto.subtle.decapsulateBits({ name: 'ML-KEM-768' }, pair.privateKey, new Uint8Array(4)); }
+            catch (e) { out.short = e.name + ':' + e.message; }
+            try { await crypto.subtle.generateKey({ name: 'ML-KEM-512' }, true, ['encapsulateBits', 'decapsulateBits']); }
+            catch (e) { out.k512 = e.name + ': ' + e.message; }
+            return out;
+        }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    let v = result.value.unwrap();
+    assert_eq!(
+        v["pub"],
+        serde_json::json!([
+            "public",
+            "ML-KEM-768",
+            ["encapsulateKey", "encapsulateBits"]
+        ])
+    );
+    assert_eq!(
+        v["priv"],
+        serde_json::json!(["private", ["decapsulateKey", "decapsulateBits"]])
+    );
+    assert_eq!(v["len"], serde_json::json!([2, 3, 5, 6, 2]));
+    assert_eq!(
+        v["zero"].as_str().unwrap(),
+        "TypeError: Failed to execute 'encapsulateBits' on 'SubtleCrypto': 2 arguments required, but only 0 present."
+    );
+    assert_eq!(
+        v["badUse"].as_str().unwrap(),
+        "SyntaxError: Cannot create a key using the specified key usages."
+    );
+    assert_eq!(v["x"], serde_json::json!([true, false]));
+    assert_eq!(v["ct"], serde_json::json!(1088));
+    assert_eq!(v["ss"], serde_json::json!(32));
+    assert_eq!(v["fresh"], serde_json::json!(true));
+    assert_eq!(v["eq"], serde_json::json!(true));
+    assert_eq!(
+        v["gpk"],
+        serde_json::json!([
+            "public",
+            "ML-KEM-768",
+            ["encapsulateKey", "encapsulateBits"],
+            true
+        ])
+    );
+    assert_eq!(
+        v["ek"],
+        serde_json::json!(["secret", "AES-GCM", 256, 1088, ["encrypt", "decrypt"]])
+    );
+    assert_eq!(
+        v["dk"],
+        serde_json::json!(["secret", "AES-GCM", ["decrypt"]])
+    );
+    assert_eq!(v["spki"], serde_json::json!(1206));
+    assert_eq!(v["pkcs"], serde_json::json!(86));
+    assert_eq!(v["re"], serde_json::json!(true));
+    assert_eq!(
+        v["jwk"],
+        serde_json::json!(["AKP", "ML-KEM-768", ["decapsulateKey", "decapsulateBits"]])
+    );
+    assert_eq!(v["jwkEq"], serde_json::json!(true));
+    assert_eq!(v["ct1024"], serde_json::json!(1568));
+    assert_eq!(v["eq1024"], serde_json::json!(true));
+    assert_eq!(v["short"].as_str().unwrap(), "DataError:");
+    assert_eq!(
+        v["k512"].as_str().unwrap(),
+        "NotSupportedError: Failed to execute 'generateKey' on 'SubtleCrypto': Algorithm: Unrecognized name"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn crypto_derive_output_lengths_are_capped() {
     let mut rt = setup_runtime("<html><body></body></html>");
     // obscura #910 family: page-chosen crypto output lengths (HMAC
