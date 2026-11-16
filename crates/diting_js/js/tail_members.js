@@ -904,6 +904,84 @@
     seat(um.prototype, ['onstream', 'stream', 'error', 'oncancel', 'onerror', 'setConstraints', 'constructor']);
   });
 
+  // Chrome 157 XR members. Live sessions are never minted, so the new
+  // getters fail the internal brand check. initiateRoomCapture rejects.
+  section('xr-157', () => {
+    const live = new WeakSet();
+    const ro = (iface, name) => {
+      const C = G[iface];
+      if (typeof C !== 'function' || !C.prototype) return;
+      def(C.prototype, name, { get: pin(function () {
+        if (!live.has(this)) throw new TypeError('Illegal invocation');
+        return null;
+      }, 'get ' + name), enumerable: true, configurable: true });
+    };
+    ro('XRFrame', 'detectedPlanes');
+    ro('XRLayerEvent', 'layer');
+    ro('XRRenderState', 'layers');
+    ro('XRSubImage', 'viewport');
+    ro('XRSession', 'maxRenderLayers');
+    fn('XRSession', 'initiateRoomCapture', 0, function initiateRoomCapture() {
+      return Promise.reject(new TypeError("Failed to execute 'initiateRoomCapture' on 'XRSession': Illegal invocation"));
+    });
+    const seat = (iface, want) => {
+      const C = G[iface];
+      if (typeof C !== 'function' || !C.prototype) return;
+      const P = C.prototype;
+      const names = Object.getOwnPropertyNames(P);
+      const seq = want.filter((k) => names.indexOf(k) >= 0).concat(names.filter((k) => want.indexOf(k) < 0));
+      if (seq.every((k, i) => k === names[i])) return;
+      const saved = [];
+      for (const k of seq) {
+        const d = Object.getOwnPropertyDescriptor(P, k);
+        if (d && d.configurable) { saved.push([k, d]); delete P[k]; }
+      }
+      for (const [k, d] of saved) Object.defineProperty(P, k, d);
+    };
+    seat('XRLayerEvent', ['layer', 'constructor']);
+    seat('XRSubImage', ['viewport', 'constructor']);
+  });
+
+  // Chrome 157 XR layers and planes. No live object exists, so reads and
+  // writes fail the brand check before any value conversion.
+  section('xr-layers', () => {
+    const live = new WeakSet();
+    const acc = (iface, name, rw) => {
+      const C = G[iface];
+      if (typeof C !== 'function' || !C.prototype) return;
+      const desc = { enumerable: true, configurable: true, get: pin(function () {
+        if (!live.has(this)) throw new TypeError('Illegal invocation');
+        return null;
+      }, 'get ' + name) };
+      if (rw) desc.set = pin(function () {
+        if (!live.has(this)) throw new TypeError('Illegal invocation');
+      }, 'set ' + name, 1);
+      def(C.prototype, name, desc);
+    };
+    const seat = (iface, want) => {
+      const C = G[iface];
+      if (typeof C !== 'function' || !C.prototype) return;
+      const P = C.prototype;
+      const names = Object.getOwnPropertyNames(P);
+      const seq = want.filter((k) => names.indexOf(k) >= 0).concat(names.filter((k) => want.indexOf(k) < 0));
+      if (seq.every((k, i) => k === names[i])) return;
+      const saved = [];
+      for (const k of seq) {
+        const d = Object.getOwnPropertyDescriptor(P, k);
+        if (d && d.configurable) { saved.push([k, d]); delete P[k]; }
+      }
+      for (const [k, d] of saved) Object.defineProperty(P, k, d);
+    };
+    for (const n of ['space', 'orientation', 'onredraw']) acc('XRCubeLayer', n, true);
+    for (const n of ['space', 'transform', 'width', 'height', 'onredraw']) acc('XRQuadLayer', n, true);
+    for (const n of ['space', 'transform', 'radius', 'centralAngle', 'aspectRatio', 'onredraw']) acc('XRCylinderLayer', n, true);
+    for (const n of ['planeSpace', 'polygon', 'orientation', 'lastChangedTime', 'semanticLabel']) acc('XRPlane', n, false);
+    seat('XRCubeLayer', ['space', 'orientation', 'onredraw', 'constructor']);
+    seat('XRQuadLayer', ['space', 'transform', 'width', 'height', 'onredraw', 'constructor']);
+    seat('XRCylinderLayer', ['space', 'transform', 'radius', 'centralAngle', 'aspectRatio', 'onredraw', 'constructor']);
+    seat('XRPlane', ['planeSpace', 'polygon', 'orientation', 'lastChangedTime', 'semanticLabel', 'constructor']);
+  });
+
   // Chrome 157 iterator helpers. join defaults to ",". includes uses
   // SameValueZero, so NaN matches NaN. A receiver without next throws when
   // next is called.
