@@ -999,6 +999,85 @@
     seat('XREquirectLayer', ['space', 'transform', 'radius', 'centralHorizontalAngle', 'upperVerticalAngle', 'lowerVerticalAngle', 'onredraw', 'constructor']);
   });
 
+  // Chrome 157 WebGL binding. No live binding is minted, so every new
+  // member fails the brand check before looking at its arguments.
+  section('xr-webgl-binding', () => {
+    const live = new WeakSet();
+    const ro = (iface, name) => {
+      const C = G[iface];
+      if (typeof C !== 'function' || !C.prototype) return;
+      def(C.prototype, name, { get: pin(function () {
+        if (!live.has(this)) throw new TypeError('Illegal invocation');
+      }, 'get ' + name), enumerable: true, configurable: true });
+    };
+    const method = (iface, name, len) => fn(iface, name, len, function () {
+      if (!live.has(this)) throw new TypeError('Illegal invocation');
+    });
+    const seat = (iface, want) => {
+      const C = G[iface];
+      if (typeof C !== 'function' || !C.prototype) return;
+      const P = C.prototype;
+      const names = Object.getOwnPropertyNames(P);
+      const seq = want.filter((k) => names.indexOf(k) >= 0).concat(names.filter((k) => want.indexOf(k) < 0));
+      if (seq.every((k, i) => k === names[i])) return;
+      const saved = [];
+      for (const k of seq) {
+        const d = Object.getOwnPropertyDescriptor(P, k);
+        if (d && d.configurable) { saved.push([k, d]); delete P[k]; }
+      }
+      for (const [k, d] of saved) Object.defineProperty(P, k, d);
+    };
+    ro('XRWebGLBinding', 'nativeProjectionScaleFactor');
+    ro('XRWebGLBinding', 'usesDepthValues');
+    method('XRWebGLBinding', 'createCubeLayer', 1);
+    method('XRWebGLBinding', 'createCylinderLayer', 1);
+    method('XRWebGLBinding', 'createEquirectLayer', 1);
+    method('XRWebGLBinding', 'createProjectionLayer', 0);
+    method('XRWebGLBinding', 'createQuadLayer', 1);
+    method('XRWebGLBinding', 'getSubImage', 2);
+    method('XRWebGLBinding', 'getViewSubImage', 2);
+    for (const n of ['colorTexture', 'depthStencilTexture', 'motionVectorTexture', 'imageIndex', 'colorTextureWidth', 'colorTextureHeight', 'depthStencilTextureWidth', 'depthStencilTextureHeight', 'motionVectorTextureWidth', 'motionVectorTextureHeight']) ro('XRWebGLSubImage', n);
+    seat('XRWebGLSubImage', ['colorTexture', 'depthStencilTexture', 'motionVectorTexture', 'imageIndex', 'colorTextureWidth', 'colorTextureHeight', 'depthStencilTextureWidth', 'depthStencilTextureHeight', 'motionVectorTextureWidth', 'motionVectorTextureHeight', 'constructor']);
+  });
+
+  // Chrome 157 LanguageModel. No model session exists. Sync members throw.
+  // append, clone, measureContextUsage, and prompt reject a promise.
+  section('language-model', () => {
+    const C = G.LanguageModel;
+    if (typeof C !== 'function' || !C.prototype) return;
+    const live = new WeakSet();
+    const brand = (self) => { if (!live.has(self)) throw new TypeError('Illegal invocation'); };
+    const ro = (name) => def(C.prototype, name, { get: pin(function () { brand(this); }, 'get ' + name), enumerable: true, configurable: true });
+    ro('contextUsage');
+    ro('contextWindow');
+    def(C.prototype, 'oncontextoverflow', {
+      get: pin(function () { brand(this); }, 'get oncontextoverflow'),
+      set: pin(function () { brand(this); }, 'set oncontextoverflow', 1),
+      enumerable: true, configurable: true,
+    });
+    const reject = (name) => function () {
+      return Promise.reject(new TypeError("Failed to execute '" + name + "' on 'LanguageModel': Illegal invocation"));
+    };
+    fn('LanguageModel', 'append', 1, reject('append'));
+    fn('LanguageModel', 'clone', 0, reject('clone'));
+    fn('LanguageModel', 'measureContextUsage', 1, reject('measureContextUsage'));
+    fn('LanguageModel', 'prompt', 1, reject('prompt'));
+    fn('LanguageModel', 'destroy', 0, function destroy() { brand(this); });
+    fn('LanguageModel', 'promptStreaming', 1, function promptStreaming() { brand(this); });
+    const P = C.prototype;
+    const names = Object.getOwnPropertyNames(P);
+    const want = ['contextUsage', 'contextWindow', 'oncontextoverflow', 'append', 'clone', 'destroy', 'measureContextUsage', 'prompt', 'promptStreaming', 'constructor'];
+    const seq = want.filter((k) => names.indexOf(k) >= 0).concat(names.filter((k) => want.indexOf(k) < 0));
+    if (!seq.every((k, i) => k === names[i])) {
+      const saved = [];
+      for (const k of seq) {
+        const d = Object.getOwnPropertyDescriptor(P, k);
+        if (d && d.configurable) { saved.push([k, d]); delete P[k]; }
+      }
+      for (const [k, d] of saved) Object.defineProperty(P, k, d);
+    }
+  });
+
   // Chrome 157 precommit handler. No live controller is minted, so the
   // call fails the brand check before the argument is examined.
   section('nav-precommit', () => {

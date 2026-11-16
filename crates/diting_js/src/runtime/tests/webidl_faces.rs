@@ -2552,6 +2552,85 @@ fn chrome157_xslt_processor() {
     );
 }
 
+/// Chrome 157 XRWebGLBinding. Brand check wins over arity. Subimage
+/// attributes are read-only and likewise branded.
+#[test]
+fn chrome157_xr_webgl_binding() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { const r = fn(); return r === undefined ? 'undef' : String(r); } catch (e) { return e.name + ': ' + e.message; } };
+        const b = Object.create(XRWebGLBinding.prototype);
+        const s = Object.create(XRWebGLSubImage.prototype);
+        ({
+          scale: err(() => b.nativeProjectionScaleFactor),
+          cube: err(() => b.createCubeLayer()),
+          proj: err(() => b.createProjectionLayer()),
+          sub: err(() => b.getSubImage()),
+          len: [b.createQuadLayer.length, b.getViewSubImage.length],
+          tex: err(() => s.colorTexture),
+          order: Object.getOwnPropertyNames(XRWebGLBinding.prototype),
+          subOrder: Object.getOwnPropertyNames(XRWebGLSubImage.prototype),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "scale": "TypeError: Illegal invocation",
+            "cube": "TypeError: Illegal invocation",
+            "proj": "TypeError: Illegal invocation",
+            "sub": "TypeError: Illegal invocation",
+            "len": [1, 2],
+            "tex": "TypeError: Illegal invocation",
+            "order": ["nativeProjectionScaleFactor", "usesDepthValues", "createCubeLayer", "createCylinderLayer", "createEquirectLayer", "createProjectionLayer", "createQuadLayer", "getSubImage", "getViewSubImage", "getCameraImage", "getDepthInformation", "getReflectionCubeMap", "constructor"],
+            "subOrder": ["colorTexture", "depthStencilTexture", "motionVectorTexture", "imageIndex", "colorTextureWidth", "colorTextureHeight", "depthStencilTextureWidth", "depthStencilTextureHeight", "motionVectorTextureWidth", "motionVectorTextureHeight", "constructor"],
+        })
+    );
+}
+
+/// Chrome 157 LanguageModel. No session is live. promptStreaming throws
+/// immediately; prompt returns a rejected promise.
+#[test]
+fn chrome157_language_model() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { const r = fn(); return r === undefined ? 'undef' : String(r); } catch (e) { return e.name + ': ' + e.message; } };
+        const o = Object.create(LanguageModel.prototype);
+        const prompt = o.prompt('hi');
+        prompt.catch(() => {});
+        ({
+          usage: err(() => o.contextUsage),
+          handler: err(() => { o.oncontextoverflow = Symbol('x'); }),
+          destroy: err(() => o.destroy()),
+          stream: err(() => o.promptStreaming('hi')),
+          prompt: prompt instanceof Promise,
+          lens: [o.append.length, o.clone.length, o.measureContextUsage.length, o.prompt.length, o.promptStreaming.length],
+          order: Object.getOwnPropertyNames(LanguageModel.prototype),
+          illegal: err(() => new LanguageModel()),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "usage": "TypeError: Illegal invocation",
+            "handler": "TypeError: Illegal invocation",
+            "destroy": "TypeError: Illegal invocation",
+            "stream": "TypeError: Illegal invocation",
+            "prompt": true,
+            "lens": [1, 0, 1, 1, 1],
+            "order": ["contextUsage", "contextWindow", "oncontextoverflow", "append", "clone", "destroy", "measureContextUsage", "prompt", "promptStreaming", "constructor"],
+            "illegal": "TypeError: Failed to construct 'LanguageModel': Illegal constructor",
+        })
+    );
+}
+
 /// Chrome 157 datagram caps. 0 and non-finite numbers are stored as 1.
 /// A negative value wraps as an unsigned long.
 #[test]
