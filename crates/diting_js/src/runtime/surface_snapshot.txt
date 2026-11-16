@@ -1,4 +1,4 @@
-[globals] 1235
+[globals] 1236
 G AbortController
 G AbortSignal
 G AbsoluteOrientationSensor
@@ -828,6 +828,7 @@ G TransitionEvent
 G Translator
 G TreeWalker
 G TrustedHTML
+G TrustedHTMLParserOptions
 G TrustedScript
 G TrustedScriptURL
 G TrustedTypePolicy
@@ -1761,7 +1762,7 @@ P MediaStreamTrack :: applyConstraints,clone,constructor,contentHint,enabled,get
 P MediaStreamTrackAudioStats :: averageLatency,constructor,deliveredFrames,deliveredFramesDuration,latency,maximumLatency,minimumLatency,resetLatency,toJSON,totalFrames,totalFramesDuration
 P MediaStreamTrackEvent :: constructor,track
 P MediaStreamTrackGenerator :: constructor,writable
-P MediaStreamTrackProcessor :: constructor,readable
+P MediaStreamTrackProcessor :: constructor,discardedFrames,readable,totalFrames
 P MediaStreamTrackVideoStats :: constructor,deliveredFrames,discardedFrames,toJSON,totalFrames
 P MessageChannel :: constructor,port1,port2
 P MessageEvent :: constructor,data,initMessageEvent,lastEventId,origin,ports,source,userActivation
@@ -2146,9 +2147,10 @@ S Translator :: availability,create
 P Translator :: constructor,destroy,inputQuota,measureInputUsage,sourceLanguage,targetLanguage,translate,translateStreaming
 P TreeWalker :: constructor,currentNode,filter,firstChild,lastChild,nextNode,nextSibling,parentNode,previousNode,previousSibling,root,whatToShow
 P TrustedHTML :: constructor,toJSON,toString
+P TrustedHTMLParserOptions :: constructor
 P TrustedScript :: constructor,toJSON,toString
 P TrustedScriptURL :: constructor,toJSON,toString
-P TrustedTypePolicy :: constructor,createHTML,createScript,createScriptURL,name
+P TrustedTypePolicy :: constructor,createHTML,createParserOptions,createScript,createScriptURL,name
 P TrustedTypePolicyFactory :: constructor,createPolicy,defaultPolicy,emptyHTML,emptyScript,getAttributeType,getPropertyType,getTypeMapping,isHTML,isScript,isScriptURL
 P TypeError :: constructor,message,name
 P UIEvent :: constructor,detail,initUIEvent,pseudoTarget,sourceCapabilities,view,which

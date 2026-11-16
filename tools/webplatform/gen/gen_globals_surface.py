@@ -157,6 +157,18 @@ K96_ALIAS = [("webkitURL", "URL"), ("WebKitCSSMatrix", "DOMMatrix")]
 # ctor-throw table. Chrome-145 message overrides where the frozen 155 capture
 # diverges (FeaturePolicy: 145 names the legacy alias, 155 the canonical class).
 MSG145 = {"FeaturePolicy": "Failed to construct 'FeaturePolicy': Illegal constructor"}
+# Chrome 157 interfaces the frozen 155 winkeys capture never listed.
+EXTRA_157 = {
+    "TrustedHTMLParserOptions": {
+        "ln": 0,
+        "m": "Failed to construct 'TrustedHTMLParserOptions': Illegal constructor",
+    },
+}
+for _n, _shape in EXTRA_157.items():
+    shapes.setdefault(_n, _shape)
+    if _n not in groups["throw"]:
+        groups["throw"].append(_n)
+groups["throw"].sort()
 rows = []
 for n in groups["throw"]:
     if n in CSSMATH or n in dict(K96_ALIAS):

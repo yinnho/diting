@@ -1997,6 +1997,88 @@ fn chrome157_offscreen_element_geometry() {
     );
 }
 
+/// Chrome 157 MediaStreamTrackProcessor counters. They stay at 0 because the
+/// engine does not pull frames. The constructor still requires a track.
+#[test]
+fn chrome157_track_processor_frames() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const track = Object.create(MediaStreamTrack.prototype);
+        const p = new MediaStreamTrackProcessor({ track });
+        p.totalFrames = 5;
+        const names = Object.getOwnPropertyNames(MediaStreamTrackProcessor.prototype);
+        const err = (fn) => { try { fn(); return 'ok'; } catch (e) { return e.name + ': ' + e.message; } };
+        ({
+          vals: [p.totalFrames, p.discardedFrames],
+          readable: p.readable.constructor.name,
+          order: names,
+          zero: err(() => new MediaStreamTrackProcessor()),
+          missing: err(() => new MediaStreamTrackProcessor({})),
+          bad: err(() => new MediaStreamTrackProcessor({ track: document.createElement('div') })),
+          foreign: err(() => Object.getOwnPropertyDescriptor(MediaStreamTrackProcessor.prototype, 'totalFrames').get.call({})),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "vals": [0, 0],
+            "readable": "ReadableStream",
+            "order": ["readable", "totalFrames", "discardedFrames", "constructor"],
+            "zero": "TypeError: Failed to construct 'MediaStreamTrackProcessor': 1 argument required, but only 0 present.",
+            "missing": "TypeError: Failed to construct 'MediaStreamTrackProcessor': Failed to read the 'track' property from 'MediaStreamTrackProcessorInit': Required member is undefined.",
+            "bad": "TypeError: Failed to construct 'MediaStreamTrackProcessor': Failed to read the 'track' property from 'MediaStreamTrackProcessorInit': Failed to convert value to 'MediaStreamTrack'.",
+            "foreign": "TypeError: Illegal invocation",
+        })
+    );
+}
+
+/// Chrome 157 TrustedTypePolicy.createParserOptions. A policy without the
+/// callback refuses. The callback sees `{runScripts}` and the result is an
+/// empty TrustedHTMLParserOptions.
+#[test]
+fn chrome157_create_parser_options() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const seen = [];
+        const p = trustedTypes.createPolicy('probe', {
+          createParserOptions: function (o) { seen.push(!!o.runScripts); return null; },
+        });
+        const bare = trustedTypes.createPolicy('bare');
+        const made = p.createParserOptions({ runScripts: 'never' });
+        const err = (fn) => { try { fn(); return 'ok'; } catch (e) { return e.name + ': ' + e.message; } };
+        const names = Object.getOwnPropertyNames(TrustedTypePolicy.prototype);
+        ({
+          seen,
+          made: [made.constructor.name, Object.prototype.toString.call(made)],
+          missing: err(() => bare.createParserOptions()),
+          num: err(() => p.createParserOptions(1)),
+          foreign: err(() => TrustedTypePolicy.prototype.createParserOptions.call({})),
+          illegal: err(() => new TrustedHTMLParserOptions()),
+          order: names.slice(names.indexOf('constructor')),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "seen": [true],
+            "made": ["TrustedHTMLParserOptions", "[object TrustedHTMLParserOptions]"],
+            "missing": "TypeError: Failed to execute 'createParserOptions' on 'TrustedTypePolicy': Policy bare's TrustedTypePolicyOptions did not specify a 'createParserOptions' member.",
+            "num": "TypeError: Failed to execute 'createParserOptions' on 'TrustedTypePolicy': The provided value is not of type 'SetHTMLUnsafeOptions'.",
+            "foreign": "TypeError: Illegal invocation",
+            "illegal": "TypeError: Failed to construct 'TrustedHTMLParserOptions': Illegal constructor",
+            "order": ["constructor", "createParserOptions"],
+        })
+    );
+}
+
 /// Chrome 157 datagram caps. 0 and non-finite numbers are stored as 1.
 /// A negative value wraps as an unsigned long.
 #[test]

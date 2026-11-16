@@ -571,6 +571,7 @@ const THROW = [["AbstractRange",0,"Failed to construct 'AbstractRange': Illegal 
   ["TransformStreamDefaultController",0,"Failed to construct 'TransformStreamDefaultController': Illegal constructor"],
   ["Translator",0,"Failed to construct 'Translator': Illegal constructor"],
   ["TrustedHTML",0,"Failed to construct 'TrustedHTML': Illegal constructor"],
+  ["TrustedHTMLParserOptions",0,"Failed to construct 'TrustedHTMLParserOptions': Illegal constructor"],
   ["TrustedScript",0,"Failed to construct 'TrustedScript': Illegal constructor"],
   ["TrustedScriptURL",0,"Failed to construct 'TrustedScriptURL': Illegal constructor"],
   ["TrustedTypePolicy",0,"Failed to construct 'TrustedTypePolicy': Illegal constructor"],
