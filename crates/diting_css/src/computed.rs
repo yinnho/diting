@@ -635,9 +635,11 @@ mod tests {
 
     #[test]
     fn paint_diff_matches_for_solve_width_diff_does_not() {
-        let mut paint_a = ComputedStyle::default();
-        paint_a.color = Some(crate::Color(0, 0, 0, 255));
-        paint_a.width = Some(crate::Length::Px(100.0));
+        let mut paint_a = ComputedStyle {
+            color: Some(crate::Color(0, 0, 0, 255)),
+            width: Some(crate::Length::Px(100.0)),
+            ..ComputedStyle::default()
+        };
         let mut paint_b = paint_a.clone();
         paint_b.color = Some(crate::Color(255, 0, 0, 255));
         paint_b.opacity = Some(0.5);
@@ -645,8 +647,10 @@ mod tests {
         paint_b.strip_paint_for_solve_eq();
         assert_eq!(paint_a, paint_b);
 
-        let mut wide = ComputedStyle::default();
-        wide.width = Some(crate::Length::Px(240.0));
+        let mut wide = ComputedStyle {
+            width: Some(crate::Length::Px(240.0)),
+            ..ComputedStyle::default()
+        };
         wide.strip_paint_for_solve_eq();
         assert_ne!(paint_a, wide);
     }
