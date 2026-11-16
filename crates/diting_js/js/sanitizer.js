@@ -16,6 +16,7 @@ const DEFAULT_ATTRIBUTES = [{"name":"alignment-baseline","namespace":null},{"nam
       comments: false,
       dataAttributes: false,
       processingInstructions: [],
+      replaced: [],
     };
   }
   function fromConfig(config) {
@@ -28,7 +29,14 @@ const DEFAULT_ATTRIBUTES = [{"name":"alignment-baseline","namespace":null},{"nam
         return { name: name, namespace: namespace, removeAttributes: [] };
       });
     }
-    s.comments = "comments" in config ? !!config.comments : true;
+    if (Array.isArray(config.replaceWithChildrenElements)) {
+      s.replaced = config.replaceWithChildrenElements.map(function (item) {
+        const name = typeof item === "string" ? item : String(item && item.name || "");
+        const namespace = item && typeof item === "object" && item.namespace ? item.namespace : XHTML;
+        return { name: name, namespace: namespace };
+      });
+    }
+    s.comments = "comments" in config ? !!config.comments : false;
     s.dataAttributes = "dataAttributes" in config ? !!config.dataAttributes : false;
     return s;
   }
@@ -65,6 +73,7 @@ const DEFAULT_ATTRIBUTES = [{"name":"alignment-baseline","namespace":null},{"nam
     const s = use(this);
     need(arguments, 1, "allowElement");
     const name = elementName(el);
+    s.replaced = s.replaced.filter(function (e) { return e.name !== name; });
     if (s.elements.some(function (e) { return e.name === name; })) return;
     s.elements.push({ name: name, namespace: XHTML, removeAttributes: [] });
   });
@@ -72,13 +81,18 @@ const DEFAULT_ATTRIBUTES = [{"name":"alignment-baseline","namespace":null},{"nam
     const s = use(this);
     need(arguments, 1, "removeElement");
     const name = elementName(el);
+    s.replaced = s.replaced.filter(function (e) { return e.name !== name; });
     s.elements = s.elements.filter(function (e) { return e.name !== name; });
   });
   def("replaceElementWithChildren", 1, function replaceElementWithChildren(el) {
     const s = use(this);
     need(arguments, 1, "replaceElementWithChildren");
     const name = elementName(el);
+    const namespace = el && typeof el === "object" && el.namespace ? el.namespace : XHTML;
     s.elements = s.elements.filter(function (e) { return e.name !== name; });
+    if (!s.replaced.some(function (e) { return e.name === name; })) {
+      s.replaced.push({ name: name, namespace: namespace });
+    }
   });
   def("allowAttribute", 1, function allowAttribute(attr) {
     const s = use(this);
@@ -118,13 +132,15 @@ const DEFAULT_ATTRIBUTES = [{"name":"alignment-baseline","namespace":null},{"nam
   def("removeUnsafe", 0, function removeUnsafe() { use(this); });
   def("get", 0, function get() {
     const s = use(this);
-    return {
+    const out = {
       elements: clone(s.elements),
       attributes: clone(s.attributes),
       comments: s.comments,
       dataAttributes: s.dataAttributes,
       processingInstructions: s.processingInstructions.slice(),
     };
+    if (s.replaced.length) out.replaceWithChildrenElements = clone(s.replaced);
+    return out;
   });
   const P = Sanitizer.prototype;
   const names = Object.getOwnPropertyNames(P);

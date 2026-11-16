@@ -1,44 +1,108 @@
-// Chrome 157 sync HTML insertion. setHTML runs the default sanitizer (the
-// probed allow list: safe text structure, table parts, headings). The Unsafe
+// Chrome 157 sync HTML insertion. The safe methods and Document.parseHTML
+// run the Sanitizer (default, or the one in SetHTMLOptions). The Unsafe
 // twins parse like innerHTML and keep script, handlers, and javascript: URLs.
-// Stream variants are not here. A parentless before/after/replaceWith is a
-// no-op, matching Chrome.
+// A parentless before/after/replaceWith is a no-op, matching Chrome.
 (() => {
-  const ALLOW = new Set(['p','div','span','b','i','a','table','ul','li','br','hr','h1','h2','h3','h4','h5','h6','section','article','svg','math','figure','figcaption','blockquote','pre','code','em','strong','small','sub','sup','mark','wbr','data','time','abbr','cite','q','dfn','kbd','samp','var','ruby','rt','bdi','bdo','del','ins','s','u','caption','thead','tbody','tfoot','tr','th','td','ol','dl','dt','dd','address','main','nav','header','footer','aside']);
-  const GLOBAL = new Set(['title', 'dir', 'lang']);
-  const EXTRA = {
-    a: ['href'],
-    blockquote: ['cite'],
-    q: ['cite'],
-    time: ['datetime'],
-    ins: ['datetime'],
-    del: ['datetime'],
-    td: ['colspan', 'rowspan'],
-    th: ['colspan', 'rowspan', 'abbr'],
-  };
+  // These stay out even after allowElement (probed on Chrome 157).
+  const BLOCKED = new Set(['script', 'iframe', 'object', 'embed', 'base', 'frame']);
+  const URL_ATTR = new Set(['href', 'cite', 'src', 'action', 'formaction']);
   const mark = globalThis._markNative || ((f) => f);
-  function jsUrl(v) { return /^\s*javascript:/i.test(v); }
-  function attrOk(tag, name, value) {
-    if (GLOBAL.has(name)) return true;
-    const extra = EXTRA[tag];
-    if (!extra || extra.indexOf(name) < 0) return false;
-    if ((name === 'href' || name === 'cite') && jsUrl(value)) return false;
-    return true;
+  function defaultConfig() {
+    const g = new Sanitizer().get();
+    return {
+      elements: g.elements,
+      attributes: g.attributes,
+      comments: g.comments,
+      dataAttributes: g.dataAttributes,
+      processingInstructions: g.processingInstructions || [],
+      replaced: g.replaceWithChildrenElements || [],
+    };
   }
-  function sanitize(root) {
-    for (const child of [...root.childNodes]) {
-      if (child.nodeType === 3) continue;
-      if (child.nodeType !== 1 || !ALLOW.has(child.localName)) { child.remove(); continue; }
-      for (const attr of [...child.attributes]) {
-        if (!attrOk(child.localName, attr.name, attr.value)) child.removeAttribute(attr.name);
-      }
-      sanitize(child);
+  function readConfig(options, method, iface) {
+    if (options === undefined || options === null) return defaultConfig();
+    const pre = "Failed to execute '" + method + "' on '" + iface + "': ";
+    if (typeof options !== 'object') {
+      throw new TypeError(pre + "The provided value is not of type 'SetHTMLOptions'.");
     }
+    if (!('sanitizer' in options) || options.sanitizer === undefined) return defaultConfig();
+    const san = options.sanitizer;
+    if (san === 'default') return defaultConfig();
+    if (typeof Sanitizer === 'function' && san instanceof Sanitizer) {
+      const g = san.get();
+      return {
+        elements: g.elements,
+        attributes: g.attributes,
+        comments: g.comments,
+        dataAttributes: g.dataAttributes,
+        processingInstructions: g.processingInstructions || [],
+        replaced: g.replaceWithChildrenElements || [],
+      };
+    }
+    if (san !== null && typeof san === 'object') return defaultConfigFrom(san);
+    const shown = typeof san === 'string' ? san : String(san);
+    throw new TypeError(pre + "Failed to read the 'sanitizer' property from 'SetHTMLOptions': The provided value '" + shown + "' is not a valid enum value of type SanitizerPresets.");
   }
-  function parse(html, safe) {
+  function defaultConfigFrom(dict) {
+    const g = new Sanitizer(dict).get();
+    return {
+      elements: g.elements,
+      attributes: g.attributes,
+      comments: g.comments,
+      dataAttributes: g.dataAttributes,
+      processingInstructions: g.processingInstructions || [],
+      replaced: g.replaceWithChildrenElements || [],
+    };
+  }
+  function named(list, name) {
+    if (!list) return false;
+    for (const item of list) if (item && item.name === name) return true;
+    return false;
+  }
+  function jsUrl(name, value) {
+    return URL_ATTR.has(name) && /^\s*javascript:/i.test(String(value));
+  }
+  function attrOk(cfg, el, attr) {
+    const name = attr.name;
+    if (/^on/i.test(name)) return false;
+    if (cfg.dataAttributes && name.length > 5 && name.startsWith('data-')) return true;
+    const rec = cfg.elements.find((e) => e.name === el.localName);
+    if (rec && rec.attributes && named(rec.attributes, name) && !jsUrl(name, attr.value)) return true;
+    return named(cfg.attributes, name) && !jsUrl(name, attr.value);
+  }
+  function elementOk(cfg, el) {
+    if (BLOCKED.has(el.localName)) return false;
+    return named(cfg.elements, el.localName);
+  }
+  // keepComments is only for the Document node itself: a comment before
+  // <html> stays even when the sanitizer's comments flag is false.
+  function sanitizeNode(node, cfg, keepComments) {
+    if (node.nodeType === 8) {
+      if (!keepComments && !cfg.comments) node.remove();
+      return;
+    }
+    if (node.nodeType !== 1) return;
+    if (named(cfg.replaced, node.localName) && !BLOCKED.has(node.localName)) {
+      const kids = [...node.childNodes];
+      node.replaceWith(...kids);
+      for (const kid of kids) sanitizeNode(kid, cfg, false);
+      return;
+    }
+    if (!elementOk(cfg, node)) { node.remove(); return; }
+    if (node.attributes) {
+      for (const attr of [...node.attributes]) {
+        if (!attrOk(cfg, node, attr)) node.removeAttribute(attr.name);
+      }
+    }
+    sanitizeChildren(node, cfg, false);
+    if (node.localName === 'template' && node.content) sanitizeChildren(node.content, cfg, false);
+  }
+  function sanitizeChildren(parent, cfg, keepComments) {
+    for (const child of [...parent.childNodes]) sanitizeNode(child, cfg, keepComments);
+  }
+  function parse(html, safe, cfg) {
     const tpl = document.createElement('template');
     tpl.innerHTML = String(html);
-    if (safe) sanitize(tpl.content);
+    if (safe) sanitizeChildren(tpl.content, cfg || defaultConfig(), false);
     return [...tpl.content.childNodes];
   }
   function ifaceOf(self) {
@@ -50,12 +114,13 @@
     if (!proto) return;
     for (const [name, how, safe] of entries) {
       if (Object.prototype.hasOwnProperty.call(proto, name)) continue;
-      const fn = function (html) {
+      const fn = function (html, options) {
         if (this == null || typeof this.nodeType !== 'number') throw new TypeError('Illegal invocation');
         if (arguments.length < 1) {
           throw new TypeError("Failed to execute '" + name + "' on '" + ifaceOf(this) + "': 1 argument required, but only 0 present.");
         }
-        const list = parse(html, safe);
+        const cfg = safe ? readConfig(arguments.length > 1 ? options : undefined, name, ifaceOf(this)) : null;
+        const list = parse(html, safe, cfg);
         if ((how === 'before' || how === 'after' || how === 'replaceWith') && !this.parentNode) return;
         if (how === 'replace') this.replaceChildren(...list);
         else this[how](...list);
@@ -157,5 +222,21 @@
   }
   if (typeof ShadowRoot === 'function') {
     installStream(ShadowRoot.prototype, STREAMS.filter(([name]) => name.indexOf('HTML') >= 0 && name.indexOf('Before') < 0 && name.indexOf('After') < 0 && name.indexOf('Replace') < 0));
+  }
+
+  if (typeof Document === 'function' && typeof Document.parseHTML !== 'function') {
+    const parseHTML = function parseHTML(html, options) {
+      if (arguments.length < 1) {
+        throw new TypeError("Failed to execute 'parseHTML' on 'Document': 1 argument required, but only " + arguments.length + " present.");
+      }
+      const cfg = readConfig(arguments.length > 1 ? options : undefined, 'parseHTML', 'Document');
+      const doc = new DOMParser().parseFromString(String(html), 'text/html');
+      if (doc.doctype) doc.doctype.remove();
+      sanitizeChildren(doc, cfg, true);
+      return doc;
+    };
+    Object.defineProperty(parseHTML, 'length', { value: 1, configurable: true });
+    mark(parseHTML);
+    Object.defineProperty(Document, 'parseHTML', { value: parseHTML, writable: true, enumerable: true, configurable: true });
   }
 })();
