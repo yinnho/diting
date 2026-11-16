@@ -422,6 +422,42 @@ globalThis.RTCPeerConnection.prototype = __RTCPCImpl.prototype;
   Object.defineProperty(PC, 'generateCertificate', { value: mark(function generateCertificate(keygen) {
     return Promise.resolve(__rtcMintCert());
   }), writable: true, enumerable: true, configurable: true });
+  // Chrome 157 diagnostic logging. One process-wide session. start returns a
+  // UUID; stop and cancel clear it. Neither reads the peer connection.
+  let rtcLog = null;
+  function rtcUuid() {
+    const b = new Uint8Array(16);
+    crypto.getRandomValues(b);
+    b[6] = (b[6] & 15) | 64;
+    b[8] = (b[8] & 63) | 128;
+    const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+    return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+  }
+  function rtcLogFn(name, len, body) {
+    const fn = mark(body);
+    Object.defineProperty(fn, 'name', { value: name, configurable: true });
+    Object.defineProperty(fn, 'length', { value: len, configurable: true });
+    Object.defineProperty(PC, name, { value: fn, writable: true, enumerable: true, configurable: true });
+  }
+  function rtcLogState(name, msg) {
+    throw new DOMException("Failed to execute '" + name + "' on 'RTCPeerConnection': " + msg, 'InvalidStateError');
+  }
+  rtcLogFn('cancelDiagnosticLogging', 0, function cancelDiagnosticLogging() {
+    if (!rtcLog) rtcLogState('cancelDiagnosticLogging', 'No active diagnostic logging session.');
+    rtcLog = null;
+  });
+  rtcLogFn('startDiagnosticLogging', 0, function startDiagnosticLogging(options) {
+    if (arguments.length > 0 && options !== undefined && options !== null && (typeof options !== 'object')) {
+      throw new TypeError("Failed to execute 'startDiagnosticLogging' on 'RTCPeerConnection': The provided value is not of type 'RTCDiagnosticLoggingOptions'.");
+    }
+    if (rtcLog) rtcLogState('startDiagnosticLogging', 'A diagnostic logging session is already active.');
+    rtcLog = rtcUuid();
+    return rtcLog;
+  });
+  rtcLogFn('stopDiagnosticLogging', 0, function stopDiagnosticLogging() {
+    if (!rtcLog) rtcLogState('stopDiagnosticLogging', 'No active diagnostic logging session.');
+    rtcLog = null;
+  });
   // Chrome's prototype order: accessors (truth sequence above), then methods
   // alphabetically, constructor LAST. Reorder in-file so the raw capture
   // order already equals truth — gen_shape_fix then emits no ORDER entry and
