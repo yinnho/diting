@@ -1732,7 +1732,7 @@ async fn knife78_constructor_ladders_and_html_tags() {
             "TypeError:Failed to construct 'FileList': Illegal constructor",
             "TypeError:Failed to construct 'StyleSheet': Illegal constructor",
             "TypeError:Failed to construct 'HTMLFormElement': Illegal constructor",
-            "TypeError:Failed to construct 'FeaturePolicy': Illegal constructor",
+            "TypeError:Failed to construct 'PermissionsPolicy': Illegal constructor",
             "TypeError:Failed to construct 'GeolocationCoordinates': Illegal constructor",
             "TypeError:Failed to construct 'HTMLMediaElement': Illegal constructor",
             "TypeError:Failed to construct 'HTMLUnknownElement': Illegal constructor",

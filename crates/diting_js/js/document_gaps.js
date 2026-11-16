@@ -86,46 +86,44 @@
   acc('webkitFullscreenEnabled', function () { return this.fullscreenEnabled; }, null);
   acc('webkitFullscreenElement', function () { return this.fullscreenElement; }, null);
 
-  // ---- FeaturePolicy: instance + working methods ------------------------
-  // FeaturePolicy itself is a pure-stub face; before stub_members runs we
-  // take the four prototype methods over (its install is fill-if-missing)
-  // so document.featurePolicy answers with Chrome's default allowlist.
-  // Lists captured from Chrome 145 on a plain http page (80 allowed,
-  // 81 known - the extra feature is 'unload'). getAllowlistForFeature
-  // returns [origin] for allowed features, [] otherwise; fresh array per
-  // allowedFeatures() call; plain 'Illegal invocation' on foreign receivers.
+  // ---- PermissionsPolicy (FeaturePolicy is the same interface) ---------
+  // Chrome 157: one constructor, named PermissionsPolicy. document.featurePolicy
+  // is one cached instance. allowedFeatures and features are the same 79
+  // names (probed). getAllowlistForFeature returns [origin] for a known
+  // feature and [] otherwise. Foreign receivers throw Illegal invocation.
+  if (typeof PermissionsPolicy === 'function') globalThis.FeaturePolicy = PermissionsPolicy;
   const FP_ALLOWED = [
     'geolocation', 'ch-ua-full-version-list', 'cross-origin-isolated',
     'screen-wake-lock', 'on-device-speech-recognition', 'translator',
-    'publickey-credentials-get', 'shared-storage-select-url', 'ch-ua-arch',
+    'publickey-credentials-get', 'ch-ua-arch',
     'bluetooth', 'compute-pressure', 'ch-prefers-reduced-transparency',
     'deferred-fetch', 'usb', 'ch-save-data',
-    'publickey-credentials-create', 'shared-storage', 'deferred-fetch-minimal',
-    'run-ad-auction', 'ch-downlink', 'ch-ua-form-factors',
+    'publickey-credentials-create', 'deferred-fetch-minimal',
+    'ch-downlink', 'ch-ua-form-factors',
     'otp-credentials', 'payment', 'ch-ua',
     'ch-ua-model', 'ch-ect', 'autoplay',
     'camera', 'language-detector', 'private-state-token-issuance',
     'digital-credentials-get', 'accelerometer', 'ch-ua-platform-version',
-    'idle-detection', 'private-aggregation', 'interest-cohort',
+    'idle-detection', 'language-model', 'speaker-selection', 'interest-cohort',
     'ch-viewport-height', 'captured-surface-control', 'local-fonts',
     'ch-ua-platform', 'midi', 'ch-ua-full-version',
     'xr-spatial-tracking', 'clipboard-read', 'gamepad',
-    'display-capture', 'keyboard-map', 'join-ad-interest-group',
+    'display-capture', 'keyboard-map',
     'aria-notify', 'local-network', 'ch-ua-high-entropy-values',
     'ch-width', 'ch-prefers-reduced-motion', 'browsing-topics',
     'encrypted-media', 'local-network-access', 'gyroscope',
     'serial', 'ch-rtt', 'ch-ua-mobile',
-    'window-management', 'ch-dpr', 'ch-prefers-color-scheme',
-    'ch-ua-wow64', 'attribution-reporting', 'fullscreen',
+    'window-management', 'unload', 'ch-dpr', 'ch-prefers-color-scheme',
+    'ch-ua-wow64', 'fullscreen',
     'identity-credentials-get', 'private-state-token-redemption', 'hid',
-    'summarizer', 'ch-ua-bitness', 'storage-access',
+    'summarizer', 'ch-ua-bitness', 'digital-credentials-create', 'storage-access',
     'sync-xhr', 'ch-device-memory', 'ch-viewport-width',
-    'picture-in-picture', 'magnetometer', 'loopback-network',
-    'clipboard-write', 'microphone',
+    'picture-in-picture', 'loopback-network', 'magnetometer',
+    'clipboard-write', 'media-playback-while-not-visible', 'microphone',
   ];
-  const FP_FEATURES = FP_ALLOWED.concat(['unload']);
   if (typeof FeaturePolicy === 'function' && FeaturePolicy.prototype) {
     const FPP = FeaturePolicy.prototype;
+    try { Object.defineProperty(FPP, Symbol.toStringTag, { value: 'PermissionsPolicy', configurable: true }); } catch (e) {}
     const fpOK = (t) => t !== null && typeof t === 'object' && t !== FPP && Object.prototype.isPrototypeOf.call(FPP, t);
     const fpMeth = (name, f) => {
       mark(f);
@@ -137,16 +135,16 @@
     });
     fpMeth('allowsFeature', function allowsFeature(feature) {
       if (!fpOK(this)) throw new TypeError('Illegal invocation');
-      if (arguments.length < 1) throw new TypeError("Failed to execute 'allowsFeature' on 'FeaturePolicy': 1 argument required, but only 0 present.");
+      if (arguments.length < 1) throw new TypeError("Failed to execute 'allowsFeature' on 'PermissionsPolicy': 1 argument required, but only 0 present.");
       return FP_ALLOWED.indexOf(String(feature)) >= 0;
     });
     fpMeth('features', function features() {
       if (!fpOK(this)) throw new TypeError('Illegal invocation');
-      return FP_FEATURES.slice();
+      return FP_ALLOWED.slice();
     });
     fpMeth('getAllowlistForFeature', function getAllowlistForFeature(feature) {
       if (!fpOK(this)) throw new TypeError('Illegal invocation');
-      if (arguments.length < 1) throw new TypeError("Failed to execute 'getAllowlistForFeature' on 'FeaturePolicy': 1 argument required, but only 0 present.");
+      if (arguments.length < 1) throw new TypeError("Failed to execute 'getAllowlistForFeature' on 'PermissionsPolicy': 1 argument required, but only 0 present.");
       if (FP_ALLOWED.indexOf(String(feature)) < 0) return [];
       const o = globalThis.location && globalThis.location.origin;
       return [String(o)];

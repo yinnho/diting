@@ -24583,7 +24583,7 @@
     }
    },
    "featurePolicy": {
-    "def": "OBJ:FeaturePolicy",
+    "def": "OBJ:PermissionsPolicy",
     "fromAttr": {},
     "set": {}
    },

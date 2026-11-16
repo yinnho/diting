@@ -2079,6 +2079,57 @@ fn chrome157_create_parser_options() {
     );
 }
 
+/// Chrome 157 animation triggers. Behaviors are none, pause, play, and reset.
+/// Each Animation is kept once. ranges is one empty list.
+#[test]
+fn chrome157_animation_trigger() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const el = document.createElement('div');
+        const a = el.animate([{ opacity: 0 }, { opacity: 1 }], 1000);
+        const b = el.animate([{ opacity: 1 }, { opacity: 0 }], 800);
+        const tr = new TimelineTrigger();
+        const err = (fn) => { try { const r = fn(); return r === undefined ? 'undef' : String(r); } catch (e) { return e.name + ': ' + e.message; } };
+        tr.addAnimation(a, 'play');
+        tr.addAnimation(a, 'reset');
+        tr.addAnimation(b, 'pause');
+        const got = tr.getAnimations();
+        tr.removeAnimation(a);
+        const left = tr.getAnimations();
+        const names = Object.getOwnPropertyNames(AnimationTrigger.prototype);
+        const list = tr.ranges;
+        ({
+          got: [got.length, got[0] === a, got[1] === b, got !== tr.getAnimations()],
+          left: [left.length, left[0] === b],
+          rmGone: err(() => tr.removeAnimation(a)),
+          div: err(() => tr.addAnimation(document.createElement('div'), 'play')),
+          upper: err(() => tr.addAnimation(a, 'PLAY')),
+          zero: err(() => tr.addAnimation()),
+          ranges: [list === tr.ranges, list.constructor.name, list.length, list.item(0)],
+          order: names,
+          illegal: err(() => new AnimationTrigger()),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "got": [2, true, true, true],
+            "left": [1, true],
+            "rmGone": "undef",
+            "div": "TypeError: Failed to execute 'addAnimation' on 'AnimationTrigger': parameter 1 is not of type 'Animation'.",
+            "upper": "TypeError: Failed to execute 'addAnimation' on 'AnimationTrigger': The provided value 'PLAY' is not a valid enum value of type AnimationTriggerBehavior.",
+            "zero": "TypeError: Failed to execute 'addAnimation' on 'AnimationTrigger': 2 arguments required, but only 0 present.",
+            "ranges": [true, "TimelineTriggerRangeList", 0, null],
+            "order": ["addAnimation", "getAnimations", "removeAnimation", "constructor"],
+            "illegal": "TypeError: Failed to construct 'AnimationTrigger': Illegal constructor",
+        })
+    );
+}
+
 /// Chrome 157 datagram caps. 0 and non-finite numbers are stored as 1.
 /// A negative value wraps as an unsigned long.
 #[test]

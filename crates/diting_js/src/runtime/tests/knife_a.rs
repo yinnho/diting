@@ -2168,14 +2168,20 @@ fn knife65_document_family() {
     );
     assert_eq!(
         v["fp"],
-        serde_json::json!(["object", true, "FeaturePolicy", "[object FeaturePolicy]", 0]),
+        serde_json::json!([
+            "object",
+            true,
+            "PermissionsPolicy",
+            "[object PermissionsPolicy]",
+            0
+        ]),
         "featurePolicy singleton, brand, no own props (probed)"
     );
     assert_eq!(
         v["fpM"],
         serde_json::json!([
-            80,
-            81,
+            79,
+            79,
             true,
             true,
             false,
@@ -2183,12 +2189,12 @@ fn knife65_document_family() {
             "[\"http://example.com\"]",
             "[]"
         ]),
-        "FeaturePolicy methods Chrome-145 lists (probed 80/81) + allowlist (origin = test page origin)"
+        "PermissionsPolicy methods Chrome 157 lists (probed 79) + allowlist (origin = test page origin)"
     );
     assert_eq!(
         v["fpErr"],
         serde_json::json!([
-            "E:TypeError:Failed to execute 'allowsFeature' on 'FeaturePolicy': 1 argument required, but only 0 present.",
+            "E:TypeError:Failed to execute 'allowsFeature' on 'PermissionsPolicy': 1 argument required, but only 0 present.",
             "E:TypeError:Illegal invocation"
         ]),
         "FeaturePolicy arity + illegal invocation (probed)"
