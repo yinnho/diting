@@ -1711,7 +1711,7 @@ P KeyboardLayoutMap :: constructor,entries,forEach,get,has,keys,size,values
 P KeyframeEffect :: composite,constructor,getKeyframes,pseudoElement,setKeyframes,target
 S LanguageDetector :: availability,create
 P LanguageDetector :: constructor,destroy,detect,expectedInputLanguages,inputQuota,measureInputUsage
-P LanguageModel :: constructor
+P LanguageModel :: append,clone,constructor,contextUsage,contextWindow,destroy,measureContextUsage,oncontextoverflow,prompt,promptStreaming
 P LargestContentfulPaint :: constructor,element,id,loadTime,paintTime,presentationTime,renderTime,size,toJSON,url
 P LaunchParams :: constructor,files,targetURL
 P LaunchQueue :: constructor,setConsumer
@@ -2303,11 +2303,11 @@ P XRView :: camera,constructor,eye,index,isFirstPersonObserver,projectionMatrix,
 P XRViewerPose :: constructor,views
 P XRViewport :: constructor,height,width,x,y
 P XRVisibilityMaskChangeEvent :: constructor,eye,index,indices,session,vertices
-P XRWebGLBinding :: constructor,getCameraImage,getDepthInformation,getReflectionCubeMap
+P XRWebGLBinding :: constructor,createCubeLayer,createCylinderLayer,createEquirectLayer,createProjectionLayer,createQuadLayer,getCameraImage,getDepthInformation,getReflectionCubeMap,getSubImage,getViewSubImage,nativeProjectionScaleFactor,usesDepthValues
 P XRWebGLDepthInformation :: constructor,texture
 S XRWebGLLayer :: getNativeFramebufferScaleFactor
 P XRWebGLLayer :: antialias,constructor,framebuffer,framebufferHeight,framebufferWidth,getViewport,ignoreDepthValues
-P XRWebGLSubImage :: constructor
+P XRWebGLSubImage :: colorTexture,colorTextureHeight,colorTextureWidth,constructor,depthStencilTexture,depthStencilTextureHeight,depthStencilTextureWidth,imageIndex,motionVectorTexture,motionVectorTextureHeight,motionVectorTextureWidth
 P XSLTProcessor :: clearParameters,constructor,getParameter,importStylesheet,removeParameter,reset,setParameter,transformToDocument,transformToFragment
 P alert :: constructor
 P blur :: constructor
