@@ -34,9 +34,9 @@
 
   // ---- defaults of every dictionary-backed member
   var DEFS = {
-    UIEvent: ['view', 'detail', 'sourceCapabilities', 'which'],
+    UIEvent: ['view', 'detail', 'sourceCapabilities', 'which', 'pseudoTarget'],
     MouseEvent: ['screenX', 'screenY', 'clientX', 'clientY', 'x', 'y', 'pageX', 'pageY', 'offsetX', 'offsetY', 'layerX', 'layerY', 'movementX', 'movementY', 'button', 'buttons', 'relatedTarget', 'ctrlKey', 'shiftKey', 'altKey', 'metaKey', 'which', 'detail', 'fromElement', 'toElement'],
-    WheelEvent: ['deltaX', 'deltaY', 'deltaZ', 'deltaMode', 'wheelDelta', 'wheelDeltaX', 'wheelDeltaY', 'which'],
+    WheelEvent: ['deltaX', 'deltaY', 'deltaZ', 'deltaMode', 'wheelDelta', 'wheelDeltaX', 'wheelDeltaY', 'which', 'momentum'],
     KeyboardEvent: ['key', 'code', 'location', 'repeat', 'isComposing', 'charCode', 'keyCode', 'which', 'ctrlKey', 'shiftKey', 'altKey', 'metaKey'],
     InputEvent: ['data', 'isComposing', 'inputType', 'dataTransfer', 'which'],
     FocusEvent: ['relatedTarget', 'which'],
@@ -60,7 +60,7 @@
     });
   }
   ['detail', 'screenX', 'clientY', 'movementX', 'movementY', 'button', 'buttons', 'ctrlKey', 'altKey', 'relatedTarget', 'view'].forEach(function (m) { conv('MouseEvent', m); });
-  ['deltaX', 'deltaMode'].forEach(function (m) { conv('WheelEvent', m); });
+  ['deltaX', 'deltaMode', 'momentum'].forEach(function (m) { conv('WheelEvent', m); });
   ['key', 'code', 'location', 'repeat', 'isComposing', 'charCode', 'keyCode'].forEach(function (m) { conv('KeyboardEvent', m); });
   ['data', 'inputType', 'isComposing'].forEach(function (m) { conv('InputEvent', m); });
   conv('CompositionEvent', 'data');
