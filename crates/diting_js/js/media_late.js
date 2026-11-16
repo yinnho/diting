@@ -71,3 +71,30 @@
     configurable: true,
   });
 })();
+
+// Chrome 157. The attribute is stored as written. The getter is lazy only
+// when the attribute is the case-insensitive keyword "lazy"; every other
+// value, including a missing attribute, reads "eager".
+(function () {
+  const MED = globalThis.HTMLMediaElement && globalThis.HTMLMediaElement.prototype;
+  if (!MED || Object.prototype.hasOwnProperty.call(MED, 'loading')) return;
+  const get = function () {
+    const v = this.getAttribute('loading');
+    return v != null && String(v).toLowerCase() === 'lazy' ? 'lazy' : 'eager';
+  };
+  const set = function (v) { this.setAttribute('loading', v == null ? 'null' : String(v)); };
+  Object.defineProperty(get, 'name', { value: 'get loading', configurable: true });
+  Object.defineProperty(set, 'name', { value: 'set loading', configurable: true });
+  if (globalThis._markNative) { _markNative(get); _markNative(set); }
+  Object.defineProperty(MED, 'loading', { get, set, enumerable: true, configurable: true });
+  const names = Object.getOwnPropertyNames(MED);
+  const at = names.indexOf('play');
+  if (at < 0) return;
+  const tail = names.slice(at + 1).filter((n) => n !== 'loading');
+  const saved = tail.map((n) => [n, Object.getOwnPropertyDescriptor(MED, n)]);
+  for (const [n, d] of saved) if (d && d.configurable) delete MED[n];
+  const ld = Object.getOwnPropertyDescriptor(MED, 'loading');
+  delete MED.loading;
+  Object.defineProperty(MED, 'loading', ld);
+  for (const [n, d] of saved) if (d && d.configurable) Object.defineProperty(MED, n, d);
+})();

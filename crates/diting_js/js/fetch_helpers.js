@@ -181,6 +181,10 @@ function __recordFetchTiming(t0, url, initiator, parsed, opts) {
     responseStatus: parsed && parsed.status ? parsed.status : 0,
     encodedBodySize: 0, decodedBodySize: 0, transferSize: 0,
   };
+  if (parsed && parsed.headers && typeof parsed.headers === 'object') {
+    const raw = parsed.headers['content-type'] || parsed.headers['Content-Type'];
+    if (raw) o.contentType = String(raw).split(';')[0].trim();
+  }
   if (parsed && parsed.bodyBase64) {
     const bytes = parsed.bodyBase64.length ? _base64ToUint8Array(parsed.bodyBase64) : [];
     o.encodedBodySize = o.decodedBodySize = bytes.length;

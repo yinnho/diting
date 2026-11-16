@@ -351,6 +351,8 @@
     "onstart": "rw:true",
     "phrases": "rw:true",
     "processLocally": "rw:true",
+    "quality": "rw:true",
+    "unspokenPunctuation": "rw:true",
     "start": "function:0:true",
     "stop": "function:0:true"
    },
@@ -375,6 +377,8 @@
     "abort",
     "start",
     "stop",
+    "unspokenPunctuation",
+    "quality",
     "processLocally",
     "phrases",
     "constructor"
@@ -482,6 +486,12 @@
   "Array",
   0,
   true,
+  true
+ ],
+ "sr.quality": [
+  false,
+  "command",
+  "dictation",
   true
  ],
  "sr.grammars.set": [

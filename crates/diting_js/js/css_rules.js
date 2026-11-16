@@ -238,8 +238,31 @@
   // under CSSGroupingRule, not Condition) loses it entirely — scope rules
   // answer start/end in Chrome, never conditionText.
   acc(globalThis.CSSConditionRule, 'conditionText', function () { return rec(this).cond; });
-  acc(globalThis.CSSContainerRule, 'containerName', function () { const m = /^([\w-]+)\s*(?:\(|$)/.exec(rec(this).cond); return m && !/^(not|and|or)$/i.test(m[1]) ? m[1] : ''; });
-  acc(globalThis.CSSContainerRule, 'containerQuery', function () { return rec(this).cond.replace(/^[\w-]+\s+(?=\()/, ''); });
+  // Chrome 157. One {name, query} per top-level condition. A name is only
+  // the ident before a space and '('. style() is a query, not a name.
+  // Exactly one condition fills containerName/containerQuery. Zero or
+  // several leave both empty; conditions still lists every piece.
+  const containerConditions = (rule) => {
+    const d = rec(rule);
+    if (d.condList) return d.condList;
+    const list = splitTop(d.cond || '', ',').map((part) => {
+      const s = part.trim();
+      const m = /^([A-Za-z_][\w-]*)\s+(?=\()/.exec(s);
+      const named = m && !/^(not|and|or)$/i.test(m[1]);
+      return Object.freeze({ name: named ? m[1] : '', query: named ? s.slice(m[0].length) : s });
+    }).filter((c) => c.name || c.query);
+    d.condList = Object.freeze(list);
+    return d.condList;
+  };
+  acc(globalThis.CSSContainerRule, 'containerName', function () {
+    const list = containerConditions(this);
+    return list.length === 1 ? list[0].name : '';
+  });
+  acc(globalThis.CSSContainerRule, 'containerQuery', function () {
+    const list = containerConditions(this);
+    return list.length === 1 ? list[0].query : '';
+  });
+  acc(globalThis.CSSContainerRule, 'conditions', function () { return containerConditions(this); });
   acc(globalThis.CSSLayerBlockRule, 'name', function () { return rec(this).name; });
   acc(globalThis.CSSLayerStatementRule, 'nameList', function () { return rec(this).names.slice(); });
   acc(globalThis.CSSImportRule, 'href', function () { return rec(this).href; });

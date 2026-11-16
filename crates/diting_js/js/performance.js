@@ -29,9 +29,13 @@ class PerformanceEntry {
   get entryType() { return this._peType; }
   get startTime() { return this._peStart; }
   get duration() { return this._peDur; }
+  // Chrome 157. One id for every entry in this document. A fresh runtime
+  // is one navigation, so the id stays 1.
+  get navigationId() { return 1; }
   toJSON() {
     const o = { name: this._peName, entryType: this._peType,
-                startTime: this._peStart, duration: this._peDur };
+                startTime: this._peStart, duration: this._peDur,
+                navigationId: this.navigationId };
     if (this._peDetail !== null) o.detail = this._peDetail;
     return o;
   }
@@ -84,6 +88,7 @@ globalThis.PerformanceResourceTiming = class PerformanceResourceTiming extends P
   get workerMatchedSourceType() { return ""; }
   get workerFinalSourceType() { return ""; }
   get contentEncoding() { return this._prt.contentEncoding || ""; }
+  get contentType() { return typeof this._prt.contentType === 'string' ? this._prt.contentType : ""; }
   _prtNum(k, d) { const v = this._prt[k]; return typeof v === 'number' ? v : d; }
   toJSON() {
     return Object.assign(PerformanceEntry.prototype.toJSON.call(this), {
@@ -96,7 +101,7 @@ globalThis.PerformanceResourceTiming = class PerformanceResourceTiming extends P
       workerRouterEvaluationStart: 0, workerCacheLookupStart: 0, workerMatchedSourceType: "", workerFinalSourceType: "",
       renderBlockingStatus: this.renderBlockingStatus, responseStatus: this.responseStatus,
       firstInterimResponseStart: this.firstInterimResponseStart, finalResponseHeadersStart: this.finalResponseHeadersStart,
-      contentEncoding: this.contentEncoding,
+      contentEncoding: this.contentEncoding, contentType: this.contentType,
     });
   }
 };
@@ -395,6 +400,7 @@ class Performance {
       secureConnectionStart: rel(t.secureConnectionStart),
       requestStart: rel(t.requestStart), responseStart: rel(t.responseStart), responseEnd: rel(t.responseEnd),
       transferSize: 0, encodedBodySize: 0, decodedBodySize: 0,
+      contentType: 'text/html',
       domInteractive: rel(t.domInteractive),
       domContentLoadedEventStart: rel(t.domContentLoadedEventStart),
       domContentLoadedEventEnd: rel(t.domContentLoadedEventEnd),

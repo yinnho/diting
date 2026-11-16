@@ -250,7 +250,11 @@ fn test_performance_timeline_mark_measure_navigation_paint() {
                     dcl > 0, loadEnd >= dcl, nav.duration >= loadEnd,
                     m.duration >= 0, m.startTime > -100,
                     afterClear, byName, sum >= 5, errName,
-                    performance.getEntriesByType('resource').length];
+                    performance.getEntriesByType('resource').length,
+                    typeof nav.navigationId === 'number' && nav.navigationId > 0
+                      && nav.navigationId === m.navigationId
+                      && nav.toJSON().navigationId === nav.navigationId,
+                    nav.contentType, m.contentType === undefined];
         "#,
         )
         .unwrap();
@@ -272,7 +276,10 @@ fn test_performance_timeline_mark_measure_navigation_paint() {
             1,
             true,
             "SyntaxError",
-            0
+            0,
+            true,
+            "text/html",
+            true
         ])
     );
 }

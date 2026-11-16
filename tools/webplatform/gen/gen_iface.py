@@ -583,7 +583,11 @@ if len(sys.argv) > 5 and sys.argv[5] == "patch-media":
                 "canPlayType", "load", "pause", "play",
                 "NETWORK_EMPTY", "NETWORK_IDLE", "NETWORK_LOADING", "NETWORK_NO_SOURCE",
                 "HAVE_NOTHING", "HAVE_METADATA", "HAVE_CURRENT_DATA", "HAVE_FUTURE_DATA",
-                "HAVE_ENOUGH_DATA"],
+                "HAVE_ENOUGH_DATA",
+                # Chrome 157. Installed by media_late.js after this bundle, which
+                # also moves it to sit between play and sinkId. Listed so the
+                # truth order stays accounted; reseat no-ops until that install.
+                "loading"],
         "VID": [],
         "IMG": ["src"],
     }

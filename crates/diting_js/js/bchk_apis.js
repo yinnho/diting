@@ -208,6 +208,9 @@ globalThis.WebTransport = class WebTransport {
   close() {}
   createBidirectionalStream() { return Promise.reject(new DOMException("NotAllowedError")); }
   createUnidirectionalStream() { return Promise.reject(new DOMException("NotAllowedError")); }
+  // Chrome 157. A transport that has not connected is "pending" and has no headers.
+  get reliability() { return 'pending'; }
+  get responseHeaders() { return null; }
 };
 
 globalThis.WebSocketStream = class WebSocketStream {

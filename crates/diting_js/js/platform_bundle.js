@@ -3833,6 +3833,29 @@ function bodyMethods(proto, cls, slotOf, ctOf) {
     return consume(s.rec, 'text', cls, fn).then((b) => utf8.decode(b));
   });
 }
+// Chrome 157. Synchronous. Disturbs a non-null body immediately. The stream
+// yields one string chunk, or none when the text is empty.
+function textStreamMethod(proto, cls, slotOf) {
+  P.method(proto, 'textStream', 0, function __f() {
+    const s = slotOf(this, __f);
+    const rec = s.rec;
+    const pre = "Failed to execute 'textStream' on '" + cls + "'";
+    if (disturbed(rec)) P.fail(__f, 'body stream already read', pre);
+    if (locked(rec)) P.fail(__f, 'body stream is locked', pre);
+    let bytes = new Uint8Array(0);
+    if (rec.body !== null) {
+      rec.used = true;
+      if (rec.body.bytes !== undefined) bytes = rec.body.bytes;
+    }
+    const text = utf8.decode(bytes);
+    return new ReadableStream({
+      start(c) {
+        if (text.length) c.enqueue(text);
+        c.close();
+      },
+    });
+  });
+}
 function bodyGetters(proto, slotOf) {
   P.getter(proto, 'body', function __f() { const s = slotOf(this, __f); return ownStream(s.rec); });
   P.getter(proto, 'bodyUsed', function __f() { return disturbed(slotOf(this, __f).rec); });
@@ -3973,11 +3996,13 @@ P.getter(RP, 'bodyUsed', function __f() { return disturbed(reqSlot(this, __f).re
 // arrayBuffer, blob, clone, formData, json, text
 bodyMethods(RP, 'Request', reqSlot, (s) => s.headers.get('content-type') || '');
 P.getter(RP, 'targetAddressSpace', function __f() { reqSlot(this, __f); return 'unknown'; });
+P.getter(RP, 'isReloadNavigation', function __f() { reqSlot(this, __f); return false; });
 P.getter(RP, 'body', function __f() { return ownStream(reqSlot(this, __f).rec); });
 asyncMethod(RP, 'bytes', 0, function (fn) {
   const s = reqSlot(this, fn);
   return consume(s.rec, 'bytes', 'Request', fn).then((b) => new Uint8Array(b));
 });
+textStreamMethod(RP, 'Request', reqSlot);
 P.seal(Request);
 
 // ---------------------------------------------------------------- Response
@@ -4051,6 +4076,7 @@ asyncMethod(SP, 'bytes', 0, function (fn) {
   const s = resSlot(this, fn);
   return consume(s.rec, 'bytes', 'Response', fn).then((b) => new Uint8Array(b));
 });
+textStreamMethod(SP, 'Response', resSlot);
 P.seal(Response);
 
 const SX = "Failed to execute 'redirect' on 'Response'";
@@ -5959,13 +5985,14 @@ if (!has(MED, 'captureStream')) P.method(MED, 'captureStream', 0, function __f()
 // load: engine-owned, kept (reseat relocates)
 // pause: engine-owned, kept (reseat relocates)
 // play: engine-owned, kept (reseat relocates)
+// loading: engine-owned, kept (reseat relocates)
 if (!has(MED, 'sinkId')) P.getter(MED, 'sinkId', function __f() { return ''; });
 if (!has(MED, 'remote')) P.getter(MED, 'remote', function __f() { return B.get('remote', this); });
 if (!has(MED, 'disableRemotePlayback')) P.reflector(MED, 'disableRemotePlayback', {"attr": "disableremoteplayback", "iface": "HTMLMediaElement", "kind": "boolean-presence"});
 if (!has(MED, 'setSinkId')) P.method(MED, 'setSinkId', 1, function __f() { const ctx = "Failed to execute 'setSinkId' on 'HTMLMediaElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('setSinkId', this, ctx, arguments); });
 if (!has(MED, 'mediaKeys')) P.getter(MED, 'mediaKeys', function __f() { return B.get('mediaKeys', this); });
 if (!has(MED, 'setMediaKeys')) P.method(MED, 'setMediaKeys', 1, function __f() { const ctx = "Failed to execute 'setMediaKeys' on 'HTMLMediaElement'"; P.args(ctx, arguments.length, 1, __f); return B.call('setMediaKeys', this, ctx, arguments); });
-reseat(MED, ["error", "src", "currentSrc", "crossOrigin", "networkState", "preload", "buffered", "readyState", "seeking", "currentTime", "duration", "paused", "defaultPlaybackRate", "playbackRate", "played", "seekable", "ended", "autoplay", "loop", "preservesPitch", "controls", "controlsList", "volume", "muted", "defaultMuted", "textTracks", "webkitAudioDecodedByteCount", "webkitVideoDecodedByteCount", "onencrypted", "onwaitingforkey", "srcObject", "NETWORK_EMPTY", "NETWORK_IDLE", "NETWORK_LOADING", "NETWORK_NO_SOURCE", "HAVE_NOTHING", "HAVE_METADATA", "HAVE_CURRENT_DATA", "HAVE_FUTURE_DATA", "HAVE_ENOUGH_DATA", "addTextTrack", "canPlayType", "captureStream", "load", "pause", "play", "sinkId", "remote", "disableRemotePlayback", "setSinkId", "constructor", "mediaKeys", "setMediaKeys"]);
+reseat(MED, ["error", "src", "currentSrc", "crossOrigin", "networkState", "preload", "buffered", "readyState", "seeking", "currentTime", "duration", "paused", "defaultPlaybackRate", "playbackRate", "played", "seekable", "ended", "autoplay", "loop", "preservesPitch", "controls", "controlsList", "volume", "muted", "defaultMuted", "textTracks", "webkitAudioDecodedByteCount", "webkitVideoDecodedByteCount", "onencrypted", "onwaitingforkey", "srcObject", "NETWORK_EMPTY", "NETWORK_IDLE", "NETWORK_LOADING", "NETWORK_NO_SOURCE", "HAVE_NOTHING", "HAVE_METADATA", "HAVE_CURRENT_DATA", "HAVE_FUTURE_DATA", "HAVE_ENOUGH_DATA", "addTextTrack", "canPlayType", "captureStream", "load", "pause", "play", "loading", "sinkId", "remote", "disableRemotePlayback", "setSinkId", "constructor", "mediaKeys", "setMediaKeys"]);
 
 // ---- HTMLVideoElement.prototype (Chrome own order VID.order; installs guarded,
 // kind fixes applied, reseat() walk last)
@@ -9806,7 +9833,7 @@ function SpeechRecognition() {
   const r = Reflect.construct(EventTarget, [], new.target);
   const h = {}; for (const n of HANDLERS) h[n] = null;
   recSlots.set(r, { lang: '', continuous: false, interimResults: false, maxAlternatives: 1, grammars: new SpeechGrammarList(),
-    processLocally: false, phrases: [], handlers: h, started: false, timer: null });
+    processLocally: false, phrases: [], unspokenPunctuation: false, quality: 'command', handlers: h, started: false, timer: null });
   return r;
 }
 const RP = P.iface(SpeechRecognition, 'SpeechRecognition', 0, EventTarget);
@@ -9859,6 +9886,14 @@ P.method(RP, 'stop', 0, function __f() {
   if (!s.started) return;
   if (s.timer !== null) clearTimeout(s.timer);
   fireEnd(this, s);
+});
+// Chrome 157. unspokenPunctuation is a boolean. quality is the enum
+// command | dictation | conversation; anything else leaves the previous value.
+P.accessor(RP, 'unspokenPunctuation', function __f() { return rslot(this, __f).unspokenPunctuation; }, function __f(v) { rslot(this, __f).unspokenPunctuation = !!v; });
+P.accessor(RP, 'quality', function __f() { return rslot(this, __f).quality; }, function __f(v) {
+  const s = rslot(this, __f);
+  const next = P.conv.DOMString(v, rpre('quality'), __f);
+  if (next === 'command' || next === 'dictation' || next === 'conversation') s.quality = next;
 });
 P.accessor(RP, 'processLocally', function __f() { return rslot(this, __f).processLocally; }, function __f(v) { rslot(this, __f).processLocally = !!v; });
 P.accessor(RP, 'phrases', function __f() { return rslot(this, __f).phrases; }, function __f(v) {
