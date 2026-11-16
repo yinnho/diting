@@ -1078,6 +1078,59 @@
     }
   });
 
+  // Chrome 157 paint and geometry events. One argument is the event type.
+  // The element lists stay empty. ElementImage cannot be constructed.
+  section('paint-events', () => {
+    const live = new WeakSet();
+    const lists = new WeakMap();
+    const makeEvent = (name, member) => {
+      if (typeof G.Event !== 'function') return;
+      const C = { [name]: class extends G.Event {
+        constructor(type) {
+          if (arguments.length < 1) throw new TypeError("Failed to construct '" + name + "': 1 argument required, but only 0 present.");
+          super(type == null ? 'null' : String(type));
+          live.add(this);
+          lists.set(this, []);
+        }
+      } }[name];
+      try { Object.defineProperty(C.prototype, Symbol.toStringTag, { value: name, configurable: true }); } catch (e) {}
+      def(C.prototype, member, { get: pin(function () {
+        if (!live.has(this)) throw new TypeError('Illegal invocation');
+        return lists.get(this);
+      }, 'get ' + member), enumerable: true, configurable: true });
+      Object.defineProperty(G, name, { value: C, writable: true, enumerable: false, configurable: true });
+      const P = C.prototype;
+      const names = Object.getOwnPropertyNames(P);
+      const want = [member, 'constructor'];
+      if (names[0] !== member) {
+        const saved = [];
+        for (const k of want) {
+          const d = Object.getOwnPropertyDescriptor(P, k);
+          if (d && d.configurable) { saved.push([k, d]); delete P[k]; }
+        }
+        for (const [k, d] of saved) Object.defineProperty(P, k, d);
+      }
+    };
+    makeEvent('CanvasPaintEvent', 'changedElements');
+    makeEvent('ElementGeometryUpdateEvent', 'elements');
+    const Img = { ElementImage: class ElementImage {
+      constructor() { throw new TypeError("Failed to construct 'ElementImage': Illegal constructor"); }
+    } }.ElementImage;
+    try { Object.defineProperty(Img.prototype, Symbol.toStringTag, { value: 'ElementImage', configurable: true }); } catch (e) {}
+    Object.defineProperty(G, 'ElementImage', { value: Img, writable: true, enumerable: false, configurable: true });
+    fn('ElementImage', 'close', 0, function close() { throw new TypeError('Illegal invocation'); });
+    const IP = Img.prototype;
+    const inames = Object.getOwnPropertyNames(IP);
+    if (inames[0] !== 'close') {
+      const saved = [];
+      for (const k of ['close', 'constructor']) {
+        const d = Object.getOwnPropertyDescriptor(IP, k);
+        if (d && d.configurable) { saved.push([k, d]); delete IP[k]; }
+      }
+      for (const [k, d] of saved) Object.defineProperty(IP, k, d);
+    }
+  });
+
   // Chrome 157 precommit handler. No live controller is minted, so the
   // call fails the brand check before the argument is examined.
   section('nav-precommit', () => {

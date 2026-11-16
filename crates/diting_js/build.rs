@@ -697,6 +697,7 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // 刀71: interestForElement on the four interfaces Chrome carries it on.
     ("interest_for.js", include_str!("js/interest_for.js")),
     // 刀75: the missing-member tail (handlers, legacy constants, small reflections).
+    ("sanitizer.js", include_str!("js/sanitizer.js")),
     ("tail_members.js", include_str!("js/tail_members.js")),
     // 刀77: SVG tags the engine still wrapped as bare SVGElement get their interface prototype.
     ("svg_tags.js", include_str!("js/svg_tags.js")),

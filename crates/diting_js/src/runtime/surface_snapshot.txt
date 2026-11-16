@@ -1,4 +1,4 @@
-[globals] 1236
+[globals] 1239
 G AbortController
 G AbortSignal
 G AbsoluteOrientationSensor
@@ -134,6 +134,7 @@ G Cache
 G CacheStorage
 G CanvasCaptureMediaStreamTrack
 G CanvasGradient
+G CanvasPaintEvent
 G CanvasPattern
 G CanvasRenderingContext2D
 G CaptureController
@@ -210,6 +211,8 @@ G DragEvent
 G DynamicsCompressorNode
 G EditContext
 G Element
+G ElementGeometryUpdateEvent
+G ElementImage
 G ElementInternals
 G EncodedAudioChunk
 G EncodedVideoChunk
@@ -1381,6 +1384,7 @@ P Cache :: add,addAll,constructor,delete,keys,match,matchAll,put
 P CacheStorage :: constructor,delete,has,keys,match,open
 P CanvasCaptureMediaStreamTrack :: canvas,constructor,requestFrame
 P CanvasGradient :: addColorStop,constructor
+P CanvasPaintEvent :: changedElements,constructor
 P CanvasPattern :: constructor,setTransform
 P CanvasRenderingContext2D :: arc,arcTo,beginPath,bezierCurveTo,canvas,clearRect,clip,closePath,constructor,createConicGradient,createImageData,createLinearGradient,createPattern,createRadialGradient,direction,drawElementImage,drawFocusIfNeeded,drawImage,ellipse,fill,fillRect,fillStyle,fillText,filter,font,fontKerning,fontStretch,fontVariantCaps,getContextAttributes,getImageData,getLineDash,getTransform,globalAlpha,globalCompositeOperation,imageSmoothingEnabled,imageSmoothingQuality,isContextLost,isPointInPath,isPointInStroke,lang,letterSpacing,lineCap,lineDashOffset,lineJoin,lineTo,lineWidth,measureText,miterLimit,moveTo,putImageData,quadraticCurveTo,rect,reset,resetTransform,restore,rotate,roundRect,save,scale,setLineDash,setTransform,shadowBlur,shadowColor,shadowOffsetX,shadowOffsetY,stroke,strokeRect,strokeStyle,strokeText,textAlign,textBaseline,textRendering,transform,translate,wordSpacing
 P CaptureController :: constructor,decreaseZoomLevel,forwardWheel,getSupportedZoomLevels,increaseZoomLevel,onzoomlevelchange,resetZoomLevel,setFocusBehavior,zoomLevel
@@ -1470,6 +1474,8 @@ P DragEvent :: constructor,dataTransfer
 P DynamicsCompressorNode :: attack,constructor,knee,ratio,reduction,release,threshold
 P EditContext :: attachedElements,characterBounds,characterBoundsRangeStart,constructor,oncharacterboundsupdate,oncompositionend,oncompositionstart,ontextformatupdate,ontextupdate,selectionEnd,selectionStart,text,updateCharacterBounds,updateControlBounds,updateSelection,updateSelectionBounds,updateText
 P Element :: activeViewTransition,after,afterHTML,afterHTMLUnsafe,animate,append,appendHTML,appendHTMLUnsafe,ariaActionsElements,ariaActiveDescendantElement,ariaAtomic,ariaAutoComplete,ariaBrailleLabel,ariaBrailleRoleDescription,ariaBusy,ariaChecked,ariaColCount,ariaColIndex,ariaColIndexText,ariaColSpan,ariaControlsElements,ariaCurrent,ariaDescribedByElements,ariaDescription,ariaDetailsElements,ariaDisabled,ariaErrorMessageElements,ariaExpanded,ariaFlowToElements,ariaHasPopup,ariaHidden,ariaInvalid,ariaKeyShortcuts,ariaLabel,ariaLabelledByElements,ariaLevel,ariaLive,ariaModal,ariaMultiLine,ariaMultiSelectable,ariaNotify,ariaOrientation,ariaPlaceholder,ariaPosInSet,ariaPressed,ariaReadOnly,ariaRelevant,ariaRequired,ariaRoleDescription,ariaRowCount,ariaRowIndex,ariaRowIndexText,ariaRowSpan,ariaSelected,ariaSetSize,ariaSort,ariaValueMax,ariaValueMin,ariaValueNow,ariaValueText,assignedSlot,attachShadow,attributes,before,beforeHTML,beforeHTMLUnsafe,checkVisibility,childElementCount,children,classList,className,clientHeight,clientLeft,clientTop,clientWidth,closest,computedStyleMap,constructor,currentCSSZoom,customElementRegistry,elementTiming,firstElementChild,getAnimations,getAttribute,getAttributeNS,getAttributeNames,getAttributeNode,getAttributeNodeNS,getBoundingClientRect,getClientRects,getElementsByClassName,getElementsByTagName,getElementsByTagNameNS,getHTML,hasAttribute,hasAttributeNS,hasAttributes,hasPointerCapture,id,innerHTML,insertAdjacentElement,insertAdjacentHTML,insertAdjacentText,lastElementChild,localName,matches,moveBefore,namespaceURI,nextElementSibling,onbeforecopy,onbeforecut,onbeforepaste,onfullscreenchange,onfullscreenerror,onsearch,onwebkitfullscreenchange,onwebkitfullscreenerror,outerHTML,part,prefix,prepend,prependHTML,prependHTMLUnsafe,previousElementSibling,pseudo,querySelector,querySelectorAll,releasePointerCapture,remove,removeAttribute,removeAttributeNS,removeAttributeNode,replaceChildren,replaceWith,replaceWithHTML,replaceWithHTMLUnsafe,requestFullscreen,requestPointerLock,role,scroll,scrollBy,scrollHeight,scrollIntoView,scrollIntoViewIfNeeded,scrollLeft,scrollTo,scrollTop,scrollWidth,setAttribute,setAttributeNS,setAttributeNode,setAttributeNodeNS,setHTML,setHTMLUnsafe,setPointerCapture,shadowRoot,slot,startViewTransition,streamAfterHTML,streamAfterHTMLUnsafe,streamAppendHTML,streamAppendHTMLUnsafe,streamBeforeHTML,streamBeforeHTMLUnsafe,streamHTML,streamHTMLUnsafe,streamPrependHTML,streamPrependHTMLUnsafe,streamReplaceWithHTML,streamReplaceWithHTMLUnsafe,tagName,toggleAttribute,webkitMatchesSelector,webkitRequestFullScreen,webkitRequestFullscreen
+P ElementGeometryUpdateEvent :: constructor,elements
+P ElementImage :: close,constructor
 P ElementInternals :: ariaActionsElements,ariaActiveDescendantElement,ariaAtomic,ariaAutoComplete,ariaBrailleLabel,ariaBrailleRoleDescription,ariaBusy,ariaChecked,ariaColCount,ariaColIndex,ariaColIndexText,ariaColSpan,ariaControlsElements,ariaCurrent,ariaDescribedByElements,ariaDescription,ariaDetailsElements,ariaDisabled,ariaErrorMessageElements,ariaExpanded,ariaFlowToElements,ariaHasPopup,ariaHidden,ariaInvalid,ariaKeyShortcuts,ariaLabel,ariaLabelledByElements,ariaLevel,ariaLive,ariaModal,ariaMultiLine,ariaMultiSelectable,ariaOrientation,ariaPlaceholder,ariaPosInSet,ariaPressed,ariaReadOnly,ariaRelevant,ariaRequired,ariaRoleDescription,ariaRowCount,ariaRowIndex,ariaRowIndexText,ariaRowSpan,ariaSelected,ariaSetSize,ariaSort,ariaValueMax,ariaValueMin,ariaValueNow,ariaValueText,checkValidity,constructor,form,labels,reportValidity,role,setFormValue,setValidity,shadowRoot,states,validationMessage,validity,willValidate
 P EncodedAudioChunk :: byteLength,constructor,copyTo,duration,timestamp,type
 P EncodedVideoChunk :: byteLength,constructor,copyTo,duration,timestamp,type
@@ -2053,7 +2059,7 @@ P SVGUnitTypes :: SVG_UNIT_TYPE_OBJECTBOUNDINGBOX,SVG_UNIT_TYPE_UNKNOWN,SVG_UNIT
 P SVGUseElement :: constructor,height,href,width,x,y
 S SVGViewElement :: SVG_ZOOMANDPAN_DISABLE,SVG_ZOOMANDPAN_MAGNIFY,SVG_ZOOMANDPAN_UNKNOWN
 P SVGViewElement :: SVG_ZOOMANDPAN_DISABLE,SVG_ZOOMANDPAN_MAGNIFY,SVG_ZOOMANDPAN_UNKNOWN,constructor,preserveAspectRatio,viewBox,zoomAndPan
-P Sanitizer :: constructor
+P Sanitizer :: allowAttribute,allowElement,allowProcessingInstruction,constructor,get,removeAttribute,removeElement,removeProcessingInstruction,removeUnsafe,replaceElementWithChildren,setComments,setDataAttributes
 P Scheduler :: constructor,postTask,yield
 P Scheduling :: constructor,isInputPending
 P Screen :: availHeight,availLeft,availTop,availWidth,colorDepth,constructor,height,isExtended,onchange,orientation,pixelDepth,width
