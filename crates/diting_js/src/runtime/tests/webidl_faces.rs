@@ -2669,7 +2669,7 @@ fn chrome157_paint_events() {
 }
 
 /// Chrome 157 Sanitizer. The default allow-list is Chrome's 121 elements
-/// and 58 attributes. setHTML does not read this object.
+/// and 58 attributes. parseHTML and setHTML read a Sanitizer passed in options.
 #[test]
 fn chrome157_sanitizer() {
     let mut rt = setup_runtime("<html><body></body></html>");
@@ -2715,6 +2715,83 @@ fn chrome157_sanitizer() {
             "zero": "TypeError: Failed to execute 'allowElement' on 'Sanitizer': 1 argument required, but only 0 present.",
             "bad": "TypeError: Illegal invocation",
             "order": ["allowAttribute", "allowElement", "get", "removeAttribute", "removeElement", "removeUnsafe", "replaceElementWithChildren", "setComments", "setDataAttributes", "allowProcessingInstruction", "removeProcessingInstruction", "constructor"],
+        })
+    );
+}
+
+/// Chrome 157 Document.parseHTML builds an HTML document and runs the
+/// Sanitizer. setHTML reads the same options. script stays blocked even
+/// after allowElement. A disallowed element drops its subtree; replace
+/// unwraps it.
+#[test]
+fn chrome157_parse_html() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        function body(doc) {
+          return Array.from(doc.body.childNodes).map(c => c.nodeType === 8 ? '<!--' + c.data + '-->' : c.nodeType === 3 ? '#' + c.data : c.localName + '[' + [...c.attributes].map(a => a.name + '=' + a.value).join(',') + ']').join(',');
+        }
+        const err = (fn) => { try { fn(); return 'ok'; } catch (e) { return e.name + ': ' + e.message; } };
+        const html = '<b onclick="x">t</b><script>1<\/script><a href="javascript:alert(1)">a</a><a href="https://e.example/a" title="T">z</a>';
+        const doc = Document.parseHTML(html);
+        const s = new Sanitizer();
+        s.removeElement('b');
+        const dropped = Document.parseHTML('<div><b>t</b>x</div>', { sanitizer: s });
+        const r = new Sanitizer();
+        r.replaceElementWithChildren('font');
+        const unwrapped = Document.parseHTML('<div><font><b>t</b></font>x</div>', { sanitizer: r });
+        const c = new Sanitizer();
+        c.setComments(true);
+        const commented = Document.parseHTML('<b>t</b><!--in-->', { sanitizer: c });
+        const plain = Document.parseHTML('<b>t</b><!--in-->');
+        const sc = new Sanitizer();
+        sc.allowElement('script');
+        const still = Document.parseHTML('<div><script>1<\/script><b>t</b></div>', { sanitizer: sc });
+        const el = document.createElement('div');
+        const ret = el.setHTML('<b onclick="x">t</b><p>p</p>', { sanitizer: s });
+        ({
+          zero: err(() => Document.parseHTML()),
+          num: err(() => Document.parseHTML('<b>t</b>', 1)),
+          bad: err(() => document.createElement('div').setHTML('<b>t</b>', { sanitizer: 1 })),
+          ret: ret === undefined,
+          safe: body(doc),
+          doctype: doc.doctype,
+          same: doc === document,
+          title: doc.querySelector('a[href]').getAttribute('title'),
+          dropped: dropped.body.firstChild.innerHTML,
+          unwrapped: unwrapped.body.firstChild.innerHTML,
+          commented: body(commented),
+          plain: body(plain),
+          still: still.body.firstChild.innerHTML,
+          set: el.innerHTML.replace(/></g, '> <'),
+          len: Document.parseHTML.length,
+          preset: body(Document.parseHTML('<b onclick="x">t</b><script>1<\/script>', { sanitizer: 'default' })),
+          rep: r.get().replaceWithChildrenElements.map(e => e.name),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "zero": "TypeError: Failed to execute 'parseHTML' on 'Document': 1 argument required, but only 0 present.",
+            "num": "TypeError: Failed to execute 'parseHTML' on 'Document': The provided value is not of type 'SetHTMLOptions'.",
+            "bad": "TypeError: Failed to execute 'setHTML' on 'Element': Failed to read the 'sanitizer' property from 'SetHTMLOptions': The provided value '1' is not a valid enum value of type SanitizerPresets.",
+            "ret": true,
+            "safe": "b[],a[],a[href=https://e.example/a,title=T]",
+            "doctype": null,
+            "same": false,
+            "title": "T",
+            "dropped": "x",
+            "unwrapped": "<b>t</b>x",
+            "commented": "b[],<!--in-->",
+            "plain": "b[]",
+            "still": "<b>t</b>",
+            "set": "<p>p</p>",
+            "len": 1,
+            "preset": "b[]",
+            "rep": ["font"],
         })
     );
 }
