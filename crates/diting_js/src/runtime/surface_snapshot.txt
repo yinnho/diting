@@ -1779,7 +1779,7 @@ P NavigationActivation :: constructor,entry,from,navigationType
 P NavigationCurrentEntryChangeEvent :: constructor,from,navigationType
 P NavigationDestination :: constructor,getState,id,index,key,sameDocument,url
 P NavigationHistoryEntry :: constructor,getState,id,index,key,ondispose,sameDocument,url
-P NavigationPrecommitController :: constructor,redirect
+P NavigationPrecommitController :: addHandler,constructor,redirect
 P NavigationPreloadManager :: constructor,disable,enable,getState,setHeaderValue
 P NavigationTransition :: committed,constructor,finished,from,navigationType,to
 P Navigator :: appCodeName,appName,appVersion,bluetooth,canShare,clearAppBadge,clipboard,connection,constructor,cookieEnabled,cpuPerformance,credentials,deviceMemory,devicePosture,doNotTrack,geolocation,getBattery,getGamepads,getInstalledRelatedApps,getUserMedia,gpu,hardwareConcurrency,hid,ink,javaEnabled,keyboard,language,languages,locks,login,managed,maxTouchPoints,mediaCapabilities,mediaDevices,mediaSession,mimeTypes,onLine,pdfViewerEnabled,permissions,platform,plugins,presentation,product,productSub,registerProtocolHandler,requestMIDIAccess,requestMediaKeySystemAccess,scheduling,sendBeacon,serial,serviceWorker,setAppBadge,share,storage,storageBuckets,unregisterProtocolHandler,usb,userActivation,userAgent,userAgentData,vendor,vendorSub,vibrate,virtualKeyboard,wakeLock,webdriver,webkitGetUserMedia,webkitPersistentStorage,webkitTemporaryStorage,windowControlsOverlay,xr
@@ -2308,7 +2308,7 @@ P XRWebGLDepthInformation :: constructor,texture
 S XRWebGLLayer :: getNativeFramebufferScaleFactor
 P XRWebGLLayer :: antialias,constructor,framebuffer,framebufferHeight,framebufferWidth,getViewport,ignoreDepthValues
 P XRWebGLSubImage :: constructor
-P XSLTProcessor :: constructor
+P XSLTProcessor :: clearParameters,constructor,getParameter,importStylesheet,removeParameter,reset,setParameter,transformToDocument,transformToFragment
 P alert :: constructor
 P blur :: constructor
 P close :: constructor
