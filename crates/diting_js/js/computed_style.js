@@ -120,6 +120,102 @@ const _normalizePseudoElt = (pseudoElt) => {
   }
   throw new TypeError(`Failed to execute 'getComputedStyle' on 'Window': '${pseudoElt}' is not a valid pseudo-element.`);
 };
+const _NAMED_COLOR = {aliceblue:[240,248,255,255],antiquewhite:[250,235,215,255],aqua:[0,255,255,255],aquamarine:[127,255,212,255],azure:[240,255,255,255],beige:[245,245,220,255],bisque:[255,228,196,255],black:[0,0,0,255],blanchedalmond:[255,235,205,255],blue:[0,0,255,255],blueviolet:[138,43,226,255],brown:[165,42,42,255],burlywood:[222,184,135,255],cadetblue:[95,158,160,255],chartreuse:[127,255,0,255],chocolate:[210,105,30,255],coral:[255,127,80,255],cornflowerblue:[100,149,237,255],cornsilk:[255,248,220,255],crimson:[220,20,60,255],cyan:[0,255,255,255],darkblue:[0,0,139,255],darkcyan:[0,139,139,255],darkgoldenrod:[184,134,11,255],darkgray:[169,169,169,255],darkgreen:[0,100,0,255],darkgrey:[169,169,169,255],darkkhaki:[189,183,107,255],darkmagenta:[139,0,139,255],darkolivegreen:[85,107,47,255],darkorange:[255,140,0,255],darkorchid:[153,50,204,255],darkred:[139,0,0,255],darksalmon:[233,150,122,255],darkseagreen:[143,188,143,255],darkslateblue:[72,61,139,255],darkslategray:[47,79,79,255],darkslategrey:[47,79,79,255],darkturquoise:[0,206,209,255],darkviolet:[148,0,211,255],deeppink:[255,20,147,255],deepskyblue:[0,191,255,255],dimgray:[105,105,105,255],dimgrey:[105,105,105,255],dodgerblue:[30,144,255,255],firebrick:[178,34,34,255],floralwhite:[255,250,240,255],forestgreen:[34,139,34,255],fuchsia:[255,0,255,255],gainsboro:[220,220,220,255],ghostwhite:[248,248,255,255],gold:[255,215,0,255],goldenrod:[218,165,32,255],gray:[128,128,128,255],green:[0,128,0,255],greenyellow:[173,255,47,255],grey:[128,128,128,255],honeydew:[240,255,240,255],hotpink:[255,105,180,255],indianred:[205,92,92,255],indigo:[75,0,130,255],ivory:[255,255,240,255],khaki:[240,230,140,255],lavender:[230,230,250,255],lavenderblush:[255,240,245,255],lawngreen:[124,252,0,255],lemonchiffon:[255,250,205,255],lightblue:[173,216,230,255],lightcoral:[240,128,128,255],lightcyan:[224,255,255,255],lightgoldenrodyellow:[250,250,210,255],lightgray:[211,211,211,255],lightgreen:[144,238,144,255],lightgrey:[211,211,211,255],lightpink:[255,182,193,255],lightsalmon:[255,160,122,255],lightseagreen:[32,178,170,255],lightskyblue:[135,206,250,255],lightslategray:[119,136,153,255],lightslategrey:[119,136,153,255],lightsteelblue:[176,196,222,255],lightyellow:[255,255,224,255],lime:[0,255,0,255],limegreen:[50,205,50,255],linen:[250,240,230,255],magenta:[255,0,255,255],maroon:[128,0,0,255],mediumaquamarine:[102,205,170,255],mediumblue:[0,0,205,255],mediumorchid:[186,85,211,255],mediumpurple:[147,112,219,255],mediumseagreen:[60,179,113,255],mediumslateblue:[123,104,238,255],mediumspringgreen:[0,250,154,255],mediumturquoise:[72,209,204,255],mediumvioletred:[199,21,133,255],midnightblue:[25,25,112,255],mintcream:[245,255,250,255],mistyrose:[255,228,225,255],moccasin:[255,228,181,255],navajowhite:[255,222,173,255],navy:[0,0,128,255],oldlace:[253,245,230,255],olive:[128,128,0,255],olivedrab:[107,142,35,255],orange:[255,165,0,255],orangered:[255,69,0,255],orchid:[218,112,214,255],palegoldenrod:[238,232,170,255],palegreen:[152,251,152,255],paleturquoise:[175,238,238,255],palevioletred:[219,112,147,255],papayawhip:[255,239,213,255],peachpuff:[255,218,185,255],peru:[205,133,63,255],pink:[255,192,203,255],plum:[221,160,221,255],powderblue:[176,224,230,255],purple:[128,0,128,255],rebeccapurple:[102,51,153,255],red:[255,0,0,255],rosybrown:[188,143,143,255],royalblue:[65,105,225,255],saddlebrown:[139,69,19,255],salmon:[250,128,114,255],sandybrown:[244,164,96,255],seagreen:[46,139,87,255],seashell:[255,245,238,255],sienna:[160,82,45,255],silver:[192,192,192,255],skyblue:[135,206,235,255],slateblue:[106,90,205,255],slategray:[112,128,144,255],slategrey:[112,128,144,255],snow:[255,250,250,255],springgreen:[0,255,127,255],steelblue:[70,130,180,255],tan:[210,180,140,255],teal:[0,128,128,255],thistle:[216,191,216,255],tomato:[255,99,71,255],turquoise:[64,224,208,255],violet:[238,130,238,255],wheat:[245,222,179,255],white:[255,255,255,255],whitesmoke:[245,245,245,255],yellow:[255,255,0,255],yellowgreen:[154,205,50,255]};
+// Chrome's computed spelling: opaque colors are rgb(), anything with alpha
+// is rgba() with the shortest alpha that round-trips to the same 8-bit value.
+function _formatCssomColor(c) {
+  const r = c[0], g = c[1], b = c[2], a = c[3];
+  if (a === 255) return "rgb(" + r + ", " + g + ", " + b + ")";
+  const exact = a / 255;
+  const two = Math.round(exact * 100) / 100;
+  let s = (Math.round(two * 255) === a ? two.toFixed(2) : exact.toFixed(3));
+  s = s.replace(/0+$/, "").replace(/\.$/, "");
+  if (s === "") s = "0";
+  return "rgba(" + r + ", " + g + ", " + b + ", " + s + ")";
+}
+function _chan255(tok) {
+  if (tok.endsWith("%")) return Math.max(0, Math.min(255, Math.round(parseFloat(tok) * 2.55)));
+  const n = parseFloat(tok);
+  return isFinite(n) ? Math.max(0, Math.min(255, Math.round(n))) : null;
+}
+function _alpha255(tok) {
+  if (tok == null || String(tok).trim() === "") return 255;
+  tok = String(tok).trim();
+  if (tok.endsWith("%")) return Math.max(0, Math.min(255, Math.round(parseFloat(tok) * 2.55)));
+  const n = parseFloat(tok);
+  return isFinite(n) ? Math.max(0, Math.min(255, Math.round(n * 255))) : null;
+}
+function _parseHexColor(s) {
+  if (s[0] !== "#") return null;
+  const h = s.slice(1);
+  if (!/^[0-9a-f]+$/.test(h)) return null;
+  const ex = (x) => parseInt(x, 16);
+  if (h.length === 3 || h.length === 4) {
+    return [ex(h[0] + h[0]), ex(h[1] + h[1]), ex(h[2] + h[2]), h.length === 4 ? ex(h[3] + h[3]) : 255];
+  }
+  if (h.length === 6 || h.length === 8) {
+    return [ex(h.slice(0, 2)), ex(h.slice(2, 4)), ex(h.slice(4, 6)), h.length === 8 ? ex(h.slice(6, 8)) : 255];
+  }
+  return null;
+}
+function _splitColorFn(body) {
+  const slash = body.indexOf("/");
+  const head = slash < 0 ? body : body.slice(0, slash);
+  const ch = head.split(/[\s,]+/).filter(Boolean);
+  return [ch, slash < 0 ? null : body.slice(slash + 1)];
+}
+function _parseRgbFn(s) {
+  const m = /^rgba?\((.*)\)$/.exec(s);
+  if (!m) return null;
+  const [ch, alphaTok] = _splitColorFn(m[1]);
+  if (ch.length !== 3 && !(ch.length === 4 && alphaTok == null)) return null;
+  const r = _chan255(ch[0]), g = _chan255(ch[1]), b = _chan255(ch[2]);
+  const a = ch.length === 4 ? _alpha255(ch[3]) : _alpha255(alphaTok);
+  if (r == null || g == null || b == null || a == null) return null;
+  return [r, g, b, a];
+}
+function _hslToRgb(h, sat, lig, a) {
+  h = ((h % 360) + 360) % 360;
+  sat = Math.max(0, Math.min(100, sat)) / 100;
+  lig = Math.max(0, Math.min(100, lig)) / 100;
+  const c = (1 - Math.abs(2 * lig - 1)) * sat;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = lig - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255), a];
+}
+function _parseHslFn(s) {
+  const m = /^hsla?\((.*)\)$/.exec(s);
+  if (!m) return null;
+  const [ch, alphaTok] = _splitColorFn(m[1]);
+  if (ch.length !== 3 && !(ch.length === 4 && alphaTok == null)) return null;
+  let hue = ch[0];
+  if (hue.endsWith("turn")) hue = parseFloat(hue) * 360;
+  else hue = parseFloat(hue);
+  const sat = parseFloat(ch[1]), lig = parseFloat(ch[2]);
+  if (!isFinite(hue) || !isFinite(sat) || !isFinite(lig)) return null;
+  const a = ch.length === 4 ? _alpha255(ch[3]) : _alpha255(alphaTok);
+  if (a == null) return null;
+  return _hslToRgb(hue, sat, lig, a);
+}
+// Legacy colors collapse to rgb()/rgba(). Modern functions (oklch, color())
+// stay as written: this returns null and the caller keeps the authored text.
+function _cssComputedColor(raw) {
+  const s = String(raw).trim().toLowerCase();
+  if (!s || s === "currentcolor") return null;
+  const c = s === "transparent" ? [0, 0, 0, 0]
+    : (_NAMED_COLOR[s] || _parseHexColor(s) || _parseRgbFn(s) || _parseHslFn(s));
+  return c ? _formatCssomColor(c) : null;
+}
+function _isComputedColorProp(kebab) {
+  return kebab === "color" || kebab.endsWith("-color");
+}
 globalThis.getComputedStyle = (el, pseudoElt) => {
   const pseudoName = _normalizePseudoElt(pseudoElt);
   if (!el) el = document.body || {};
@@ -283,7 +379,13 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
     // (or no layout run at all); pseudo-elements carry no inline style.
     if (!pseudoName) {
       const inlineVal = target.getPropertyValue ? target.getPropertyValue(rawProp) : '';
-      if (inlineVal && !_CSS_WIDE_KW.test(inlineVal)) return inlineVal;
+      if (inlineVal && !_CSS_WIDE_KW.test(inlineVal)) {
+        if (_isComputedColorProp(kebab)) {
+          const painted = _cssComputedColor(inlineVal);
+          if (painted) return painted;
+        }
+        return inlineVal;
+      }
     }
     // A pseudo-element generates no box of its own: Chrome answers 'auto'
     // for width/height instead of the host's geometry — element-only.
@@ -294,15 +396,17 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
       if (dim != null) return dim;
     }
     // Initial value is currentcolor. Chrome's computed value is the used
-    // color, so an unset read is rgb(0, 0, 0), not ''. An authored color
-    // stays; the keyword currentcolor resolves the same way.
+    // color, so an unset read is rgb(0, 0, 0), not ''. An authored legacy
+    // color collapses to rgb()/rgba(); currentcolor resolves the same way.
     if (kebab === '-webkit-text-fill-color' || kebab === '-webkit-text-stroke-color'
         || kebab === '-webkit-text-emphasis-color' || kebab === 'outline-color'
         || kebab === 'text-decoration-color' || kebab === 'text-emphasis-color'
         || kebab === 'column-rule-color') {
       if (!pseudoName && target.getPropertyValue) {
         const specified = target.getPropertyValue(kebab);
-        if (specified && !_CSS_WIDE_KW.test(specified) && specified.toLowerCase() !== 'currentcolor') return specified;
+        if (specified && !_CSS_WIDE_KW.test(specified) && specified.toLowerCase() !== 'currentcolor') {
+          return _cssComputedColor(specified) || specified;
+        }
       }
       return lookup('color');
     }

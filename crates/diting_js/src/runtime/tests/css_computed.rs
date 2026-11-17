@@ -1348,6 +1348,8 @@ async fn gcs_camel_webkit_alias_prefix() {
 <p id="r">x</p>
 <p id="c" style="color: red">x</p>
 <p id="f" style="-webkit-text-fill-color: blue">x</p>
+<p id="h" style="-webkit-text-fill-color:#00f">x</p>
+<p id="o" style="outline-color:rgba(0,0,255,.5)">x</p>
 </body></html>"#,
     );
     let script = r#"async () => {
@@ -1362,6 +1364,8 @@ async fn gcs_camel_webkit_alias_prefix() {
                 colored: g('c').webkitTextFillColor,
                 color: g('c').color,
                 explicit: g('f').webkitTextFillColor,
+                hex: g('h').webkitTextFillColor,
+                alpha: g('o').outlineColor,
                 caret: g('r').caretColor,
                 accent: g('r').accentColor,
                 cols: g('r').columnCount,
@@ -1416,9 +1420,11 @@ async fn gcs_camel_webkit_alias_prefix() {
     );
     assert_eq!(
         v["explicit"],
-        serde_json::json!("blue"),
-        "an explicit fill color is not replaced by currentcolor"
+        serde_json::json!("rgb(0, 0, 255)"),
+        "an explicit named fill color collapses to rgb()"
     );
+    assert_eq!(v["hex"], serde_json::json!("rgb(0, 0, 255)"));
+    assert_eq!(v["alpha"], serde_json::json!("rgba(0, 0, 255, 0.5)"));
     assert_eq!(v["caret"], serde_json::json!("auto"));
     assert_eq!(v["accent"], serde_json::json!("auto"));
     assert_eq!(v["cols"], serde_json::json!("auto"));
