@@ -1362,6 +1362,17 @@ async fn gcs_camel_webkit_alias_prefix() {
                 colored: g('c').webkitTextFillColor,
                 color: g('c').color,
                 explicit: g('f').webkitTextFillColor,
+                caret: g('r').caretColor,
+                accent: g('r').accentColor,
+                cols: g('r').columnCount,
+                outline: g('r').outlineColor,
+                outlineStyle: g('r').outlineStyle,
+                outlineOff: g('r').outlineOffset,
+                deco: g('r').textDecorationColor,
+                decoStyle: g('r').textDecorationStyle,
+                emphasis: g('r').textEmphasisStyle,
+                emphasisPos: g('r').textEmphasisPosition,
+                outlineColored: g('c').outlineColor,
             };
         }"#;
     let result = rt
@@ -1407,6 +1418,26 @@ async fn gcs_camel_webkit_alias_prefix() {
         v["explicit"],
         serde_json::json!("blue"),
         "an explicit fill color is not replaced by currentcolor"
+    );
+    assert_eq!(v["caret"], serde_json::json!("auto"));
+    assert_eq!(v["accent"], serde_json::json!("auto"));
+    assert_eq!(v["cols"], serde_json::json!("auto"));
+    assert_eq!(
+        v["outline"], v["wtfc"],
+        "unset outline-color is the used color"
+    );
+    assert_eq!(v["outlineStyle"], serde_json::json!("none"));
+    assert_eq!(v["outlineOff"], serde_json::json!("0px"));
+    assert_eq!(
+        v["deco"], v["wtfc"],
+        "unset text-decoration-color is the used color"
+    );
+    assert_eq!(v["decoStyle"], serde_json::json!("solid"));
+    assert_eq!(v["emphasis"], serde_json::json!("none"));
+    assert_eq!(v["emphasisPos"], serde_json::json!("over right"));
+    assert_eq!(
+        v["outlineColored"], v["color"],
+        "outline-color follows a specified color"
     );
 }
 

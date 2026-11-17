@@ -208,6 +208,12 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
     'box-sizing': 'content-box', cursor: 'auto',
     'white-space': 'normal', 'text-align': 'start', 'text-align-last': 'auto', 'text-transform': 'none',
     'line-clamp': 'none', '-webkit-line-clamp': 'none',
+    'accent-color': 'auto', 'caret-color': 'auto',
+    'column-count': 'auto', 'column-gap': 'normal', 'row-gap': 'normal',
+    'column-rule-style': 'none',
+    'outline-style': 'none', 'outline-offset': '0px',
+    'text-decoration-style': 'solid', 'text-decoration-thickness': 'auto',
+    'text-emphasis-style': 'none', 'text-emphasis-position': 'over right',
     'flex-direction': 'row', 'flex-wrap': 'nowrap', 'align-items': 'normal',
     'justify-content': 'normal', gap: 'normal',
     'grid-template-columns': 'none', 'grid-template-rows': 'none',
@@ -288,11 +294,15 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
       if (dim != null) return dim;
     }
     // Initial value is currentcolor. Chrome's computed value is the used
-    // color, so an unset read is rgb(0, 0, 0), not ''.
-    if (kebab === '-webkit-text-fill-color' || kebab === '-webkit-text-stroke-color') {
+    // color, so an unset read is rgb(0, 0, 0), not ''. An authored color
+    // stays; the keyword currentcolor resolves the same way.
+    if (kebab === '-webkit-text-fill-color' || kebab === '-webkit-text-stroke-color'
+        || kebab === '-webkit-text-emphasis-color' || kebab === 'outline-color'
+        || kebab === 'text-decoration-color' || kebab === 'text-emphasis-color'
+        || kebab === 'column-rule-color') {
       if (!pseudoName && target.getPropertyValue) {
         const specified = target.getPropertyValue(kebab);
-        if (specified && !_CSS_WIDE_KW.test(specified)) return specified;
+        if (specified && !_CSS_WIDE_KW.test(specified) && specified.toLowerCase() !== 'currentcolor') return specified;
       }
       return lookup('color');
     }
