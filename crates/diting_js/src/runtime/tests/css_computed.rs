@@ -1079,6 +1079,7 @@ fn test_get_computed_style_initial_values_not_empty() {
                     transformStyle: getComputedStyle(document.getElementById('d')).transformStyle,
                     touchAction: getComputedStyle(document.getElementById('d')).touchAction,
                     quotes: getComputedStyle(document.getElementById('d')).quotes,
+                    verticalAlign: getComputedStyle(document.getElementById('d')).verticalAlign,
                 })"#,
             )
             .unwrap();
@@ -1120,6 +1121,7 @@ fn test_get_computed_style_initial_values_not_empty() {
     assert_eq!(v["transformStyle"], serde_json::json!("flat"));
     assert_eq!(v["touchAction"], serde_json::json!("auto"));
     assert_eq!(v["quotes"], serde_json::json!("auto"));
+    assert_eq!(v["verticalAlign"], serde_json::json!("baseline"));
 }
 
 /// Upstream a0e1ba5: CSSStyleDeclaration is a real global interface — the

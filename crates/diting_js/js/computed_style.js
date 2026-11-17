@@ -303,6 +303,7 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
     'z-index': 'auto', 'pointer-events': 'auto',
     'box-sizing': 'content-box', cursor: 'auto',
     'white-space': 'normal', 'text-align': 'start', 'text-align-last': 'auto', 'text-transform': 'none',
+    'vertical-align': 'baseline',
     'line-clamp': 'none', '-webkit-line-clamp': 'none',
     'accent-color': 'auto', 'caret-color': 'auto',
     'column-count': 'auto', 'column-gap': 'normal', 'row-gap': 'normal',
