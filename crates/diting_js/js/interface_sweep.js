@@ -310,8 +310,6 @@ try { (function () {
 // undetectable object's own call handler always yields null; that is all
 // V8 offers and the loader tolerates it.
 globalThis.__diting_install_all = function (u) {
-  // Chrome 145 has no Iterator.concat (V8 here ships it); this late install is the first point after the engine's own setup
-  try { if (globalThis.Iterator && Object.prototype.hasOwnProperty.call(globalThis.Iterator, 'concat')) delete globalThis.Iterator.concat; } catch (e) {}
   var P = globalThis.HTMLAllCollection && HTMLAllCollection.prototype;
   // `u` is falsy by design (undetectable): never test it for truthiness.
   if (!P) return;

@@ -58,7 +58,7 @@
   true,
   null
  ],
- "input.showPicker": "THROW NotAllowedError: Failed to execute 'showPicker' on 'HTMLInputElement': HTMLInputElement::showPicker() requires a user gesture.",
+ "input.showPicker": "THROW NotAllowedError: Failed to execute 'showPicker' on 'HTMLInputElement': HTMLInputElement::showPicker() requires user activation.",
  "input.webkitEntries": [
   true,
   0,
@@ -196,7 +196,7 @@
   1,
   1
  ],
- "select.showPicker": "THROW NotAllowedError: Failed to execute 'showPicker' on 'HTMLSelectElement': showPicker() requires a user gesture.",
+ "select.showPicker": "THROW NotAllowedError: Failed to execute 'showPicker' on 'HTMLSelectElement': showPicker() requires user activation.",
  "slot.assign": [
   "function",
   0,

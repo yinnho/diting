@@ -9,7 +9,7 @@
 // from WebIDL + the Chrome truth overlay in gen/geometry.gen.js. This module
 // supplies the math and the Chrome-shaped errors; every fact below that
 // could be misremembered is pinned by a key in
-// tools/webplatform/chrome/geometry-truth-145.json (captured from real
+// tools/webplatform/chrome/geometry-truth-157.json (captured from real
 // Chrome 145) and diffed by the geometry_stack_matches_chrome_truth test.
 //
 // Storage layout (all Float64Array):

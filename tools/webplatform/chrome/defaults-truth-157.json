@@ -43,6 +43,7 @@
   "onerror": "null",
   "onsinkchange": "null",
   "outputLatency": 0,
+  "playbackStats": "obj:AudioPlaybackStats",
   "sinkId": ""
  },
  "BarcodeDetector": {},
@@ -191,6 +192,7 @@
   "contentType": "application/xml",
   "cookie": "",
   "currentScript": "null",
+  "customElementRegistry": "null",
   "defaultView": "null",
   "designMode": "off",
   "dir": "",
@@ -199,10 +201,10 @@
   "documentURI": "about:blank",
   "domain": "127.0.0.1",
   "embeds": "obj:HTMLCollection",
-  "featurePolicy": "obj:FeaturePolicy",
+  "featurePolicy": "obj:PermissionsPolicy",
   "fgColor": "",
   "firstElementChild": "null",
-  "fonts": "obj:EventTarget",
+  "fonts": "obj:FontFaceSet",
   "forms": "obj:HTMLCollection",
   "fragmentDirective": "obj:FragmentDirective",
   "fullscreen": false,
@@ -214,7 +216,7 @@
   "implementation": "obj:DOMImplementation",
   "inputEncoding": "UTF-8",
   "lastElementChild": "null",
-  "lastModified": "10/31/2026 17:19:01",
+  "lastModified": "11/17/2026 05:05:26",
   "linkColor": "",
   "links": "obj:HTMLCollection",
   "onabort": "null",
@@ -444,7 +446,6 @@
   "naturalHeight": 0,
   "naturalWidth": 0,
   "referrerPolicy": "",
-  "sharedStorageWritable": false,
   "sizes": "",
   "src": "",
   "srcset": "",
@@ -482,7 +483,7 @@
  },
  "MediaStream": {
   "active": false,
-  "id": "75cf67f5-ce41-4743-908a-3607ad25f5c0",
+  "id": "9432a398-b61c-4cb1-86b7-71b788e64ad9",
   "onactive": "null",
   "onaddtrack": "null",
   "oninactive": "null",
@@ -580,7 +581,6 @@
  "Set": {
   "size": 0
  },
- "SharedStorageClearMethod": {},
  "SpeechGrammar": {
   "src": "",
   "weight": 1
@@ -606,7 +606,9 @@
   "onspeechstart": "null",
   "onstart": "null",
   "phrases": "obj:Array",
-  "processLocally": false
+  "processLocally": false,
+  "quality": "command",
+  "unspokenPunctuation": false
  },
  "SpeechSynthesisUtterance": {
   "lang": "",

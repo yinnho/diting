@@ -8,7 +8,7 @@
 // (own enumerable root/currentNode/whatToShow/filter plus own `_filter`, `_accept`, `_traverse*` and every mover as an own
 // method): not instances of TreeWalker/NodeIterator, `[object Object]`, thirteen leaked own keys. Chrome 145: illegal constructors,
 // prototype accessors (root/whatToShow/filter read-only, currentNode read-write) over private state, prototype movers.
-// Pinned by chrome/treewalker-truth-145.json (treewalker-probe.js) and diffed by treewalker_matches_chrome_truth. The traversal
+// Pinned by chrome/treewalker-truth-157.json (treewalker-probe.js) and diffed by treewalker_matches_chrome_truth. The traversal
 // algorithms are the engine's existing ones (issues #432 #461 #462 #467 #469 #475: DOM 6.1/6.2 "traverse children/siblings",
 // REJECT pruning in both directions, iterator pointer semantics) moved verbatim onto the prototypes; what changes is the face.
 

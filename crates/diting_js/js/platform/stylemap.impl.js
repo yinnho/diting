@@ -9,7 +9,7 @@
 // element.computedStyleMap() (StylePropertyMapReadOnly). The window classes
 // were bare ctor-throw stubs from global_surface.js; this module owns them
 // for real (P.iface brands + member order from Chrome truth
-// element-staged-truth-145.json keys spm.classes/spm.symbols/spm.ctor - the
+// element-staged-truth-157.json keys spm.classes/spm.symbols/spm.ctor - the
 // global_surface THROW install SKIPs on our non-enumerable expose, the same
 // handover pattern Performance took at knife 3). The ctor keeps throwing
 // Chrome's exact "Failed to construct ... Illegal constructor" message.

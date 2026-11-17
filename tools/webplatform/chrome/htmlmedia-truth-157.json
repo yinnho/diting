@@ -22,7 +22,6 @@
   "naturalHeight": "ro",
   "naturalWidth": "ro",
   "referrerPolicy": "rw",
-  "sharedStorageWritable": "rw",
   "sizes": "rw",
   "src": "rw",
   "srcset": "rw",
@@ -62,8 +61,7 @@
   "decode",
   "constructor",
   "browsingTopics",
-  "attributionSrc",
-  "sharedStorageWritable"
+  "attributionSrc"
  ],
  "MED.kinds": {
   "HAVE_CURRENT_DATA": "number",
@@ -450,8 +448,8 @@
  ],
  "med.setSinkId.plain": [
   "reject",
-  "NotFoundError",
-  "Requested device not found"
+  "SecurityError",
+  "No permission to use requested device"
  ],
  "med.textTracks": [
   "object",

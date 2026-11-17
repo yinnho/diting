@@ -1093,7 +1093,7 @@ async fn uievent_family_matches_chrome_truth() {
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/uievent-truth-145.json"
+        "../../../../../tools/webplatform/chrome/uievent-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();

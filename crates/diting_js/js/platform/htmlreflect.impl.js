@@ -7,10 +7,10 @@
 // Behavior legs for the HTML element families (M4 knives 6-7). Member SHAPE
 // and every uniformly reflected member are generated into
 // gen/htmlreflect.gen.js from MEASURED Chrome fingerprints
-// (chrome/htmlreflect-truth-145.json); this module owns what is not a plain
+// (chrome/htmlreflect-truth-157.json); this module owns what is not a plain
 // reflection. Tables are keyed 'Short.member' (Meter.value vs Progress.value
 // vs Output.value share a name); every fact below is pinned by
-// htmlreflect-truth-145.json or htmlform-truth-145.json (Chrome 145).
+// htmlreflect-truth-157.json or htmlform-truth-157.json (Chrome 145).
 
 // ---- DOMTokenList faces (relList / blocking / sandbox ...): one cached
 // list per (element, content attribute); `supported` is the MEASURED
@@ -27,8 +27,8 @@ exports.tokens = function (el, attr, supported) {
 const nodeText = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
 
 // ---- shared parsing / conversion
-// Chrome rejects trailing garbage here ('9px' reads the default, '1e2' is 100)
-const FLOAT = /^[\t\n\f\r ]*(-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?)[\t\n\f\r ]*$/;
+// Chrome 157 keeps a leading number and ignores the rest ('9px' is 9, '1e2' is 100).
+const FLOAT = /^[\t\n\f\r ]*(-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?)/;
 function parseFloatAttr(v) {
   if (v === null) return null;
   const m = FLOAT.exec(v);
@@ -263,10 +263,12 @@ const SET = {
   'Meter.low'(el, v) { el.setAttribute('low', String(toDouble(v, 'low', 'HTMLMeterElement', SET['Meter.low']))); },
   'Meter.high'(el, v) { el.setAttribute('high', String(toDouble(v, 'high', 'HTMLMeterElement', SET['Meter.high']))); },
   'Meter.optimum'(el, v) { el.setAttribute('optimum', String(toDouble(v, 'optimum', 'HTMLMeterElement', SET['Meter.optimum']))); },
-  // progress: a non-positive max / negative value is written as the default
+  // progress max is limited to numbers greater than zero: anything else
+  // removes the attribute and the getter falls back to 1.
   'Progress.max'(el, v) {
     const n = toDouble(v, 'max', 'HTMLProgressElement', SET['Progress.max']);
-    el.setAttribute('max', String(n > 0 ? n : 1));
+    if (n > 0) el.setAttribute('max', String(n));
+    else el.removeAttribute('max');
   },
   'Progress.value'(el, v) {
     const n = toDouble(v, 'value', 'HTMLProgressElement', SET['Progress.value']);
@@ -288,10 +290,10 @@ const CALL = {
 
   // no user activation in a script-driven context: Chrome refuses
   'Input.showPicker'() {
-    throw new DOMException("Failed to execute 'showPicker' on 'HTMLInputElement': HTMLInputElement::showPicker() requires a user gesture.", 'NotAllowedError');
+    throw new DOMException("Failed to execute 'showPicker' on 'HTMLInputElement': HTMLInputElement::showPicker() requires user activation.", 'NotAllowedError');
   },
   'Select.showPicker'() {
-    throw new DOMException("Failed to execute 'showPicker' on 'HTMLSelectElement': showPicker() requires a user gesture.", 'NotAllowedError');
+    throw new DOMException("Failed to execute 'showPicker' on 'HTMLSelectElement': showPicker() requires user activation.", 'NotAllowedError');
   },
   'Select.item'(el, ctx, args) {
     const o = el.options[P.conv.unsignedLong(args[0], ctx, CALL['Select.item'])];

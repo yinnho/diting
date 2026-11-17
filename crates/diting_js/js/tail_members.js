@@ -115,7 +115,7 @@
     fn('Range', 'expand', 0, function expand(unit) { obj(this); if (unit !== undefined) String(unit); });
     rw('HTMLHtmlElement', 'version', function () { const v = this.getAttribute('version'); return v === null ? '' : v; }, function (v) { this.setAttribute('version', String(v)); });
     for (const [n, a] of [['privateToken', 'privatetoken']]) rw('HTMLIFrameElement', n, function () { const v = this.getAttribute(a); return v === null ? '' : v; }, function (v) { this.setAttribute(a, String(v)); });
-    for (const [n, a] of [['browsingTopics', 'browsingtopics'], ['adAuctionHeaders', 'adauctionheaders'], ['sharedStorageWritable', 'sharedstoragewritable']]) {
+    for (const [n, a] of [['browsingTopics', 'browsingtopics'], ['adAuctionHeaders', 'adauctionheaders']]) {
       rw('HTMLIFrameElement', n, function () { return this.hasAttribute(a); }, function (v) { if (v) this.setAttribute(a, ''); else this.removeAttribute(a); });
     }
     ro('HTMLIFrameElement', 'featurePolicy', (s) => {
@@ -410,8 +410,6 @@
       const C = G.RestrictionTarget;
       return (el instanceof G.Element) ? Promise.resolve(Object.create(C.prototype)) : Promise.reject(new TypeError("Failed to execute 'fromElement' on 'RestrictionTarget': parameter 1 is not of type 'Element'."));
     });
-    // Chrome 145 has no Iterator.concat (it shipped later)
-    if (G.Iterator && Object.prototype.hasOwnProperty.call(G.Iterator, 'concat')) { try { delete G.Iterator.concat; } catch (e) {} }
   });
 
   // ---- workers / transports / streams --------------------------------------------

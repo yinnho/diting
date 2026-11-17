@@ -11,7 +11,7 @@
 // (P.reflector, incl. the unsigned-long/crossorigin/url kinds core.js
 // grew for this family). This module owns the NON-uniform semantics;
 // every fact below that could be misremembered is pinned by a key in
-// tools/webplatform/chrome/htmlmedia-truth-145.json (real Chrome 145)
+// tools/webplatform/chrome/htmlmedia-truth-157.json (real Chrome 145)
 // and diffed by the htmlmedia_members_match_chrome_truth test.
 //
 // Faces: TextTrackList/TextTrack/RemotePlayback stay the global_surface
@@ -161,9 +161,9 @@ const CALL = {
     return tt;
   },
   captureStream() { return new MediaStream(); },
-  // truth med.setSinkId.plain: rejects NotFoundError 'Requested device not
-  // found' (no sink machinery - null is not the default device).
-  setSinkId() { return Promise.reject(new DOMException('Requested device not found', 'NotFoundError')); },
+  // truth med.setSinkId.plain: null rejects SecurityError. No output-device
+  // permission in this environment.
+  setSinkId() { return Promise.reject(new DOMException('No permission to use requested device', 'SecurityError')); },
   // truth med.setMediaKeys.plain: (null) resolves undefined.
   setMediaKeys(el, ctx, args) { SET.mediaKeys(el, args[0]); return Promise.resolve(); },
   // truth vid.gvpq: no own enumerable members (a bare mint, branded).

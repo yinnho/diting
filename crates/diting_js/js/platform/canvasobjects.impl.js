@@ -9,7 +9,7 @@
 // CanvasGradient/CanvasPattern instances, no argument validation, no addColorStop checks, `_x0`-style keys leaking. Chrome 145:
 // illegal-constructor interfaces, validated factories ("N arguments required", non-finite doubles, negative radii as
 // IndexSizeError, pattern image type / repetition / zero-size canvas), addColorStop with the (0.0, 1.0) range check and
-// "could not be parsed as a color". Pinned by chrome/cvobj-truth-145.json (cvobj-probe.js) and diffed by
+// "could not be parsed as a color". Pinned by chrome/cvobj-truth-157.json (cvobj-probe.js) and diffed by
 // canvasobjects_match_chrome_truth. Gradients/patterns have no rendering effect here (the software rasterizer has no gradient
 // pipeline) - the state is recorded for a future one.
 

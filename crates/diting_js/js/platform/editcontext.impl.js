@@ -9,7 +9,7 @@
 // an EditContext owns a text buffer, a selection and per-character bounds; pages
 // drive it with updateText/updateSelection/updateCharacterBounds/... and
 // HTMLElement.editContext attaches it to exactly one element. Pinned by
-// chrome/editctx-truth-145.json (editctx-probe.js, 49 keys) and diffed by
+// chrome/editctx-truth-157.json (editctx-probe.js, 49 keys) and diffed by
 // editcontext_matches_chrome_truth.
 //
 // Facts worth knowing: updateText swaps a reversed range and clamps both ends to

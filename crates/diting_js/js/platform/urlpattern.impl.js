@@ -8,7 +8,7 @@
 // pattern-string parser, per-component canonicalization, regexp generation,
 // pattern-string generation, constructor-string parser and matching - written
 // from the standard's algorithms and checked against real Chrome 145 on a
-// 900-key corpus (chrome/urlpattern-truth-145.json, urlpattern-probe.js):
+// 900-key corpus (chrome/urlpattern-truth-157.json, urlpattern-probe.js):
 // constructions of every shape, exact liburlpattern-style error wording, and a
 // 741-case pattern x input match matrix. The old bootstrap class was an inert
 // stub (test() always false, exec() always null).

@@ -2609,8 +2609,8 @@ class Element extends Node {
     });
     return el._dataset;
   }
-  get offsetWidth() { return this._ditingExtent("w", 100); }
-  get offsetHeight() { return this._ditingExtent("h", 20); }
+  get offsetWidth() { const d = _ditingIframeDoc(this); return (this.isConnected || (d && d._iframeEl && d._iframeEl.isConnected)) ? this._ditingExtent("w", 100) : 0; }
+  get offsetHeight() { const d = _ditingIframeDoc(this); return (this.isConnected || (d && d._iframeEl && d._iframeEl.isConnected)) ? this._ditingExtent("h", 20) : 0; }
   // Local-first (blitz #663 family): the pre-map box, so a transformed
   // element's offset* stay layout-true instead of tracking its mapped gBCR.
   get offsetTop() { const b = _ditingLocalBox(this); return b ? Math.round(b.y) : 0; }
@@ -3864,7 +3864,7 @@ function _wrap(nid) {
   else if (t === 3) n = new Text(nid);
   else if (t === 8) n = new Comment(nid);
   else if (t === 9) n = new HTMLDocument(nid);
-  else n = new Node(nid);
+  else n = t === 7 ? new ProcessingInstruction(nid, _domParse("node_name", nid) || "") : new Node(nid);
   _cache.set(nid, n);
   return n;
 }

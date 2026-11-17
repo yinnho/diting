@@ -234,6 +234,18 @@
     "replaceData",
     "replaceWith",
     "substringData",
+    "afterHTML",
+    "afterHTMLUnsafe",
+    "beforeHTML",
+    "beforeHTMLUnsafe",
+    "replaceWithHTML",
+    "replaceWithHTMLUnsafe",
+    "streamAfterHTML",
+    "streamAfterHTMLUnsafe",
+    "streamBeforeHTML",
+    "streamBeforeHTMLUnsafe",
+    "streamReplaceWithHTML",
+    "streamReplaceWithHTMLUnsafe",
     "constructor"
    ],
    "parent": "Node"
@@ -332,6 +344,13 @@
    "order": [
     "target",
     "sheet",
+    "getAttribute",
+    "getAttributeNames",
+    "hasAttribute",
+    "hasAttributes",
+    "removeAttribute",
+    "setAttribute",
+    "toggleAttribute",
     "constructor"
    ],
    "parent": "CharacterData"
@@ -412,7 +431,7 @@
    "b"
   ],
   [
-   "#comment",
+   "x",
    "i",
    "b"
   ]

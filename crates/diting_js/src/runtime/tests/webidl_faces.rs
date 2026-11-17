@@ -742,7 +742,7 @@ async fn test_small_web_api_gaps_from_the_chrome_battery() {
 
 /// JS-PLATFORM-ARCH M3: DOMException, EventTarget, Event and CustomEvent are
 /// NATIVE interfaces (the Moli-direction binding layer). This runs the SAME
-/// probe that produced chrome/event-truth-145.json in real Chrome 145 and
+/// probe that produced chrome/event-truth-157.json in real Chrome 145 and
 /// demands the engine match, probe by probe - except the known gaps below.
 /// It is a RATCHET: a listed gap that starts matching must be removed from
 /// the list. The Event-class migration (step C) emptied the list; new
@@ -755,7 +755,7 @@ fn event_stack_matches_chrome_truth_except_known_event_gaps() {
     let engine: serde_json::Value =
         serde_json::from_str(rt.evaluate(probe).unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/event-truth-145.json"
+        "../../../../../tools/webplatform/chrome/event-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();
@@ -801,7 +801,7 @@ fn geometry_stack_matches_chrome_truth_except_known_geometry_gaps() {
     let engine: serde_json::Value =
         serde_json::from_str(rt.evaluate(probe).unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/geometry-truth-145.json"
+        "../../../../../tools/webplatform/chrome/geometry-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();
@@ -829,7 +829,7 @@ fn geometry_stack_matches_chrome_truth_except_known_geometry_gaps() {
 /// 102 on* + 38 members on HTMLElement.prototype, 8 on* on Element.prototype,
 /// all 110 on* on Document.prototype; the engine bootstrap had 98 on* on
 /// Element.prototype and a bare HTMLElement.prototype. The patch module
-/// (gen/htmlelement.gen.js, generated from htmlelement-truth-145.json in
+/// (gen/htmlelement.gen.js, generated from htmlelement-truth-157.json in
 /// Chrome's own property order) relocates misplaced descriptors, installs the
 /// missing members (uniform reflection = DATA via P.reflector; non-uniform
 /// semantics in htmlelement.impl.js) and deletes engine on* extras Chrome
@@ -853,13 +853,15 @@ fn htmlelement_members_match_chrome_truth_except_known_gaps() {
     // element_staged_members_match_chrome_truth); the filter stays as the
     // mechanism for any future staging.
     const STAGED: &[&str] = &[];
+    // A layout disagreement goes back in this list only while it still
+    // differs. A match must leave: the ratchet below fails a stale entry.
     const KNOWN_HTML_GAPS: &[&str] = &[];
     let mut rt = setup_runtime("<html><body></body></html>");
     let probe = include_str!("../../../../../tools/webplatform/chrome/htmlelement-probe.js");
     let engine: serde_json::Value =
         serde_json::from_str(rt.evaluate(probe).unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/htmlelement-truth-145.json"
+        "../../../../../tools/webplatform/chrome/htmlelement-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();
@@ -1117,7 +1119,7 @@ async fn htmlreflect_members_match_chrome_truth() {
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/htmlreflect-truth-145.json"
+        "../../../../../tools/webplatform/chrome/htmlreflect-truth-157.json"
     ))
     .unwrap();
 
@@ -1276,7 +1278,7 @@ async fn sensor_family_matches_chrome_truth() {
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/sensor-truth-145.json"
+        "../../../../../tools/webplatform/chrome/sensor-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();
@@ -1317,7 +1319,7 @@ async fn notification_matches_chrome_truth() {
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/notification-truth-145.json"
+        "../../../../../tools/webplatform/chrome/notification-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();
@@ -1357,7 +1359,7 @@ async fn speech_family_matches_chrome_truth() {
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/speech-truth-145.json"
+        "../../../../../tools/webplatform/chrome/speech-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();
@@ -1396,7 +1398,7 @@ async fn rtcice_matches_chrome_truth() {
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/rtcice-truth-145.json"
+        "../../../../../tools/webplatform/chrome/rtcice-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();
@@ -1440,7 +1442,7 @@ async fn smallmembers_match_chrome_truth() {
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/smallmembers-truth-145.json"
+        "../../../../../tools/webplatform/chrome/smallmembers-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();
@@ -1515,7 +1517,7 @@ async fn intersection_matches_chrome_truth() {
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/ioentry-truth-145.json"
+        "../../../../../tools/webplatform/chrome/ioentry-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();
@@ -1551,7 +1553,7 @@ async fn docmisc_matches_chrome_truth() {
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/docmisc-truth-145.json"
+        "../../../../../tools/webplatform/chrome/docmisc-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();
@@ -1587,7 +1589,7 @@ async fn xpath_matches_chrome_truth() {
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/xpath-truth-145.json"
+        "../../../../../tools/webplatform/chrome/xpath-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();
@@ -1618,7 +1620,7 @@ async fn htmlcollection_family_matches_chrome_truth() {
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/coll-truth-145.json"
+        "../../../../../tools/webplatform/chrome/coll-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();
@@ -1636,7 +1638,7 @@ async fn htmlcollection_family_matches_chrome_truth() {
 }
 
 /// M4 刀55: Element.prototype's own member set == Chrome 145's exactly
-/// (shape-audit-truth-145.json, Element entry, string keys). The engine
+/// (shape-audit-truth-157.json, Element entry, string keys). The engine
 /// historically reflected every HTML/SVG member onto Element.prototype
 /// with localName guards ("the kitchen sink"): a <div> answered .value/
 /// .rows/.href, for-in over any element exposed all of them, and Chrome
@@ -2841,6 +2843,69 @@ fn chrome157_rtc_diagnostic_logging() {
             "id2": true,
             "lens": [0, 0, 0],
             "order": ["generateCertificate", "cancelDiagnosticLogging", "startDiagnosticLogging", "stopDiagnosticLogging"],
+        })
+    );
+}
+
+/// Chrome 157 Iterator.concat / zip / zipKeyed. concat rejects primitives,
+/// including strings. zip defaults to the shortest input. longest fills a
+/// finished side with undefined, and the key stays on the result. strict
+/// refuses unequal lengths. zipKeyed results have a null prototype.
+#[test]
+fn chrome157_iterator_zip() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+        const err = (fn) => { try { return JSON.stringify([...fn()]); } catch (e) { return e.name + ': ' + e.message; } };
+        const cat = Iterator.concat([1], [2, 3].values());
+        const hole = [...Iterator.zip([[1], ['a', 'b']], { mode: 'longest' })][1];
+        const keyedHole = [...Iterator.zipKeyed({ a: [1], b: ['x', 'y'] }, { mode: 'longest' })][1];
+        const face = Object.getOwnPropertyDescriptor(Iterator, 'zip');
+        ({
+          cat: [...cat.map((x) => x + 1)],
+          empty: [...Iterator.concat()],
+          prim: err(() => Iterator.concat(1)),
+          str: err(() => Iterator.concat('ab')),
+          plain: err(() => Iterator.concat({ a: 1 })),
+          zip: [...Iterator.zip([[1, 2, 3], ['a', 'b']])],
+          hole: [hole[0] === undefined ? 'undef' : String(hole[0]), hole[1]],
+          pad: [...Iterator.zip([[1], ['a', 'b']], { mode: 'longest', padding: ['x', 'y'] })],
+          strict: err(() => Iterator.zip([[1, 2], ['a']], { mode: 'strict' })),
+          mode: err(() => Iterator.zip([[1]], { mode: 'Shortest' })),
+          opt: err(() => Iterator.zip([[1]], null)),
+          keyed: [...Iterator.zipKeyed({ z: [1], a: [2, 3] })],
+          keyedLong: [...Iterator.zipKeyed({ a: [1], b: ['x', 'y'] }, { mode: 'longest', padding: { a: 'A' } })],
+          keyedHole: ['a' in keyedHole, keyedHole.a === undefined, keyedHole.b, Object.getPrototypeOf(keyedHole) === null],
+          lens: [Iterator.concat.length, Iterator.zip.length, Iterator.zipKeyed.length],
+          tag: Object.prototype.toString.call(Iterator.concat([1])),
+          face: [face.enumerable, face.writable, face.configurable],
+          order: Object.getOwnPropertyNames(Iterator).filter((n) => n !== 'length' && n !== 'name' && n !== 'prototype'),
+        })
+        "#,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "cat": [2, 3, 4],
+            "empty": [],
+            "prim": "TypeError: Iterator.concat called on non-object",
+            "str": "TypeError: Iterator.concat called on non-object",
+            "plain": "TypeError: #<Object> is not iterable",
+            "zip": [[1, "a"], [2, "b"]],
+            "hole": ["undef", "b"],
+            "pad": [[1, "a"], ["x", "b"]],
+            "strict": "TypeError: Iterators passed to Iterator.zip in 'strict' mode must have the same length",
+            "mode": "TypeError: Iterator.zip mode must be 'shortest', 'longest', or 'strict'",
+            "opt": "TypeError: options called on non-object",
+            "keyed": [{"z": 1, "a": 2}],
+            "keyedLong": [{"a": 1, "b": "x"}, {"a": "A", "b": "y"}],
+            "keyedHole": [true, true, "y", true],
+            "lens": [0, 1, 1],
+            "tag": "[object Iterator Helper]",
+            "face": [false, true, true],
+            "order": ["from", "concat", "zip", "zipKeyed"],
         })
     );
 }

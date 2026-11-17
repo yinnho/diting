@@ -10,7 +10,7 @@
 // to a sensor'), nothing ever activates and no reading ever arrives - exactly
 // the surface fingerprinting scripts and feature probes observe. Magnetometer
 // and AmbientLightSensor do NOT exist in Chrome 145 and are deliberately not
-// defined here. Every fact is pinned by chrome/sensor-truth-145.json
+// defined here. Every fact is pinned by chrome/sensor-truth-157.json
 // (sensor-probe.js) and diffed by sensor_family_matches_chrome_truth.
 
 const slots = new WeakMap();   // sensor -> { handlers, timer }

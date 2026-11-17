@@ -1414,6 +1414,7 @@ P CookieStoreManager :: constructor,getSubscriptions,subscribe,unsubscribe
 P CountQueuingStrategy :: constructor,highWaterMark,size
 P CrashReportContext :: constructor,delete,initialize,set
 P CreateMonitor :: constructor,ondownloadprogress
+S Credential :: isConditionalMediationAvailable
 P Credential :: constructor,id,type
 P CredentialsContainer :: constructor,create,get,preventSilentAccess,store
 S CropTarget :: fromElement
@@ -1455,9 +1456,11 @@ P Date :: constructor,getDate,getDay,getFullYear,getHours,getMilliseconds,getMin
 P DecompressionStream :: constructor,readable,writable
 P DelayNode :: constructor,delayTime
 P DelegatedInkTrailPresenter :: constructor,presentationArea,updateInkTrailStartPoint
+S DeviceMotionEvent :: requestPermission
 P DeviceMotionEvent :: acceleration,accelerationIncludingGravity,constructor,interval,rotationRate
 P DeviceMotionEventAcceleration :: constructor,x,y,z
 P DeviceMotionEventRotationRate :: alpha,beta,constructor,gamma
+S DeviceOrientationEvent :: requestPermission
 P DeviceOrientationEvent :: absolute,alpha,beta,constructor,gamma
 P DevicePosture :: constructor,onchange,type
 S DigitalCredential :: userAgentAllowsProtocol
@@ -1494,7 +1497,7 @@ P EyeDropper :: constructor,open
 P FeaturePolicy :: allowedFeatures,allowsFeature,constructor,features,getAllowlistForFeature
 P FederatedCredential :: constructor,iconURL,name,protocol,provider
 P Fence :: constructor,getNestedConfigs,reportEvent,setReportEventDataForAutomaticBeacons
-P FencedFrameConfig :: constructor,setSharedStorageContext
+P FencedFrameConfig :: constructor
 P FetchLaterResult :: activated,constructor
 P File :: constructor,lastModified,lastModifiedDate,name,webkitRelativePath
 P FileList :: constructor,item,length
@@ -1592,7 +1595,6 @@ P HTMLDivElement :: align,constructor
 P HTMLDocument :: constructor
 P HTMLElement :: accessKey,attachInternals,attributeStyleMap,autocapitalize,autocorrect,autofocus,blur,click,constructor,contentEditable,dataset,dir,draggable,editContext,enterKeyHint,focus,focusGroup,focusGroupStart,hidden,hidePopover,inert,innerText,inputMode,isContentEditable,lang,nonce,offsetHeight,offsetLeft,offsetParent,offsetTop,offsetWidth,onabort,onanimationcancel,onanimationend,onanimationiteration,onanimationstart,onauxclick,onbeforeinput,onbeforematch,onbeforetoggle,onbeforexrselect,onblur,oncancel,oncanplay,oncanplaythrough,onchange,onclick,onclose,oncommand,oncontentvisibilityautostatechange,oncontextlost,oncontextmenu,oncontextrestored,oncopy,oncuechange,oncut,ondblclick,ondrag,ondragend,ondragenter,ondragleave,ondragover,ondragstart,ondrop,ondurationchange,onemptied,onended,onerror,onfocus,onformdata,ongotpointercapture,oninput,oninvalid,onkeydown,onkeypress,onkeyup,onload,onloadeddata,onloadedmetadata,onloadstart,onlostpointercapture,onmousedown,onmouseenter,onmouseleave,onmousemove,onmouseout,onmouseover,onmouseup,onmousewheel,onpaste,onpause,onplay,onplaying,onpointercancel,onpointerdown,onpointerenter,onpointerleave,onpointermove,onpointerout,onpointerover,onpointerrawupdate,onpointerup,onprogress,onratechange,onreset,onresize,onscroll,onscrollend,onscrollsnapchange,onscrollsnapchanging,onsecuritypolicyviolation,onseeked,onseeking,onselect,onselectionchange,onselectstart,onslotchange,onstalled,onsubmit,onsuspend,ontimeupdate,ontoggle,ontransitioncancel,ontransitionend,ontransitionrun,ontransitionstart,onvolumechange,onwaiting,onwebkitanimationend,onwebkitanimationiteration,onwebkitanimationstart,onwebkittransitionend,onwheel,outerText,popover,showPopover,spellcheck,style,tabIndex,title,togglePopover,translate,virtualKeyboardPolicy,writingSuggestions
 P HTMLEmbedElement :: align,constructor,getSVGDocument,height,name,src,type,width
-S HTMLFencedFrameElement :: canLoadOpaqueURL
 P HTMLFencedFrameElement :: allow,config,constructor,height,sandbox,width
 P HTMLFieldSetElement :: checkValidity,constructor,disabled,elements,form,name,reportValidity,setCustomValidity,type,validationMessage,validity,willValidate
 P HTMLFontElement :: color,constructor,face,size
@@ -1605,8 +1607,8 @@ P HTMLHRElement :: align,color,constructor,noShade,size,width
 P HTMLHeadElement :: constructor
 P HTMLHeadingElement :: align,constructor
 P HTMLHtmlElement :: constructor,version
-P HTMLIFrameElement :: adAuctionHeaders,align,allow,allowFullscreen,allowPaymentRequest,browsingTopics,constructor,contentDocument,contentWindow,credentialless,csp,featurePolicy,frameBorder,getSVGDocument,height,loading,longDesc,marginHeight,marginWidth,name,privateToken,referrerPolicy,sandbox,scrolling,sharedStorageWritable,src,srcdoc,width
-P HTMLImageElement :: align,alt,attributionSrc,border,browsingTopics,complete,constructor,crossOrigin,currentSrc,decode,decoding,fetchPriority,height,hspace,isMap,loading,longDesc,lowsrc,name,naturalHeight,naturalWidth,referrerPolicy,sharedStorageWritable,sizes,src,srcset,useMap,vspace,width,x,y
+P HTMLIFrameElement :: adAuctionHeaders,align,allow,allowFullscreen,allowPaymentRequest,browsingTopics,constructor,contentDocument,contentWindow,credentialless,csp,featurePolicy,frameBorder,getSVGDocument,height,loading,longDesc,marginHeight,marginWidth,name,privateToken,referrerPolicy,sandbox,scrolling,src,srcdoc,width
+P HTMLImageElement :: align,alt,attributionSrc,border,browsingTopics,complete,constructor,crossOrigin,currentSrc,decode,decoding,fetchPriority,height,hspace,isMap,loading,longDesc,lowsrc,name,naturalHeight,naturalWidth,referrerPolicy,sizes,src,srcset,useMap,vspace,width,x,y
 P HTMLInputElement :: accept,align,alt,autocomplete,checkValidity,checked,constructor,createValueRange,defaultChecked,defaultValue,dirName,disabled,files,form,formAction,formEnctype,formMethod,formNoValidate,formTarget,height,incremental,indeterminate,labels,list,max,maxLength,min,minLength,multiple,name,pattern,placeholder,popoverTargetAction,popoverTargetElement,readOnly,reportValidity,required,select,selectionDirection,selectionEnd,selectionStart,setCustomValidity,setRangeText,setSelectionRange,showPicker,size,src,step,stepDown,stepUp,type,useMap,validationMessage,validity,value,valueAsDate,valueAsNumber,webkitEntries,webkitdirectory,width,willValidate
 P HTMLLIElement :: constructor,type,value
 P HTMLLabelElement :: constructor,control,form,htmlFor
@@ -1684,7 +1686,7 @@ P IdentityProvider :: constructor
 P IdleDeadline :: constructor,didTimeout,timeRemaining
 S IdleDetector :: requestPermission
 P IdleDetector :: constructor,onchange,screenState,start,userState
-P Image :: align,alt,attributionSrc,border,browsingTopics,complete,constructor,crossOrigin,currentSrc,decode,decoding,fetchPriority,height,hspace,isMap,loading,longDesc,lowsrc,name,naturalHeight,naturalWidth,referrerPolicy,sharedStorageWritable,sizes,src,srcset,useMap,vspace,width,x,y
+P Image :: align,alt,attributionSrc,border,browsingTopics,complete,constructor,crossOrigin,currentSrc,decode,decoding,fetchPriority,height,hspace,isMap,loading,longDesc,lowsrc,name,naturalHeight,naturalWidth,referrerPolicy,sizes,src,srcset,useMap,vspace,width,x,y
 P ImageBitmap :: close,constructor,height,width
 P ImageBitmapRenderingContext :: canvas,constructor,transferFromImageBitmap
 P ImageCapture :: constructor,getPhotoCapabilities,getPhotoSettings,grabFrame,takePhoto,track
@@ -1708,7 +1710,7 @@ P InteractionContentfulPaint :: constructor,interactionId,largestContentfulPaint
 P InterestEvent :: constructor,source
 P IntersectionObserver :: constructor,delay,disconnect,observe,root,rootMargin,scrollMargin,takeRecords,thresholds,trackVisibility,unobserve
 P IntersectionObserverEntry :: boundingClientRect,constructor,intersectionRatio,intersectionRect,isIntersecting,isVisible,rootBounds,target,time
-S Iterator :: from
+S Iterator :: concat,from,zip,zipKeyed
 P Iterator :: constructor,drop,every,filter,find,flatMap,forEach,includes,join,map,reduce,some,take,toArray
 P Keyboard :: constructor,getLayoutMap,lock,unlock
 S KeyboardEvent :: DOM_KEY_LOCATION_LEFT,DOM_KEY_LOCATION_NUMPAD,DOM_KEY_LOCATION_RIGHT,DOM_KEY_LOCATION_STANDARD
@@ -1830,7 +1832,7 @@ P Path2D :: addPath,arc,arcTo,bezierCurveTo,closePath,constructor,ellipse,lineTo
 P PaymentAddress :: addressLine,city,constructor,country,dependentLocality,organization,phone,postalCode,recipient,region,sortingCode,toJSON
 P PaymentManager :: constructor,enableDelegations,userHint
 P PaymentMethodChangeEvent :: constructor,methodDetails,methodName
-S PaymentRequest :: securePaymentConfirmationAvailability
+S PaymentRequest :: getSecurePaymentConfirmationCapabilities,securePaymentConfirmationAvailability
 P PaymentRequest :: abort,canMakePayment,constructor,hasEnrolledInstrument,id,onpaymentmethodchange,onshippingaddresschange,onshippingoptionchange,shippingAddress,shippingOption,shippingType,show
 P PaymentRequestUpdateEvent :: constructor,updateWith
 P PaymentResponse :: complete,constructor,details,methodName,onpayerdetailchange,payerEmail,payerName,payerPhone,requestId,retry,shippingAddress,shippingOption,toJSON

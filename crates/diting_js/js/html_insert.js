@@ -219,6 +219,13 @@
   if (typeof Element === 'function') installStream(Element.prototype, STREAMS);
   if (typeof CharacterData === 'function') {
     installStream(CharacterData.prototype, STREAMS.filter(([name]) => name.indexOf('Before') >= 0 || name.indexOf('After') >= 0 || name.indexOf('Replace') >= 0));
+    // Chrome's own order puts these methods before constructor.
+    const order = ['data', 'length', 'previousElementSibling', 'nextElementSibling', 'after', 'appendData', 'before', 'deleteData', 'insertData', 'remove', 'replaceData', 'replaceWith', 'substringData', 'afterHTML', 'afterHTMLUnsafe', 'beforeHTML', 'beforeHTMLUnsafe', 'replaceWithHTML', 'replaceWithHTMLUnsafe', 'streamAfterHTML', 'streamAfterHTMLUnsafe', 'streamBeforeHTML', 'streamBeforeHTMLUnsafe', 'streamReplaceWithHTML', 'streamReplaceWithHTMLUnsafe', 'constructor'];
+    const P = CharacterData.prototype;
+    for (const n of order) {
+      const d = Object.getOwnPropertyDescriptor(P, n);
+      if (d && d.configurable) { delete P[n]; Object.defineProperty(P, n, d); }
+    }
   }
   if (typeof ShadowRoot === 'function') {
     installStream(ShadowRoot.prototype, STREAMS.filter(([name]) => name.indexOf('HTML') >= 0 && name.indexOf('Before') < 0 && name.indexOf('After') < 0 && name.indexOf('Replace') < 0));

@@ -9,7 +9,7 @@
 // data), validated almost nothing, never tracked bodyUsed, left Response.status
 // unchecked, had no clone for streams, no static-method checks, no guard on
 // Request/Response headers and decoded text() by the Content-Type charset
-// (Chrome always decodes UTF-8). Pinned by chrome/reqres-truth-145.json
+// (Chrome always decodes UTF-8). Pinned by chrome/reqres-truth-157.json
 // (reqres-probe.js, 96 keys: shape, construction validation and wording,
 // defaults, body-derived content-type, statics, clone, bodyUsed, streams)
 // and diffed by reqres_match_chrome_truth.

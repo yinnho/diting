@@ -182,7 +182,7 @@ const __platform = (function () {
   }
   // Reflected IDL attribute, installed on a (possibly pre-existing native)
   // prototype. spec is DATA (generated per member from measured Chrome
-  // fingerprints - chrome/htmlreflect-truth-145.json - or the earlier knives'
+  // fingerprints - chrome/htmlreflect-truth-157.json - or the earlier knives'
   // truth tables):
   //   attr      content attribute name (already lowercase)
   //   iface     interface name for setter error prefixes (default: the
@@ -213,7 +213,7 @@ const __platform = (function () {
   // Every setter converts through `conv` so Symbols throw Chrome's
   // "Failed to set the 'x' property on 'I': Cannot convert a Symbol value
   // to a string" TypeError; DOMString conversion is String(v) - null reads
-  // back 'null', undefined 'undefined' (htmlreflect-truth-145 extra.*).
+  // back 'null', undefined 'undefined' (htmlreflect-truth-157 extra.*).
   const HTML_WS_INT = /^[\t\n\f\r ]*([+-]?)([0-9]+)/;
   function parseIntAttr(v) {
     const m = HTML_WS_INT.exec(v);
@@ -394,7 +394,7 @@ __platform.define("animation", function (exports, require, P) {
 // AnimationEffect / DocumentTimeline as constructor stubs and Element.animate
 // returned a hand-rolled object literal (web_api_gaps.js) that was not an
 // Animation, had no real playState machine, no pending state, no
-// KeyframeEffect. Pinned by chrome/anim-truth-145.json (anim-probe.js: shape of
+// KeyframeEffect. Pinned by chrome/anim-truth-157.json (anim-probe.js: shape of
 // six interfaces, timing validation, keyframe normalization, the play/pause/
 // finish/cancel/reverse/updatePlaybackRate state machine, ready/finished promise
 // identity, finish/cancel/remove events, replace state, getAnimations) and
@@ -1174,7 +1174,7 @@ __platform.define("attributes", function (exports, require, P) {
 // getAttributeNode returned a new detached-looking object each call whose value never followed the element. Chrome: one
 // NamedNodeMap per element (legacy platform object: indexed + named properties), and one Attr node per attribute that stays the
 // same object while the attribute exists, tracks its value both ways, and is detached (ownerElement null, last value kept) when
-// the attribute is removed - re-adding the name makes a NEW Attr. Pinned by chrome/nnm-truth-145.json (nnm-probe.js, 37 keys)
+// the attribute is removed - re-adding the name makes a NEW Attr. Pinned by chrome/nnm-truth-157.json (nnm-probe.js, 37 keys)
 // and diffed by namednodemap_matches_chrome_truth.
 //
 // Model: per element a Map name -> Attr (only attributes somebody asked for), a recorded namespace table for setAttributeNS, and
@@ -1443,7 +1443,7 @@ __platform.define("canvasobjects", function (exports, require, P) {
 // CanvasGradient/CanvasPattern instances, no argument validation, no addColorStop checks, `_x0`-style keys leaking. Chrome 145:
 // illegal-constructor interfaces, validated factories ("N arguments required", non-finite doubles, negative radii as
 // IndexSizeError, pattern image type / repetition / zero-size canvas), addColorStop with the (0.0, 1.0) range check and
-// "could not be parsed as a color". Pinned by chrome/cvobj-truth-145.json (cvobj-probe.js) and diffed by
+// "could not be parsed as a color". Pinned by chrome/cvobj-truth-157.json (cvobj-probe.js) and diffed by
 // canvasobjects_match_chrome_truth. Gradients/patterns have no rendering effect here (the software rasterizer has no gradient
 // pipeline) - the state is recorded for a future one.
 
@@ -1551,9 +1551,9 @@ __platform.define("canvasstate", function (exports, require, P) {
 // (bootstrap.js _Canvas2D, now THE CanvasRenderingContext2D class) returned `undefined`/`null` for lang, direction, fontKerning,
 // fontStretch, fontVariantCaps, textRendering, letterSpacing, wordSpacing, filter, imageSmoothing*, shadow*, lineCap, lineJoin,
 // miterLimit, lineDashOffset - and accepted any value without validating it. Canvas fingerprinting scripts both READ these
-// defaults and WRITE them (shadowBlur, lineCap, ...). Pinned by chrome/cvstate-truth-145.json (cvstate-probe.js) and diffed by
-// canvasstate_matches_chrome_truth. Chrome ignores invalid enum values and non-finite numbers silently; 'inherit' for direction
-// resolves to the canvas's direction ('ltr'). No rendering effect (the software rasterizer here has no shadow/filter pipeline),
+// defaults and WRITE them (shadowBlur, lineCap, ...). Pinned by chrome/cvstate-truth-157.json (cvstate-probe.js) and diffed by
+// canvasstate_matches_chrome_truth. Chrome ignores invalid enum values and non-finite numbers silently. direction stays the
+// keyword written when it is ltr, rtl, or inherit; anything else is ignored. No rendering effect (the software rasterizer here has no shadow/filter pipeline),
 // exactly as before - this is the state surface.
 
 const C = globalThis.CanvasRenderingContext2D;
@@ -1566,7 +1566,7 @@ function st(o, fn) {
   return s;
 }
 function defaults() {
-  return { lang: 'inherit', direction: 'ltr', fontKerning: 'auto', fontStretch: 'normal', fontVariantCaps: 'normal', letterSpacing: '0px',
+  return { lang: 'inherit', direction: 'inherit', fontKerning: 'auto', fontStretch: 'normal', fontVariantCaps: 'normal', letterSpacing: '0px',
     textRendering: 'auto', wordSpacing: '0px', filter: 'none', imageSmoothingQuality: 'low', imageSmoothingEnabled: true,
     shadowColor: 'rgba(0, 0, 0, 0)', shadowOffsetX: 0, shadowOffsetY: 0, shadowBlur: 0, lineCap: 'butt', lineJoin: 'miter',
     miterLimit: 10, lineDashOffset: 0, lineDash: [] };
@@ -1600,7 +1600,7 @@ const spacingAttr = (name) => attr(name, (s, v) => {
 
 // Chrome's relative order of the attributes: lang first, the text/line state in the order below (shape_fix ORDER finalizes it).
 attr('lang', (s, v) => { s.lang = String(v); });
-attr('direction', (s, v) => { const x = String(v); if (x === 'ltr' || x === 'rtl') s.direction = x; else if (x === 'inherit') s.direction = 'ltr'; });
+attr('direction', (s, v) => { const x = String(v); if (x === 'ltr' || x === 'rtl' || x === 'inherit') s.direction = x; });
 enumAttr('fontKerning'); enumAttr('fontStretch'); enumAttr('fontVariantCaps');
 spacingAttr('letterSpacing'); enumAttr('textRendering'); spacingAttr('wordSpacing');
 attr('filter', (s, v) => { const x = String(v).trim(); if (x === 'none' || /^[a-z-]+\(.*\)$/i.test(x)) s.filter = x; });
@@ -2189,7 +2189,7 @@ __platform.define("docmisc", function (exports, require, P) {
 // Document.prototype - and because they were absent, page assignments such as
 // `document.bgColor = 'red'` or `document.fullscreen = true` silently minted
 // own data properties on the document (fingerprint-visible, and the "value" then
-// read back as whatever the page wrote). Pinned by chrome/docmisc-truth-145.json
+// read back as whatever the page wrote). Pinned by chrome/docmisc-truth-157.json
 // (docmisc-probe.js, 36 keys) and diffed by docmisc_matches_chrome_truth.
 //
 // Shape: the members are installed in Chrome's relative order. The five colour
@@ -2352,7 +2352,7 @@ __platform.define("stylemap", function (exports, require, P) {
 // element.computedStyleMap() (StylePropertyMapReadOnly). The window classes
 // were bare ctor-throw stubs from global_surface.js; this module owns them
 // for real (P.iface brands + member order from Chrome truth
-// element-staged-truth-145.json keys spm.classes/spm.symbols/spm.ctor - the
+// element-staged-truth-157.json keys spm.classes/spm.symbols/spm.ctor - the
 // global_surface THROW install SKIPs on our non-enumerable expose, the same
 // handover pattern Performance took at knife 3). The ctor keeps throwing
 // Chrome's exact "Failed to construct ... Illegal constructor" message.
@@ -2481,11 +2481,11 @@ __platform.define("htmlelement", function (exports, require, P) {
 // gen/htmlelement.gen.js, and uniform attribute reflection is DATA there
 // (P.reflector). This module owns the NON-uniform semantics; every fact
 // below that could be misremembered is pinned by a key in
-// tools/webplatform/chrome/htmlelement-truth-145.json (captured from real
+// tools/webplatform/chrome/htmlelement-truth-157.json (captured from real
 // Chrome 145) and diffed by the htmlelement_members_match_chrome_truth test.
 // Knife-4 staged-family behavior (part/attributeStyleMap/computedStyleMap/
 // fullscreen trio/pointer lock/moveBefore/ariaNotify) is pinned by
-// element-staged-truth-145.json and diffed by
+// element-staged-truth-157.json and diffed by
 // element_staged_members_match_chrome_truth.
 
 // ---- nonce: internal slot, deliberately NOT reflected (truth set.nonce:
@@ -2613,10 +2613,10 @@ const SET = {
   editContext() { /* swallow */ },
   classList(el, v) { el.className = v === undefined || v === null ? '' : String(v); },
   outerHTML(el, v) {
-    // Chrome replaces the node via fragment parsing; the pinned case is the
-    // parentless throw (truth outerHTML.set, exact message).
+    // Chrome replaces the node via fragment parsing. A parentless element
+    // ignores the set (truth outerHTML.set: the node stays, no throw).
     const parent = el.parentNode;
-    if (!parent) throw new DOMException("Failed to set the 'outerHTML' property on 'Element': This element has no parent node.", 'NoModificationAllowedError');
+    if (!parent) return;
     el.insertAdjacentHTML('beforebegin', String(v));
     el.remove();
   },
@@ -2665,7 +2665,7 @@ const CALL = {
   webkitMatchesSelector(el, ctx, args) { return el.matches(args[0]); },
 
   // ---- staged families (knife 4; every message pinned by
-  // element-staged-truth-145.json mb.*/rfs.*/rpl.* keys)
+  // element-staged-truth-157.json mb.*/rfs.*/rpl.* keys)
   computedStyleMap(el) { return SM.computedFor(el); },
   moveBefore(el, ctx, args) {
     const node = args[0];
@@ -2919,7 +2919,7 @@ seat('autocorrect', function () { P.accessor(HT, 'autocorrect', function __f() {
 seatOn('onscrollsnapchange');
 seatOn('onscrollsnapchanging');
 seat('focusGroup', function () { P.accessor(HT, 'focusGroup', function __f() { return B.get('focusGroup', this); }, function __f(v) { B.set('focusGroup', this, v); }); });
-seat('focusGroupStart', function () { P.reflector(HT, 'focusGroupStart', {"attr": "focusgroupstart", "kind": "boolean-presence"}); });
+seat('focusGroupStart', function () { P.reflector(HT, 'focusGroupStart', {"attr": "focusgroupstart", "iface": "HTMLElement", "kind": "boolean-presence"}); });
 delete HT.constructor;
 Object.defineProperty(HT, 'constructor', { value: HTMLElement, writable: true, enumerable: false, configurable: true });
 seatOn('onpointerrawupdate');
@@ -3024,7 +3024,7 @@ __platform.define("domsmall", function (exports, require, P) {
 // PopStateEvent, ClipboardEvent) and the value class
 // RTCSessionDescription. HashChangeEvent and InputDeviceCapabilities are
 // generated. Every fact is pinned by
-// chrome/smallmembers-truth-145.json (smallmembers-probe.js) and diffed by
+// chrome/smallmembers-truth-157.json (smallmembers-probe.js) and diffed by
 // smallmembers_match_chrome_truth. Patches to bootstrap classes re-seat each
 // prototype into Chrome's own member order.
 
@@ -3247,7 +3247,7 @@ __platform.define("editcontext", function (exports, require, P) {
 // an EditContext owns a text buffer, a selection and per-character bounds; pages
 // drive it with updateText/updateSelection/updateCharacterBounds/... and
 // HTMLElement.editContext attaches it to exactly one element. Pinned by
-// chrome/editctx-truth-145.json (editctx-probe.js, 49 keys) and diffed by
+// chrome/editctx-truth-157.json (editctx-probe.js, 49 keys) and diffed by
 // editcontext_matches_chrome_truth.
 //
 // Facts worth knowing: updateText swaps a reversed range and clamps both ends to
@@ -3406,7 +3406,7 @@ __platform.define("headers", function (exports, require, P) {
 // Fetch-standard Headers (M4 knife 15). The bootstrap class was an object map
 // keyed by lowercase name whose append() overwrote - duplicate headers were
 // lost, nothing was validated or normalized, iteration was insertion-ordered
-// and there was no getSetCookie. Pinned by chrome/headers-truth-145.json
+// and there was no getSetCookie. Pinned by chrome/headers-truth-157.json
 // (headers-probe.js, 75 keys: construction corpus, name/value validity,
 // normalization, duplicate combining, sorted live iteration, set-cookie,
 // iterator protocol) and diffed by headers_match_chrome_truth.
@@ -3625,7 +3625,7 @@ __platform.define("fetchapi", function (exports, require, P) {
 // data), validated almost nothing, never tracked bodyUsed, left Response.status
 // unchecked, had no clone for streams, no static-method checks, no guard on
 // Request/Response headers and decoded text() by the Content-Type charset
-// (Chrome always decodes UTF-8). Pinned by chrome/reqres-truth-145.json
+// (Chrome always decodes UTF-8). Pinned by chrome/reqres-truth-157.json
 // (reqres-probe.js, 96 keys: shape, construction validation and wording,
 // defaults, body-derived content-type, statics, clone, bodyUsed, streams)
 // and diffed by reqres_match_chrome_truth.
@@ -4528,7 +4528,7 @@ __platform.define("geometry", function (exports, require, P) {
 // from WebIDL + the Chrome truth overlay in gen/geometry.gen.js. This module
 // supplies the math and the Chrome-shaped errors; every fact below that
 // could be misremembered is pinned by a key in
-// tools/webplatform/chrome/geometry-truth-145.json (captured from real
+// tools/webplatform/chrome/geometry-truth-157.json (captured from real
 // Chrome 145) and diffed by the geometry_stack_matches_chrome_truth test.
 //
 // Storage layout (all Float64Array):
@@ -5693,7 +5693,7 @@ __platform.define("htmlmedia", function (exports, require, P) {
 // (P.reflector, incl. the unsigned-long/crossorigin/url kinds core.js
 // grew for this family). This module owns the NON-uniform semantics;
 // every fact below that could be misremembered is pinned by a key in
-// tools/webplatform/chrome/htmlmedia-truth-145.json (real Chrome 145)
+// tools/webplatform/chrome/htmlmedia-truth-157.json (real Chrome 145)
 // and diffed by the htmlmedia_members_match_chrome_truth test.
 //
 // Faces: TextTrackList/TextTrack/RemotePlayback stay the global_surface
@@ -5843,9 +5843,9 @@ const CALL = {
     return tt;
   },
   captureStream() { return new MediaStream(); },
-  // truth med.setSinkId.plain: rejects NotFoundError 'Requested device not
-  // found' (no sink machinery - null is not the default device).
-  setSinkId() { return Promise.reject(new DOMException('Requested device not found', 'NotFoundError')); },
+  // truth med.setSinkId.plain: null rejects SecurityError. No output-device
+  // permission in this environment.
+  setSinkId() { return Promise.reject(new DOMException('No permission to use requested device', 'SecurityError')); },
   // truth med.setMediaKeys.plain: (null) resolves undefined.
   setMediaKeys(el, ctx, args) { SET.mediaKeys(el, args[0]); return Promise.resolve(); },
   // truth vid.gvpq: no own enumerable members (a bare mint, branded).
@@ -6028,7 +6028,7 @@ if (!has(IMG, 'naturalWidth')) P.getter(IMG, 'naturalWidth', function __f() { re
 if (!has(IMG, 'naturalHeight')) P.getter(IMG, 'naturalHeight', function __f() { return 0; });
 if (!has(IMG, 'complete')) P.getter(IMG, 'complete', function __f() { return B.get('complete', this); });
 if (!has(IMG, 'currentSrc')) P.getter(IMG, 'currentSrc', function __f() { return ''; });
-if (!has(IMG, 'referrerPolicy')) P.reflector(IMG, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLImageElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
+if (!has(IMG, 'referrerPolicy')) P.reflector(IMG, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLImageElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "same-origin": "same-origin", "strict-origin": "strict-origin", "strict-origin-when-cross-origin": "strict-origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
 if (!has(IMG, 'decoding')) P.reflector(IMG, 'decoding', {"attr": "decoding", "iface": "HTMLImageElement", "invalid": "auto", "kind": "enum", "map": {"async": "async", "sync": "sync"}, "missing": "auto"});
 if (!has(IMG, 'fetchPriority')) P.reflector(IMG, 'fetchPriority', {"attr": "fetchpriority", "iface": "HTMLImageElement", "invalid": "auto", "kind": "enum", "map": {"high": "high", "low": "low"}, "missing": "auto"});
 if (!has(IMG, 'loading')) P.reflector(IMG, 'loading', {"attr": "loading", "iface": "HTMLImageElement", "invalid": "auto", "kind": "enum", "map": {"eager": "eager", "lazy": "lazy"}, "missing": "auto"});
@@ -6044,8 +6044,7 @@ if (!has(IMG, 'y')) P.getter(IMG, 'y', function __f() { return 0; });
 if (!has(IMG, 'decode')) P.method(IMG, 'decode', 0, function __f() { const ctx = "Failed to execute 'decode' on 'HTMLImageElement'"; P.args(ctx, arguments.length, 0, __f); return B.call('decode', this, ctx, arguments); });
 if (!has(IMG, 'browsingTopics')) P.reflector(IMG, 'browsingTopics', {"attr": "browsingtopics", "iface": "HTMLImageElement", "kind": "boolean-presence"});
 if (!has(IMG, 'attributionSrc')) P.reflector(IMG, 'attributionSrc', {"attr": "attributionsrc", "iface": "HTMLImageElement", "kind": "string"});
-if (!has(IMG, 'sharedStorageWritable')) P.reflector(IMG, 'sharedStorageWritable', {"attr": "sharedstoragewritable", "iface": "HTMLImageElement", "kind": "boolean-presence"});
-reseat(IMG, ["alt", "src", "srcset", "sizes", "crossOrigin", "useMap", "isMap", "width", "height", "naturalWidth", "naturalHeight", "complete", "currentSrc", "referrerPolicy", "decoding", "fetchPriority", "loading", "name", "lowsrc", "align", "hspace", "vspace", "longDesc", "border", "x", "y", "decode", "constructor", "browsingTopics", "attributionSrc", "sharedStorageWritable"]);
+reseat(IMG, ["alt", "src", "srcset", "sizes", "crossOrigin", "useMap", "isMap", "width", "height", "naturalWidth", "naturalHeight", "complete", "currentSrc", "referrerPolicy", "decoding", "fetchPriority", "loading", "name", "lowsrc", "align", "hspace", "vspace", "longDesc", "border", "x", "y", "decode", "constructor", "browsingTopics", "attributionSrc"]);
 });
 
 // ---- module htmlifaces (L2) ----
@@ -6111,10 +6110,10 @@ __platform.define("htmlreflect", function (exports, require, P) {
 // Behavior legs for the HTML element families (M4 knives 6-7). Member SHAPE
 // and every uniformly reflected member are generated into
 // gen/htmlreflect.gen.js from MEASURED Chrome fingerprints
-// (chrome/htmlreflect-truth-145.json); this module owns what is not a plain
+// (chrome/htmlreflect-truth-157.json); this module owns what is not a plain
 // reflection. Tables are keyed 'Short.member' (Meter.value vs Progress.value
 // vs Output.value share a name); every fact below is pinned by
-// htmlreflect-truth-145.json or htmlform-truth-145.json (Chrome 145).
+// htmlreflect-truth-157.json or htmlform-truth-157.json (Chrome 145).
 
 // ---- DOMTokenList faces (relList / blocking / sandbox ...): one cached
 // list per (element, content attribute); `supported` is the MEASURED
@@ -6131,8 +6130,8 @@ exports.tokens = function (el, attr, supported) {
 const nodeText = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
 
 // ---- shared parsing / conversion
-// Chrome rejects trailing garbage here ('9px' reads the default, '1e2' is 100)
-const FLOAT = /^[\t\n\f\r ]*(-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?)[\t\n\f\r ]*$/;
+// Chrome 157 keeps a leading number and ignores the rest ('9px' is 9, '1e2' is 100).
+const FLOAT = /^[\t\n\f\r ]*(-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?)/;
 function parseFloatAttr(v) {
   if (v === null) return null;
   const m = FLOAT.exec(v);
@@ -6367,10 +6366,12 @@ const SET = {
   'Meter.low'(el, v) { el.setAttribute('low', String(toDouble(v, 'low', 'HTMLMeterElement', SET['Meter.low']))); },
   'Meter.high'(el, v) { el.setAttribute('high', String(toDouble(v, 'high', 'HTMLMeterElement', SET['Meter.high']))); },
   'Meter.optimum'(el, v) { el.setAttribute('optimum', String(toDouble(v, 'optimum', 'HTMLMeterElement', SET['Meter.optimum']))); },
-  // progress: a non-positive max / negative value is written as the default
+  // progress max is limited to numbers greater than zero: anything else
+  // removes the attribute and the getter falls back to 1.
   'Progress.max'(el, v) {
     const n = toDouble(v, 'max', 'HTMLProgressElement', SET['Progress.max']);
-    el.setAttribute('max', String(n > 0 ? n : 1));
+    if (n > 0) el.setAttribute('max', String(n));
+    else el.removeAttribute('max');
   },
   'Progress.value'(el, v) {
     const n = toDouble(v, 'value', 'HTMLProgressElement', SET['Progress.value']);
@@ -6392,10 +6393,10 @@ const CALL = {
 
   // no user activation in a script-driven context: Chrome refuses
   'Input.showPicker'() {
-    throw new DOMException("Failed to execute 'showPicker' on 'HTMLInputElement': HTMLInputElement::showPicker() requires a user gesture.", 'NotAllowedError');
+    throw new DOMException("Failed to execute 'showPicker' on 'HTMLInputElement': HTMLInputElement::showPicker() requires user activation.", 'NotAllowedError');
   },
   'Select.showPicker'() {
-    throw new DOMException("Failed to execute 'showPicker' on 'HTMLSelectElement': showPicker() requires a user gesture.", 'NotAllowedError');
+    throw new DOMException("Failed to execute 'showPicker' on 'HTMLSelectElement': showPicker() requires user activation.", 'NotAllowedError');
   },
   'Select.item'(el, ctx, args) {
     const o = el.options[P.conv.unsignedLong(args[0], ctx, CALL['Select.item'])];
@@ -6433,7 +6434,7 @@ __platform.define("gen/htmlreflect", function (exports, require, P) {
 // only if its mirror of core.js P.reflector reproduces EVERY facet.
 // Install-or-delegate: a member the engine chain already owns is
 // re-seated on the Chrome-true interface forwarding both legs.
-// Ledger: reflect=237 tokenlist=10 impl=51 const=7 delegate=61 left=10 staged=7
+// Ledger: reflect=237 tokenlist=10 impl=51 const=7 delegate=61 left=10 staged=6
 const B = require('htmlreflect');
 const G = globalThis;
 const P_Anchor = typeof G.HTMLAnchorElement === 'function' ? G.HTMLAnchorElement.prototype : null;
@@ -6551,7 +6552,7 @@ if (P_Anchor) {
   if (!has(P_Anchor, 'rel') && !delegate(P_Anchor, 'rel', 'str')) P.reflector(P_Anchor, 'rel', {"attr": "rel", "iface": "HTMLAnchorElement", "kind": "string"});
   else wrapSet(P_Anchor, 'rel', 'str');
   { const _o = Object.getOwnPropertyDescriptor(P_Anchor, 'relList'); if (!_o || _o.configurable) tokenAccessor(P_Anchor, 'relList', 'rel', ["noopener", "noreferrer", "opener"]); }
-  if (!has(P_Anchor, 'referrerPolicy') && !delegate(P_Anchor, 'referrerPolicy', 'str')) P.reflector(P_Anchor, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLAnchorElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
+  if (!has(P_Anchor, 'referrerPolicy') && !delegate(P_Anchor, 'referrerPolicy', 'str')) P.reflector(P_Anchor, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLAnchorElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "same-origin": "same-origin", "strict-origin": "strict-origin", "strict-origin-when-cross-origin": "strict-origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
   else wrapSet(P_Anchor, 'referrerPolicy', 'str');
   if (!has(P_Anchor, 'text')) delegate(P_Anchor, 'text', 'str'); else wrapSet(P_Anchor, 'text', 'str');
   if (!has(P_Anchor, 'coords') && !delegate(P_Anchor, 'coords', 'str')) P.reflector(P_Anchor, 'coords', {"attr": "coords", "iface": "HTMLAnchorElement", "kind": "string"});
@@ -6605,7 +6606,7 @@ if (P_Area) {
   if (!has(P_Area, 'rel') && !delegate(P_Area, 'rel', 'str')) P.reflector(P_Area, 'rel', {"attr": "rel", "iface": "HTMLAreaElement", "kind": "string"});
   else wrapSet(P_Area, 'rel', 'str');
   { const _o = Object.getOwnPropertyDescriptor(P_Area, 'relList'); if (!_o || _o.configurable) tokenAccessor(P_Area, 'relList', 'rel', ["noopener", "noreferrer", "opener"]); }
-  if (!has(P_Area, 'referrerPolicy') && !delegate(P_Area, 'referrerPolicy', 'str')) P.reflector(P_Area, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLAreaElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
+  if (!has(P_Area, 'referrerPolicy') && !delegate(P_Area, 'referrerPolicy', 'str')) P.reflector(P_Area, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLAreaElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "same-origin": "same-origin", "strict-origin": "strict-origin", "strict-origin-when-cross-origin": "strict-origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
   else wrapSet(P_Area, 'referrerPolicy', 'str');
   if (!has(P_Area, 'origin')) delegate(P_Area, 'origin');
   if (!has(P_Area, 'protocol')) delegate(P_Area, 'protocol');
@@ -6804,9 +6805,8 @@ if (P_HR) {
   reseat(P_HR, ["align", "color", "noShade", "size", "width", "constructor"]);
 }
 
-// ---- HTMLIFrameElement.prototype (Chrome own order, 28 names)
+// ---- HTMLIFrameElement.prototype (Chrome own order, 27 names)
 if (P_IFrame) {
-  // staged: sharedStorageWritable - Shared Storage origin trial; not Chrome-released
   if (!has(P_IFrame, 'src') && !delegate(P_IFrame, 'src', 'str')) P.reflector(P_IFrame, 'src', {"attr": "src", "iface": "HTMLIFrameElement", "kind": "url"});
   else wrapSet(P_IFrame, 'src', 'str');
   if (!has(P_IFrame, 'srcdoc') && !delegate(P_IFrame, 'srcdoc', 'str')) P.reflector(P_IFrame, 'srcdoc', {"attr": "srcdoc", "iface": "HTMLIFrameElement", "kind": "string"});
@@ -6819,7 +6819,7 @@ if (P_IFrame) {
   else wrapSet(P_IFrame, 'width', 'str');
   if (!has(P_IFrame, 'height') && !delegate(P_IFrame, 'height', 'str')) P.reflector(P_IFrame, 'height', {"attr": "height", "iface": "HTMLIFrameElement", "kind": "string"});
   else wrapSet(P_IFrame, 'height', 'str');
-  if (!has(P_IFrame, 'referrerPolicy') && !delegate(P_IFrame, 'referrerPolicy', 'str')) P.reflector(P_IFrame, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLIFrameElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
+  if (!has(P_IFrame, 'referrerPolicy') && !delegate(P_IFrame, 'referrerPolicy', 'str')) P.reflector(P_IFrame, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLIFrameElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "same-origin": "same-origin", "strict-origin": "strict-origin", "strict-origin-when-cross-origin": "strict-origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
   else wrapSet(P_IFrame, 'referrerPolicy', 'str');
   if (!has(P_IFrame, 'csp') && !delegate(P_IFrame, 'csp', 'str')) P.reflector(P_IFrame, 'csp', {"attr": "csp", "iface": "HTMLIFrameElement", "kind": "string"});
   else wrapSet(P_IFrame, 'csp', 'str');
@@ -6849,7 +6849,7 @@ if (P_IFrame) {
   reseat(P_IFrame, ["src", "srcdoc", "name", "sandbox", "allowFullscreen", "width", "height", "contentDocument", "contentWindow", "referrerPolicy", "csp", "allow", "loading", "align", "scrolling", "frameBorder", "longDesc", "marginHeight", "marginWidth", "getSVGDocument", "credentialless", "allowPaymentRequest", "constructor"]);
 }
 
-// ---- HTMLInputElement.prototype (Chrome own order, 60 names)
+// ---- HTMLInputElement.prototype (Chrome own order, 61 names)
 if (P_Input) {
   if (!has(P_Input, 'accept') && !delegate(P_Input, 'accept', 'str')) P.reflector(P_Input, 'accept', {"attr": "accept", "iface": "HTMLInputElement", "kind": "string"});
   else wrapSet(P_Input, 'accept', 'str');
@@ -6933,7 +6933,8 @@ if (P_Input) {
   if (!has(P_Input, 'stepDown')) delegateFn(P_Input, 'stepDown', 0);
   if (!has(P_Input, 'stepUp')) delegateFn(P_Input, 'stepUp', 0);
   if (!has(P_Input, 'webkitEntries') && !delegate(P_Input, 'webkitEntries')) P.getter(P_Input, 'webkitEntries', function __f() { return B.get('Input.webkitEntries', this); });
-  reseat(P_Input, ["accept", "alt", "autocomplete", "defaultChecked", "checked", "dirName", "disabled", "form", "files", "formAction", "formEnctype", "formMethod", "formNoValidate", "formTarget", "height", "indeterminate", "list", "max", "maxLength", "min", "minLength", "multiple", "name", "pattern", "placeholder", "readOnly", "required", "size", "src", "step", "type", "defaultValue", "value", "valueAsDate", "valueAsNumber", "width", "willValidate", "validity", "validationMessage", "labels", "selectionStart", "selectionEnd", "selectionDirection", "align", "useMap", "webkitdirectory", "incremental", "popoverTargetElement", "popoverTargetAction", "checkValidity", "reportValidity", "select", "setCustomValidity", "setRangeText", "setSelectionRange", "showPicker", "stepDown", "stepUp", "webkitEntries", "constructor"]);
+  if (!has(P_Input, 'createValueRange')) delegateFn(P_Input, 'createValueRange', 2);
+  reseat(P_Input, ["accept", "alt", "autocomplete", "defaultChecked", "checked", "dirName", "disabled", "form", "files", "formAction", "formEnctype", "formMethod", "formNoValidate", "formTarget", "height", "indeterminate", "list", "max", "maxLength", "min", "minLength", "multiple", "name", "pattern", "placeholder", "readOnly", "required", "size", "src", "step", "type", "defaultValue", "value", "valueAsDate", "valueAsNumber", "width", "willValidate", "validity", "validationMessage", "labels", "selectionStart", "selectionEnd", "selectionDirection", "align", "useMap", "webkitdirectory", "incremental", "popoverTargetElement", "popoverTargetAction", "checkValidity", "reportValidity", "select", "setCustomValidity", "setRangeText", "setSelectionRange", "showPicker", "stepDown", "stepUp", "webkitEntries", "createValueRange", "constructor"]);
 }
 
 // ---- HTMLLegendElement.prototype (Chrome own order, 3 names)
@@ -6961,7 +6962,7 @@ if (P_Link) {
   else wrapSet(P_Link, 'type', 'str');
   if (!has(P_Link, 'as') && !delegate(P_Link, 'as', 'str')) P.reflector(P_Link, 'as', {"attr": "as", "iface": "HTMLLinkElement", "invalid": "", "kind": "enum", "map": {"fetch": "fetch", "font": "font", "image": "image", "script": "script", "style": "style", "track": "track"}, "missing": ""});
   else wrapSet(P_Link, 'as', 'str');
-  if (!has(P_Link, 'referrerPolicy') && !delegate(P_Link, 'referrerPolicy', 'str')) P.reflector(P_Link, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLLinkElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
+  if (!has(P_Link, 'referrerPolicy') && !delegate(P_Link, 'referrerPolicy', 'str')) P.reflector(P_Link, 'referrerPolicy', {"attr": "referrerpolicy", "iface": "HTMLLinkElement", "invalid": "", "kind": "enum", "map": {"no-referrer": "no-referrer", "no-referrer-when-downgrade": "no-referrer-when-downgrade", "origin": "origin", "origin-when-cross-origin": "origin-when-cross-origin", "same-origin": "same-origin", "strict-origin": "strict-origin", "strict-origin-when-cross-origin": "strict-origin-when-cross-origin", "unsafe-url": "unsafe-url"}, "missing": ""});
   else wrapSet(P_Link, 'referrerPolicy', 'str');
   { const _o = Object.getOwnPropertyDescriptor(P_Link, 'sizes'); if (!_o || _o.configurable) tokenAccessor(P_Link, 'sizes', 'sizes', null); }
   if (!has(P_Link, 'fetchPriority') && !delegate(P_Link, 'fetchPriority', 'str')) P.reflector(P_Link, 'fetchPriority', {"attr": "fetchpriority", "iface": "HTMLLinkElement", "invalid": "auto", "kind": "enum", "map": {"high": "high", "low": "low"}, "missing": "auto"});
@@ -7315,7 +7316,7 @@ if (P_Template) {
   reseat(P_Template, ["content", "shadowRootMode", "shadowRootDelegatesFocus", "shadowRootClonable", "shadowRootSerializable", "shadowRootCustomElementRegistry", "shadowRootSlotAssignment", "htmlFor", "constructor", "shadowRootReferenceTarget"]);
 }
 
-// ---- HTMLTextAreaElement.prototype (Chrome own order, 31 names)
+// ---- HTMLTextAreaElement.prototype (Chrome own order, 32 names)
 if (P_TextArea) {
   if (!has(P_TextArea, 'autocomplete') && !delegate(P_TextArea, 'autocomplete', 'str')) P.reflector(P_TextArea, 'autocomplete', {"attr": "autocomplete", "iface": "HTMLTextAreaElement", "invalid": "", "kind": "enum", "map": {"email": "email", "off": "off", "on": "on", "tel": "tel", "url": "url"}, "missing": ""});
   else wrapSet(P_TextArea, 'autocomplete', 'str');
@@ -7354,7 +7355,8 @@ if (P_TextArea) {
   if (!has(P_TextArea, 'setCustomValidity')) delegateFn(P_TextArea, 'setCustomValidity', 1);
   if (!has(P_TextArea, 'setRangeText')) delegateFn(P_TextArea, 'setRangeText', 1);
   if (!has(P_TextArea, 'setSelectionRange')) delegateFn(P_TextArea, 'setSelectionRange', 2);
-  reseat(P_TextArea, ["autocomplete", "cols", "dirName", "disabled", "form", "maxLength", "minLength", "name", "placeholder", "readOnly", "required", "rows", "wrap", "type", "defaultValue", "value", "textLength", "willValidate", "validity", "validationMessage", "labels", "selectionStart", "selectionEnd", "selectionDirection", "checkValidity", "reportValidity", "select", "setCustomValidity", "setRangeText", "setSelectionRange", "constructor"]);
+  if (!has(P_TextArea, 'createValueRange')) delegateFn(P_TextArea, 'createValueRange', 2);
+  reseat(P_TextArea, ["autocomplete", "cols", "dirName", "disabled", "form", "maxLength", "minLength", "name", "placeholder", "readOnly", "required", "rows", "wrap", "type", "defaultValue", "value", "textLength", "willValidate", "validity", "validationMessage", "labels", "selectionStart", "selectionEnd", "selectionDirection", "checkValidity", "reportValidity", "select", "setCustomValidity", "setRangeText", "setSelectionRange", "createValueRange", "constructor"]);
 }
 
 // ---- HTMLTimeElement.prototype (Chrome own order, 2 names)
@@ -7521,7 +7523,7 @@ __platform.define("phrase", function (exports, require, P) {
 // the readonly phrase/boost getters in Chrome's order — is generated from
 // the speech-api IDL in gen/phrase.gen.js. `float` is not a simple ctor
 // type, so the boost conversion and the [0, 10] check stay here.
-// Pinned by tools/webplatform/chrome/speech-truth-145.json.
+// Pinned by tools/webplatform/chrome/speech-truth-157.json.
 'use strict';
 
 const slots = new WeakMap();
@@ -7622,7 +7624,7 @@ __platform.define("rtcice", function (exports, require, P) {
 // Chrome parses the candidate-attribute string into foundation / component /
 // priority / address / protocol / port / type / tcpType / relatedAddress /
 // relatedPort, and the parse is ALL-OR-NOTHING: any malformed token leaves
-// every parsed field null. Pinned by chrome/rtcice-truth-145.json
+// every parsed field null. Pinned by chrome/rtcice-truth-157.json
 // (rtcice-probe.js, 72 keys: a 43-candidate corpus, constructor conversions
 // and validation, toJSON) and diffed by rtcice_matches_chrome_truth.
 
@@ -8165,7 +8167,7 @@ __platform.define("xpath", function (exports, require, P) {
 // Chrome), the core function library with arity checks, node-set / number / string /
 // boolean conversions and the comparison rules, namespace resolution, and the
 // XPathResult / XPathExpression / XPathEvaluator interfaces. Pinned by
-// chrome/xpath-truth-145.json (xpath-probe.js, 552 keys: ~120 paths over every axis,
+// chrome/xpath-truth-157.json (xpath-probe.js, 552 keys: ~120 paths over every axis,
 // ~330 scalar expressions and functions, result types, ~130 malformed expressions,
 // namespaces, order) and diffed by xpath_matches_chrome_truth.
 //
@@ -9064,7 +9066,7 @@ __platform.define("intersection", function (exports, require, P) {
 // illegal and its eight members are prototype getters over a private slot;
 // the observer validates callback/options with exact wording, normalizes
 // rootMargin/scrollMargin to four tokens, keeps thresholds as sorted float32 and
-// hands out a fresh frozen copy per read. Pinned by chrome/ioentry-truth-145.json
+// hands out a fresh frozen copy per read. Pinned by chrome/ioentry-truth-157.json
 // (ioentry-probe.js, 31 keys) and diffed by intersection_matches_chrome_truth.
 //
 // BEHAVIOUR POLICY (unchanged, moved from bootstrap.js): without a layout
@@ -9110,7 +9112,7 @@ const PRE = "Failed to construct 'IntersectionObserver'";
 function parseMargin(v, fn) {
   const toks = String(v).trim().split(/\s+/);
   if (toks.length < 1 || toks.length > 4 || !toks.every((t) => /^-?(\d+\.?\d*|\.\d+)(px|%)$/.test(t))) {
-    throw new DOMException(PRE + ': rootMargin must be specified in pixels or percent.', 'SyntaxError');
+    throw new DOMException(PRE + ': rootMargin must be specified in absolute length units or percent.', 'SyntaxError');
   }
   const [t, r = t, b = t, l = r] = toks;
   return [t, r, b, l].join(' ');
@@ -9362,7 +9364,7 @@ __platform.define("notification", function (exports, require, P) {
 // 'default', the first requestPermission() settles 'denied' (and stays), and
 // constructing a Notification without permission asynchronously fires a
 // trusted plain `error` Event - the notification never shows. Every fact
-// below is pinned by chrome/notification-truth-145.json (notification-probe.js)
+// below is pinned by chrome/notification-truth-157.json (notification-probe.js)
 // and diffed by notification_matches_chrome_truth.
 
 let permission = 'default';
@@ -9517,7 +9519,7 @@ __platform.define("sensor", function (exports, require, P) {
 // to a sensor'), nothing ever activates and no reading ever arrives - exactly
 // the surface fingerprinting scripts and feature probes observe. Magnetometer
 // and AmbientLightSensor do NOT exist in Chrome 145 and are deliberately not
-// defined here. Every fact is pinned by chrome/sensor-truth-145.json
+// defined here. Every fact is pinned by chrome/sensor-truth-157.json
 // (sensor-probe.js) and diffed by sensor_family_matches_chrome_truth.
 
 const slots = new WeakMap();   // sensor -> { handlers, timer }
@@ -9686,7 +9688,7 @@ __platform.define("speech", function (exports, require, P) {
 // 'not-allowed' and then a trusted plain 'end' (never 'start'); stop()/abort()
 // while started cancel the error and leave only 'end'. SpeechRecognitionResult/
 // ResultList/Alternative are not exposed on window. The webkit* names are the
-// SAME interface objects. Every fact is pinned by chrome/speech-truth-145.json
+// SAME interface objects. Every fact is pinned by chrome/speech-truth-157.json
 // (speech-probe.js) and diffed by speech_family_matches_chrome_truth.
 
 // ---- conversions
@@ -10090,7 +10092,7 @@ __platform.define("treewalker", function (exports, require, P) {
 // (own enumerable root/currentNode/whatToShow/filter plus own `_filter`, `_accept`, `_traverse*` and every mover as an own
 // method): not instances of TreeWalker/NodeIterator, `[object Object]`, thirteen leaked own keys. Chrome 145: illegal constructors,
 // prototype accessors (root/whatToShow/filter read-only, currentNode read-write) over private state, prototype movers.
-// Pinned by chrome/treewalker-truth-145.json (treewalker-probe.js) and diffed by treewalker_matches_chrome_truth. The traversal
+// Pinned by chrome/treewalker-truth-157.json (treewalker-probe.js) and diffed by treewalker_matches_chrome_truth. The traversal
 // algorithms are the engine's existing ones (issues #432 #461 #462 #467 #469 #475: DOM 6.1/6.2 "traverse children/siblings",
 // REJECT pruning in both directions, iterator pointer semantics) moved verbatim onto the prototypes; what changes is the face.
 
@@ -10280,7 +10282,7 @@ __platform.define("uievent", function (exports, require, P) {
 // The bootstrap classes kept a hand-picked subset of the init dictionary
 // (`o.screenX||0`) and dropped everything else, so movementX, keyCode,
 // tiltX, getModifierState ... could not exist at all (92 of 111 probe keys
-// off). Every fact below is pinned by chrome/uievent-truth-145.json (real
+// off). Every fact below is pinned by chrome/uievent-truth-157.json (real
 // Chrome 145, uievent-probe.js) and diffed by uievent_family_matches_chrome_truth.
 //
 // Shape: the constructor is a plain function that builds the native Event with
@@ -10679,7 +10681,7 @@ __platform.define("urlpattern", function (exports, require, P) {
 // pattern-string parser, per-component canonicalization, regexp generation,
 // pattern-string generation, constructor-string parser and matching - written
 // from the standard's algorithms and checked against real Chrome 145 on a
-// 900-key corpus (chrome/urlpattern-truth-145.json, urlpattern-probe.js):
+// 900-key corpus (chrome/urlpattern-truth-157.json, urlpattern-probe.js):
 // constructions of every shape, exact liburlpattern-style error wording, and a
 // 741-case pattern x input match matrix. The old bootstrap class was an inert
 // stub (test() always false, exec() always null).

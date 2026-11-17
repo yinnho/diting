@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fingerprint -> reflector spec (M4 knife 6).
 
-Input: chrome/htmlreflect-truth-145.json, produced by htmlreflect-probe.js in
+Input: chrome/htmlreflect-truth-157.json, produced by htmlreflect-probe.js in
 real Chrome 145. For one read-write member the probe recorded a behavior
 fingerprint: the default read, the read-back + created attribute after each of
 a fixed list of property sets, the read-back after raw setAttribute of each of
@@ -22,7 +22,7 @@ Run directly for a classification report:
 import json, math, os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-TRUTH_PATH = os.path.join(HERE, "..", "chrome", "htmlreflect-truth-145.json")
+TRUTH_PATH = os.path.join(HERE, "..", "chrome", "htmlreflect-truth-157.json")
 
 UNDEF = object()
 SET_VALUES = {

@@ -352,9 +352,9 @@
     "phrases": "rw:true",
     "processLocally": "rw:true",
     "quality": "rw:true",
-    "unspokenPunctuation": "rw:true",
     "start": "function:0:true",
-    "stop": "function:0:true"
+    "stop": "function:0:true",
+    "unspokenPunctuation": "rw:true"
    },
    "len": 0,
    "order": [
@@ -488,12 +488,6 @@
   true,
   true
  ],
- "sr.quality": [
-  false,
-  "command",
-  "dictation",
-  true
- ],
  "sr.grammars.set": [
   true,
   "TypeError: Failed to set the 'grammars' property on 'SpeechRecognition': Failed to convert value to 'SpeechGrammarList'."
@@ -518,6 +512,12 @@
  "sr.phrases.set": [
   "ok",
   0
+ ],
+ "sr.quality": [
+  false,
+  "command",
+  "dictation",
+  true
  ],
  "sr.set": [
   "zh-CN",

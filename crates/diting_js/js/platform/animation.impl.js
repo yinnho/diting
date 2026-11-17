@@ -8,7 +8,7 @@
 // AnimationEffect / DocumentTimeline as constructor stubs and Element.animate
 // returned a hand-rolled object literal (web_api_gaps.js) that was not an
 // Animation, had no real playState machine, no pending state, no
-// KeyframeEffect. Pinned by chrome/anim-truth-145.json (anim-probe.js: shape of
+// KeyframeEffect. Pinned by chrome/anim-truth-157.json (anim-probe.js: shape of
 // six interfaces, timing validation, keyframe normalization, the play/pause/
 // finish/cancel/reverse/updatePlaybackRate state machine, ready/finished promise
 // identity, finish/cancel/remove events, replace state, getAnimations) and

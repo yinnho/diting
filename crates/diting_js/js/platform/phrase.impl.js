@@ -8,7 +8,7 @@
 // the readonly phrase/boost getters in Chrome's order — is generated from
 // the speech-api IDL in gen/phrase.gen.js. `float` is not a simple ctor
 // type, so the boost conversion and the [0, 10] check stay here.
-// Pinned by tools/webplatform/chrome/speech-truth-145.json.
+// Pinned by tools/webplatform/chrome/speech-truth-157.json.
 'use strict';
 
 const slots = new WeakMap();

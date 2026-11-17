@@ -612,6 +612,27 @@ macro_rules! qualname {
     };
 }
 
+/// A tokenizer-marked `<?target data?>` bogus comment. The leading NUL is
+/// not part of the source; the `?` that follows it was reconsumed.
+fn chrome157_pi(text: &str) -> Option<(StrTendril, StrTendril)> {
+    let rest = text.strip_prefix('\0')?.strip_prefix('?')?;
+    let bytes = rest.as_bytes();
+    if bytes.is_empty() || !(bytes[0].is_ascii_alphanumeric() || bytes[0] == b'-') {
+        return None;
+    }
+    let mut i = 0;
+    while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'-') {
+        i += 1;
+    }
+    let target = rest[..i].to_ascii_lowercase();
+    let mut j = i;
+    while j < bytes.len() && matches!(bytes[j], b' ' | b'\t' | b'\n' | b'\r' | 0x0c) {
+        j += 1;
+    }
+    let data = rest[j..].strip_suffix('?').unwrap_or(&rest[j..]);
+    Some((StrTendril::from(target), StrTendril::from(data)))
+}
+
 #[doc(hidden)]
 impl<Handle, Sink> TreeBuilder<Handle, Sink>
 where
@@ -1323,23 +1344,38 @@ where
     }
 
     fn append_comment(&self, text: StrTendril) -> ProcessResult<Handle> {
-        let comment = self.sink.create_comment(text);
-        self.insert_appropriately(AppendNode(comment), None);
+        let node = self.comment_or_pi(text);
+        self.insert_appropriately(AppendNode(node), None);
         ProcessResult::Done
     }
 
     fn append_comment_to_doc(&self, text: StrTendril) -> ProcessResult<Handle> {
-        let comment = self.sink.create_comment(text);
-        self.sink.append(&self.doc_handle, AppendNode(comment));
+        let node = self.comment_or_pi(text);
+        self.sink.append(&self.doc_handle, AppendNode(node));
         ProcessResult::Done
     }
 
     fn append_comment_to_html(&self, text: StrTendril) -> ProcessResult<Handle> {
         let open_elems = self.open_elems.borrow();
         let target = html_elem(&open_elems);
-        let comment = self.sink.create_comment(text);
-        self.sink.append(target, AppendNode(comment));
+        let node = self.comment_or_pi(text);
+        self.sink.append(target, AppendNode(node));
         ProcessResult::Done
+    }
+
+    /// Chrome 157: a `<?target data?>` bogus comment (marked with a leading
+    /// NUL by the tokenizer) is a processing instruction. A real
+    /// `<!--...-->` comment is not marked and stays a comment.
+    fn comment_or_pi(&self, text: StrTendril) -> Handle {
+        if let Some((target, data)) = chrome157_pi(&text) {
+            return self.sink.create_pi(target, data);
+        }
+        let text = if text.starts_with('\0') {
+            text.subtendril(1, text.len32() - 1)
+        } else {
+            text
+        };
+        self.sink.create_comment(text)
     }
 
     //§ creating-and-inserting-nodes

@@ -259,7 +259,7 @@ globalThis.PerformanceObserverEntryList = PerformanceObserverEntryList;
 // singleton is minted once here through an internal gate (M4 knife 3:
 // methods on the public Performance.prototype, chain
 // Performance.prototype → EventTarget.prototype — truth
-// eventtarget-chain-truth-145.json).
+// eventtarget-chain-truth-157.json).
 let _perfInit = false;
 class Performance {
   constructor() {

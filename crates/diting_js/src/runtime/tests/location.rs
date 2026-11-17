@@ -656,7 +656,7 @@ async fn urlpattern_matches_chrome_truth() {
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/urlpattern-truth-145.json"
+        "../../../../../tools/webplatform/chrome/urlpattern-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();

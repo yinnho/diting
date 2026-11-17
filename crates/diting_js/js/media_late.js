@@ -82,7 +82,7 @@
     const v = this.getAttribute('loading');
     return v != null && String(v).toLowerCase() === 'lazy' ? 'lazy' : 'eager';
   };
-  const set = function (v) { this.setAttribute('loading', v == null ? 'null' : String(v)); };
+  const set = function (v) { this.setAttribute('loading', v === null ? 'null' : String(v)); };
   Object.defineProperty(get, 'name', { value: 'get loading', configurable: true });
   Object.defineProperty(set, 'name', { value: 'set loading', configurable: true });
   if (globalThis._markNative) { _markNative(get); _markNative(set); }

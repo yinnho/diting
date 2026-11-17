@@ -8,7 +8,7 @@
 // Document.prototype - and because they were absent, page assignments such as
 // `document.bgColor = 'red'` or `document.fullscreen = true` silently minted
 // own data properties on the document (fingerprint-visible, and the "value" then
-// read back as whatever the page wrote). Pinned by chrome/docmisc-truth-145.json
+// read back as whatever the page wrote). Pinned by chrome/docmisc-truth-157.json
 // (docmisc-probe.js, 36 keys) and diffed by docmisc_matches_chrome_truth.
 //
 // Shape: the members are installed in Chrome's relative order. The five colour
