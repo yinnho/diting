@@ -1063,6 +1063,22 @@ fn test_get_computed_style_initial_values_not_empty() {
                     objectFit: getComputedStyle(document.getElementById('d')).objectFit,
                     aspectRatio: getComputedStyle(document.getElementById('d')).aspectRatio,
                     outlineWidth: getComputedStyle(document.getElementById('d')).outlineWidth,
+                    letterSpacing: getComputedStyle(document.getElementById('d')).letterSpacing,
+                    wordBreak: getComputedStyle(document.getElementById('d')).wordBreak,
+                    overflowWrap: getComputedStyle(document.getElementById('d')).overflowWrap,
+                    hyphens: getComputedStyle(document.getElementById('d')).hyphens,
+                    tabSize: getComputedStyle(document.getElementById('d')).tabSize,
+                    listImage: getComputedStyle(document.getElementById('d')).listStyleImage,
+                    bgOrigin: getComputedStyle(document.getElementById('d')).backgroundOrigin,
+                    borderImage: getComputedStyle(document.getElementById('d')).borderImageSource,
+                    objectPos: getComputedStyle(document.getElementById('d')).objectPosition,
+                    gridFlow: getComputedStyle(document.getElementById('d')).gridAutoFlow,
+                    alignContent: getComputedStyle(document.getElementById('d')).alignContent,
+                    justifyItems: getComputedStyle(document.getElementById('d')).justifyItems,
+                    fontStretch: getComputedStyle(document.getElementById('d')).fontStretch,
+                    transformStyle: getComputedStyle(document.getElementById('d')).transformStyle,
+                    touchAction: getComputedStyle(document.getElementById('d')).touchAction,
+                    quotes: getComputedStyle(document.getElementById('d')).quotes,
                 })"#,
             )
             .unwrap();
@@ -1088,6 +1104,22 @@ fn test_get_computed_style_initial_values_not_empty() {
     // Verified against local Chromium: the computed value stays `medium`
     // (3px) even with outline-style none — not the used value 0px.
     assert_eq!(v["outlineWidth"], serde_json::json!("3px"));
+    assert_eq!(v["letterSpacing"], serde_json::json!("normal"));
+    assert_eq!(v["wordBreak"], serde_json::json!("normal"));
+    assert_eq!(v["overflowWrap"], serde_json::json!("normal"));
+    assert_eq!(v["hyphens"], serde_json::json!("manual"));
+    assert_eq!(v["tabSize"], serde_json::json!("8"));
+    assert_eq!(v["listImage"], serde_json::json!("none"));
+    assert_eq!(v["bgOrigin"], serde_json::json!("padding-box"));
+    assert_eq!(v["borderImage"], serde_json::json!("none"));
+    assert_eq!(v["objectPos"], serde_json::json!("50% 50%"));
+    assert_eq!(v["gridFlow"], serde_json::json!("row"));
+    assert_eq!(v["alignContent"], serde_json::json!("normal"));
+    assert_eq!(v["justifyItems"], serde_json::json!("normal"));
+    assert_eq!(v["fontStretch"], serde_json::json!("100%"));
+    assert_eq!(v["transformStyle"], serde_json::json!("flat"));
+    assert_eq!(v["touchAction"], serde_json::json!("auto"));
+    assert_eq!(v["quotes"], serde_json::json!("auto"));
 }
 
 /// Upstream a0e1ba5: CSSStyleDeclaration is a real global interface — the
