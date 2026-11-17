@@ -1134,6 +1134,15 @@ fn test_get_computed_style_initial_values_not_empty() {
                     scrollInit: getComputedStyle(document.getElementById('d')).scrollInitialTarget,
                     interp: getComputedStyle(document.getElementById('d')).interpolateSize,
                     webkitOri: getComputedStyle(document.getElementById('d')).webkitTextOrientation,
+                    anchorName: getComputedStyle(document.getElementById('d')).anchorName,
+                    corner: getComputedStyle(document.getElementById('d')).cornerTopLeftShape,
+                    maxInline: getComputedStyle(document.getElementById('d')).maxInlineSize,
+                    minInline: getComputedStyle(document.getElementById('d')).minInlineSize,
+                    textWrap: getComputedStyle(document.getElementById('d')).textWrapStyle,
+                    vtClass: getComputedStyle(document.getElementById('d')).viewTransitionClass,
+                    maskX: getComputedStyle(document.getElementById('d')).webkitMaskPositionX,
+                    reflect: getComputedStyle(document.getElementById('d')).webkitBoxReflect,
+                    rowRule: getComputedStyle(document.getElementById('d')).rowRuleStyle,
                 })"#,
             )
             .unwrap();
@@ -1230,6 +1239,15 @@ fn test_get_computed_style_initial_values_not_empty() {
     assert_eq!(v["scrollInit"], serde_json::json!("none"));
     assert_eq!(v["interp"], serde_json::json!("numeric-only"));
     assert_eq!(v["webkitOri"], serde_json::json!("vertical-right"));
+    assert_eq!(v["anchorName"], serde_json::json!("none"));
+    assert_eq!(v["corner"], serde_json::json!("round"));
+    assert_eq!(v["maxInline"], serde_json::json!("none"));
+    assert_eq!(v["minInline"], serde_json::json!("0px"));
+    assert_eq!(v["textWrap"], serde_json::json!("auto"));
+    assert_eq!(v["vtClass"], serde_json::json!("none"));
+    assert_eq!(v["maskX"], serde_json::json!("0%"));
+    assert_eq!(v["reflect"], serde_json::json!("none"));
+    assert_eq!(v["rowRule"], serde_json::json!("none"));
 }
 
 /// Upstream a0e1ba5: CSSStyleDeclaration is a real global interface — the
