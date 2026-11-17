@@ -294,10 +294,8 @@ globalThis.OfflineAudioContext = class OfflineAudioContext extends BaseAudioCont
     const self = this;
     return Promise.resolve().then(() => {
       _ctxSetState(self, 'closed');
-      // OfflineAudioCompletionEvent: a real Event carrying renderedBuffer;
       // dispatch fires the oncomplete handler attribute itself.
-      const ev = new Event('complete');
-      Object.defineProperty(ev, 'renderedBuffer', { value: buf, enumerable: false, configurable: true });
+      const ev = new globalThis.OfflineAudioCompletionEvent('complete', { renderedBuffer: buf });
       try { self.dispatchEvent(ev); } catch (e) {}
       return buf;
     });
@@ -316,6 +314,48 @@ globalThis.OfflineAudioContext = class OfflineAudioContext extends BaseAudioCont
 _markNativeProto(globalThis.BaseAudioContext.prototype);
 _markNativeProto(globalThis.AudioContext.prototype);
 _markNativeProto(globalThis.OfflineAudioContext.prototype);
+// Chrome 157: OfflineAudioCompletionEvent(type, init) with a required
+// renderedBuffer. The buffer lives in a WeakMap so the instance has no own
+// key; the prototype getter is what for-in / hasOwnProperty see past.
+const _oacEvBuf = new WeakMap();
+function OfflineAudioCompletionEvent(type, init) {
+  const PRE = "Failed to construct 'OfflineAudioCompletionEvent'";
+  if (new.target === undefined) throw new TypeError(PRE + ": Please use the 'new' operator, this DOM object constructor cannot be called as a function.");
+  const P = globalThis.__diting_P;
+  P.args(PRE, arguments.length, 2, OfflineAudioCompletionEvent);
+  const typeStr = P.conv.DOMString(type, PRE, OfflineAudioCompletionEvent);
+  const d = P.dict(PRE, init, 'OfflineAudioCompletionEventInit', [
+    ['bubbles', 'boolean', { def: false }],
+    ['cancelable', 'boolean', { def: false }],
+    ['composed', 'boolean', { def: false }],
+    ['renderedBuffer', function (raw, tail, fn) {
+      if (!(raw instanceof globalThis.AudioBuffer)) P.fail(fn, "The provided value is not of type 'AudioBuffer'.", tail);
+      return raw;
+    }, { req: true }],
+  ], OfflineAudioCompletionEvent);
+  const ev = Reflect.construct(Event, [typeStr, { bubbles: d.bubbles, cancelable: d.cancelable, composed: d.composed }], new.target);
+  if (Object.getPrototypeOf(ev) !== new.target.prototype) Object.setPrototypeOf(ev, new.target.prototype);
+  _oacEvBuf.set(ev, d.renderedBuffer);
+  return ev;
+}
+Object.defineProperty(globalThis, 'OfflineAudioCompletionEvent', { value: OfflineAudioCompletionEvent, writable: true, enumerable: false, configurable: true });
+Object.setPrototypeOf(OfflineAudioCompletionEvent.prototype, Event.prototype);
+Object.defineProperty(OfflineAudioCompletionEvent.prototype, 'renderedBuffer', {
+  get() {
+    if (this === null || (typeof this !== 'object' && typeof this !== 'function') || !_oacEvBuf.has(this)) throw new TypeError('Illegal invocation');
+    return _oacEvBuf.get(this);
+  },
+  enumerable: true, configurable: true,
+});
+{
+  const proto = OfflineAudioCompletionEvent.prototype;
+  const c = proto.constructor;
+  delete proto.constructor;
+  Object.defineProperty(proto, 'constructor', { value: c, writable: true, enumerable: false, configurable: true });
+  Object.defineProperty(proto, Symbol.toStringTag, { value: 'OfflineAudioCompletionEvent', writable: false, enumerable: false, configurable: true });
+}
+_markNative(OfflineAudioCompletionEvent);
+_markNativeProto(OfflineAudioCompletionEvent.prototype);
 // 刀87: real constructor faces for BiquadFilterNode / IIRFilterNode (Chrome 145
 // ladders, k87-ctor-e/f). The instance stays the _audioNode product (native
 // EventTarget core + own working members) wearing the interface prototype, so
