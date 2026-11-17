@@ -1124,6 +1124,16 @@ fn test_get_computed_style_initial_values_not_empty() {
                     cx: getComputedStyle(document.getElementById('d')).cx,
                     rx: getComputedStyle(document.getElementById('d')).rx,
                     barColor: getComputedStyle(document.getElementById('d')).scrollbarColor,
+                    caretShape: getComputedStyle(document.getElementById('d')).caretShape,
+                    fontPal: getComputedStyle(document.getElementById('d')).fontPalette,
+                    maskSize: getComputedStyle(document.getElementById('d')).maskSize,
+                    maskPos: getComputedStyle(document.getElementById('d')).maskPosition,
+                    logicalR: getComputedStyle(document.getElementById('d')).borderStartStartRadius,
+                    marginTrim: getComputedStyle(document.getElementById('d')).marginTrim,
+                    readFlow: getComputedStyle(document.getElementById('d')).readingFlow,
+                    scrollInit: getComputedStyle(document.getElementById('d')).scrollInitialTarget,
+                    interp: getComputedStyle(document.getElementById('d')).interpolateSize,
+                    webkitOri: getComputedStyle(document.getElementById('d')).webkitTextOrientation,
                 })"#,
             )
             .unwrap();
@@ -1210,6 +1220,16 @@ fn test_get_computed_style_initial_values_not_empty() {
     assert_eq!(v["cx"], serde_json::json!("0px"));
     assert_eq!(v["rx"], serde_json::json!("auto"));
     assert_eq!(v["barColor"], serde_json::json!("auto"));
+    assert_eq!(v["caretShape"], serde_json::json!("auto"));
+    assert_eq!(v["fontPal"], serde_json::json!("normal"));
+    assert_eq!(v["maskSize"], serde_json::json!("auto"));
+    assert_eq!(v["maskPos"], serde_json::json!("50% 50%"));
+    assert_eq!(v["logicalR"], serde_json::json!("0px"));
+    assert_eq!(v["marginTrim"], serde_json::json!("none"));
+    assert_eq!(v["readFlow"], serde_json::json!("normal"));
+    assert_eq!(v["scrollInit"], serde_json::json!("none"));
+    assert_eq!(v["interp"], serde_json::json!("numeric-only"));
+    assert_eq!(v["webkitOri"], serde_json::json!("vertical-right"));
 }
 
 /// Upstream a0e1ba5: CSSStyleDeclaration is a real global interface — the
