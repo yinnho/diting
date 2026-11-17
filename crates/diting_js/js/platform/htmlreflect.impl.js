@@ -211,7 +211,7 @@ const SET = {
   'Title.text'(el, v) { nodeText.set.call(el, dstr(v, 'text', 'HTMLTitleElement', SET['Title.text'])); },
   'Script.text'(el, v) { nodeText.set.call(el, dstr(v, 'text', 'HTMLScriptElement', SET['Script.text'])); },
   'Script.textContent'(el, v) { nodeText.set.call(el, v === null ? '' : String(v)); },
-  'Script.innerText'(el, v) { nodeText.set.call(el, String(v)); },
+  'Script.innerText'(el, v) { nodeText.set.call(el, v === undefined ? 'undefined' : v === null ? '' : String(v)); },
   'Style.disabled'(el, v) { if (el.sheet) el.sheet.disabled = !!v; },
   'Base.href'(el, v) { el.setAttribute('href', dstr(v, 'href', 'HTMLBaseElement', SET['Base.href'])); },
   'Template.shadowRootReferenceTarget'(el, v) {

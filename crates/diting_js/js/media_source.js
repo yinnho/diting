@@ -83,7 +83,7 @@ _markNative((globalThis.HTMLMediaElement ? globalThis.HTMLMediaElement.prototype
 // DOM/UI mounting for automation; pulling the real stream stays the
 // sniffer's job (session_network filter=media).
 function _mediaRanges(pairs) {
-  return {
+  const o = {
     length: pairs.length,
     start(i) {
       i = i >>> 0;
@@ -96,6 +96,8 @@ function _mediaRanges(pairs) {
       return pairs[i][1];
     },
   };
+  if (globalThis.TimeRanges) Object.setPrototypeOf(o, TimeRanges.prototype);
+  return o;
 }
 const _EMPTY_RANGES = _mediaRanges([]);
 

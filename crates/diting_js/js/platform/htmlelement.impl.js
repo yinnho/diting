@@ -132,11 +132,13 @@ const SET = {
       s + "') is not one of 'true', 'false', 'plaintext-only', or 'inherit'.", 'SyntaxError');
   },
   outerText(el, v) {
-    // Chrome replaces the element with a text node (truth set.outerText:
-    // parentNode is null afterwards); parentless is a silent no-op.
+    // Chrome replaces the element with a text node. A parentless element
+    // throws; the probe's detached div hits this on every set.
     const parent = el.parentNode;
-    if (!parent) return;
-    parent.replaceChild(document.createTextNode(String(v)), el);
+    if (!parent) {
+      throw new DOMException("Failed to set the 'outerText' property on 'HTMLElement': The element has no parent.", 'NoModificationAllowedError');
+    }
+    parent.replaceChild(document.createTextNode(v === undefined ? 'undefined' : v === null ? '' : String(v)), el);
   },
   editContext() { /* swallow */ },
   classList(el, v) { el.className = v === undefined || v === null ? '' : String(v); },

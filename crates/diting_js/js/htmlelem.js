@@ -625,14 +625,14 @@ Object.defineProperties(HTMLMediaElement.prototype, {
   ended: { configurable: true, get() { return false; } },
   seeking: { configurable: true, get() { return false; } },
   duration: { configurable: true, get() { return this._mediaDuration ?? (this._mediaSource ? this._mediaSource.duration : NaN); }, set(v) { this._mediaDuration = Number(v); } },
-  currentTime: { configurable: true, get() { return this._currentTime || 0; }, set(v) { this._currentTime = Number(v) || 0; } },
-  playbackRate: { configurable: true, get() { return this._playbackRate || 1; }, set(v) { this._playbackRate = Number(v) || 1; } },
+  currentTime: { configurable: true, get() { return this._currentTime || 0; }, set(v) { const n = Number(v); if (!Number.isFinite(n)) throw new TypeError("Failed to set the 'currentTime' property on 'HTMLMediaElement': The provided double value is non-finite."); this._currentTime = n; } },
+  playbackRate: { configurable: true, get() { return this._playbackRate == null ? 1 : this._playbackRate; }, set(v) { const n = Number(v); if (!Number.isFinite(n)) throw new TypeError("Failed to set the 'playbackRate' property on 'HTMLMediaElement': The provided double value is non-finite."); if (n < 0 || n > 16) { const t = n.toPrecision(6); const s = t.indexOf('e') >= 0 ? t.replace(/\.?0+e/, 'e') : (t.indexOf('.') < 0 ? t : t.replace(/\.?0+$/, '')); throw new DOMException("Failed to set the 'playbackRate' property on 'HTMLMediaElement': The provided playback rate (" + s + ") is not in the supported playback range.", 'NotSupportedError'); } this._playbackRate = n; } },
   readyState: { configurable: true, get() { return this._mediaReadyState || 0; } },
   networkState: { configurable: true, get() { return this._mediaNetworkState || 0; } },
-  buffered: { configurable: true, get() { return this._mediaSource ? _mediaRanges(this._mediaSource._unionBuffered()) : _EMPTY_RANGES; } },
-  played: { configurable: true, get() { return _EMPTY_RANGES; } },
+  buffered: { configurable: true, get() { return this._mediaSource ? _mediaRanges(this._mediaSource._unionBuffered()) : _mediaRanges([]); } },
+  played: { configurable: true, get() { return _mediaRanges([]); } },
   seekable: { configurable: true, get() {
-    if (!this._mediaSource) return _EMPTY_RANGES;
+    if (!this._mediaSource) return _mediaRanges([]);
     const d = this._mediaSource.duration;
     return Number.isFinite(d) && d > 0 ? _mediaRanges([[0, d]]) : _EMPTY_RANGES;
   } },
@@ -766,11 +766,13 @@ for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) 
   Object.defineProperty(_C.prototype, 'selectionStart', {
     get: function() {
       if (!_ns_isTextEntry(this)) return null;
-      return _ns_selectionStart.get(this) ?? null;
+      return _ns_selectionStart.get(this) ?? 0;
     },
     set: function(v) {
       if (!_ns_isTextEntry(this)) _ns_selTypeErr(this, 'selectionStart');
-      _ns_selectionStart.set(this, v == null ? null : Math.max(0, parseInt(v, 10) || 0));
+      const len = String(this.value == null ? '' : this.value).length;
+      const n = v == null ? 0 : Math.max(0, parseInt(v, 10) || 0);
+      _ns_selectionStart.set(this, Math.min(n, len));
       _ns_mirrorSelection(this);
     },
     enumerable: true,
@@ -782,11 +784,13 @@ for (const _C of [globalThis.HTMLInputElement, globalThis.HTMLTextAreaElement]) 
   Object.defineProperty(_C.prototype, 'selectionEnd', {
     get: function() {
       if (!_ns_isTextEntry(this)) return null;
-      return _ns_selectionEnd.get(this) ?? null;
+      return _ns_selectionEnd.get(this) ?? 0;
     },
     set: function(v) {
       if (!_ns_isTextEntry(this)) _ns_selTypeErr(this, 'selectionEnd');
-      _ns_selectionEnd.set(this, v == null ? null : Math.max(0, parseInt(v, 10) || 0));
+      const len = String(this.value == null ? '' : this.value).length;
+      const n = v == null ? 0 : Math.max(0, parseInt(v, 10) || 0);
+      _ns_selectionEnd.set(this, Math.min(n, len));
       _ns_mirrorSelection(this);
     },
     enumerable: true,

@@ -954,7 +954,7 @@ class Element extends Node {
       return this.textContent;
     }
   }
-  set innerText(v) { this.textContent = v; }
+  set innerText(v) { this.textContent = v === undefined ? 'undefined' : v === null ? '' : String(v); }
   get children() {
     const ids = _domParse("element_children", this._nid) || [];
     return __diting_mkCollection(ids.map(_wrapEl).filter(Boolean));
@@ -1085,7 +1085,7 @@ class Element extends Node {
     }
   }
   get style() { return this._style; }
-  set style(v) { if (typeof v === "string") this._style.cssText = v; }
+  set style(v) { this._style.cssText = v == null ? '' : String(v); if (this.getAttribute('style') === null) this.setAttribute('style', ''); }
   getAttribute(n) {
     // Fast path: HTML attributes are stored lowercase, so a direct hit needs no
     // case folding. Only on a miss do we lowercase (gated) and retry, so the hot
@@ -1688,18 +1688,16 @@ class Element extends Node {
       _ns_mirrorSelection(this);
       return;
     }
-    _formValues[this._nid] = String(v);
-    // Mirror the dirty value into the Rust tree (NodeData::Element::
-    // live_value) so paint can draw what the control shows. Kept out of the
-    // value ATTRIBUTE on purpose — Chrome's el.value=x never touches
-    // getAttribute('value')/outerHTML, and this preserves that.
-    _domRaw("set_live_value", String(this._nid), String(v));
+    const shown = v === null ? '' : String(v);
+    _formValues[this._nid] = shown;
+    // Dirty value stays off the value attribute. null stores ''.
+    _domRaw("set_live_value", String(this._nid), shown);
     // Chrome: assigning value moves the selection to the end (any prior
     // range is dropped). insertText/Backspace write through here first and
     // then setSelectionRange their own caret, so the reset ordering works
     // out naturally.
     if (_ns_isTextEntry(this)) {
-      const len = String(v).length;
+      const len = shown.length;
       _ns_selectionStart.set(this, len);
       _ns_selectionEnd.set(this, len);
       _ns_mirrorSelection(this);
@@ -1719,14 +1717,13 @@ class Element extends Node {
     return _makeFileList(_fileInputs[this._nid] || []);
   }
   set files(v) {
-    if (this.localName !== 'input' || this._inputType() !== 'file') return;
-    // Chrome-shaped tolerance: the setter only accepts sequences of File and
-    // silently ignores anything else (polyfills that reassign a DataTransfer
-    // fileList must not explode). null/undefined clears the selection.
+    const fileType = this.localName === 'input' && this._inputType() === 'file';
+    // Text inputs throw unless null; file inputs keep the polyfill tolerance.
+    if (!fileType) {
+      if (v != null) throw new TypeError("Failed to set the 'files' property on 'HTMLInputElement': Failed to convert value to 'FileList'.");
+      return;
+    }
     if (v == null) { delete _fileInputs[this._nid]; return; }
-    // (#57) A bare File is the most common page-level injection typo
-    // (`input.files = file`) — accept it as a one-entry selection instead
-    // of a silent no-op, which cost the xhs send batch a debug cycle.
     if (typeof File === 'function' && v instanceof File) { _fileInputs[this._nid] = [v]; return; }
     if (typeof v !== 'object' || typeof v.length !== 'number') return;
     const out = [];
@@ -1773,10 +1770,10 @@ class Element extends Node {
     return new Date(n);
   }
   set valueAsDate(d) {
+    if (d !== null && d !== undefined && !(d instanceof Date)) throw new TypeError("Failed to set the 'valueAsDate' property on 'HTMLInputElement': Failed to convert value to 'object'.");
     const t = this._inputType();
     if (!_INPUT_DATE_TYPES[t]) throw new DOMException("Failed to set the 'valueAsDate' property on 'HTMLInputElement': This input element does not support Date values.", 'InvalidStateError');
-    if (d === null) { this.value = ''; return; }
-    if (!(d instanceof Date)) throw new TypeError("Failed to set the 'valueAsDate' property on 'HTMLInputElement': The provided value is not a Date.");
+    if (d == null) { this.value = ''; return; }
     const ms = d.getTime();
     if (isNaN(ms)) { this.value = ''; return; }
     if (t === 'month') { this.value = _inputFormatNumber('month', (d.getUTCFullYear() - 1970) * 12 + d.getUTCMonth()); return; }
@@ -1861,7 +1858,9 @@ class Element extends Node {
     // array, so value comparisons against strings never matched.
     if (this.localName === "select") return this.hasAttribute("multiple") ? "select-multiple" : "select-one";
     if (this.localName === "textarea") return "textarea";
-    return this.getAttribute("type") || (this.localName === "input" ? "text" : "");
+    if (this.localName !== "input") return this.getAttribute("type") || "";
+    const raw = (this.getAttribute("type") || "text").toLowerCase();
+    return /^(hidden|text|search|tel|url|email|password|date|month|week|time|datetime-local|number|range|color|checkbox|radio|file|submit|image|reset|button)$/.test(raw) ? raw : "text";
   }
   set type(v) { this.setAttribute("type", v); }
   get name() { return this.getAttribute("name") || ""; }
@@ -1886,7 +1885,7 @@ class Element extends Node {
   }
   set href(v) { this.setAttribute("href", v); }
   // HTMLHyperlinkElementUtils URL-decomposition members, live on <a>/<area>.
-  get protocol() { const u = (this.localName === 'a' || this.localName === 'area') ? _elemHrefURL(this) : null; return u ? u.protocol : ''; }
+  get protocol() { const u = (this.localName === 'a' || this.localName === 'area') ? _elemHrefURL(this) : null; return u ? u.protocol : ':'; }
   set protocol(v) { if (this.localName === 'a' || this.localName === 'area') _setElemHrefPart(this, 'protocol', v); }
   get username() { const u = (this.localName === 'a' || this.localName === 'area') ? _elemHrefURL(this) : null; return u ? u.username : ''; }
   set username(v) { if (this.localName === 'a' || this.localName === 'area') _setElemHrefPart(this, 'username', v); }
