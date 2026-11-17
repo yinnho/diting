@@ -1052,42 +1052,13 @@ async fn element_staged_members_match_chrome_truth() {
 /// img.longDesc being a URL, unsigned-long edge parsing, the 14 interfaces
 /// whose createElement instances were bare HTMLElement).
 ///
-/// KNOWN ratchets (not this family; each entry that starts matching must be
-/// removed — the test fails on a stale entry):
-/// - protocol (a/area): URL decomposition of an href-less anchor (':' vs '').
-/// - HTMLElement editContext/innerText/outerText/style: EditContext and
-///   CSSOM families (offsetHeight/offsetWidth differ only in the layout-backed
-///   served engine, not in this unit runtime).
-/// - Form.elements: HTMLFormControlsCollection default.
-/// - Media buffered/played/seekable (TimeRanges), currentTime/playbackRate
-///   (double conversion + NotSupportedError range): media state family.
-/// - Script.innerText undefined: Trusted Types union conversion.
-/// - extra *.sym: relocated native string setters do not throw on Symbol.
+/// KNOWN_FP is a ratchet: an entry that starts matching must be removed.
+/// The reflect fingerprints above (protocol, innerText, outerText, style,
+/// input value/type/files/selection/valueAsDate, media time/rate/ranges)
+/// match Chrome 157, so the list is empty.
 #[tokio::test(flavor = "current_thread")]
 async fn htmlreflect_members_match_chrome_truth() {
-    const KNOWN_FP: &[&str] = &[
-        "HTMLAnchorElement.protocol",
-        "HTMLAreaElement.protocol",
-        "HTMLElement.innerText",
-        "HTMLElement.outerText",
-        "HTMLElement.style",
-        "HTMLMediaElement.buffered",
-        "HTMLMediaElement.currentTime",
-        "HTMLMediaElement.played",
-        "HTMLMediaElement.playbackRate",
-        "HTMLMediaElement.seekable",
-        "HTMLScriptElement.innerText",
-        // knife 7 (form family) - state machinery that is not reflection:
-        "HTMLInputElement.files",
-        "HTMLInputElement.selectionEnd",
-        "HTMLInputElement.selectionStart",
-        "HTMLInputElement.type",
-        "HTMLInputElement.value",
-        "HTMLInputElement.valueAsDate",
-        "HTMLTextAreaElement.selectionEnd",
-        "HTMLTextAreaElement.selectionStart",
-        "HTMLTextAreaElement.value",
-    ];
+    const KNOWN_FP: &[&str] = &[];
     // Empty (2026-11-04): every previously-missing experimental name —
     // interestForElement, the iframe ad/privacy cluster, form/select/
     // template collections — now installs with Chrome's fingerprint.
