@@ -1448,12 +1448,14 @@ async fn knife75_tail_members() {
           const chain = (x) => { const out = []; let p = Object.getPrototypeOf(x); while (p) { const d = Object.getOwnPropertyDescriptor(p, 'constructor'); out.push(d && d.value && d.value.name); p = Object.getPrototypeOf(p); } return out; };
           const g = c.createGain(), o = c.createOscillator(), a = c.createAnalyser(), d = c.destination, l = c.listener;
           const p = c.createPanner(), bq = c.createBiquadFilter(), iir = c.createIIRFilter([1], [1]);
+          const ms = c.createMediaStreamDestination().stream;
           return {
             names: [g.constructor.name, o.constructor.name, a.constructor.name, d.constructor.name, l.constructor.name, g.gain.constructor.name, o.frequency.constructor.name, c.createDelay().constructor.name, c.createStereoPanner().constructor.name, c.createPeriodicWave().constructor.name, c.createBufferSource().constructor.name, c.createDynamicsCompressor().constructor.name, c.createConvolver().constructor.name, c.createChannelMerger().constructor.name, c.createChannelSplitter().constructor.name, c.createWaveShaper().constructor.name, c.createScriptProcessor().constructor.name, c.createConstantSource().constructor.name, bq.constructor.name, iir.constructor.name, c.createMediaStreamDestination().constructor.name, c.createMediaElementSource(document.createElement('audio')).constructor.name, c.createMediaStreamSource(c.createMediaStreamDestination().stream).constructor.name],
             enums: [keys(g), keys(o), keys(a), keys(d), keys(l), keys(g.gain), keys(o.frequency), keys(p), keys(bq), keys(iir)],
             chains: [chain(g), chain(o), chain(d), chain(l), chain(g.gain)],
             vals: [a.fftSize, a.frequencyBinCount, o.frequency.value, o.type, g.gain.value, g.gain.automationRate, d.maxChannelCount, d.numberOfOutputs, l.forwardZ.value, c.createStereoPanner().pan.value, p.orientationX.value, p.positionX.value, bq.frequency.value, bq.type, Object.prototype.toString.call(g), Object.prototype.toString.call(g.gain), Object.prototype.toString.call(l)],
             inst: [g instanceof GainNode, g instanceof AudioNode, o instanceof OscillatorNode, o instanceof AudioScheduledSourceNode, d instanceof AudioDestinationNode, l instanceof AudioListener, g.gain instanceof AudioParam, a.getByteFrequencyData.length === 1],
+            stream: [ms instanceof MediaStream, ms.constructor.name, Object.prototype.toString.call(ms), keys(ms), chain(ms), typeof ms.getAudioTracks, ms.getAudioTracks().length, typeof ms.id, ms.active],
           };
         });
         t('sink', () => { const c = new AudioContext(); return [c.sinkId, typeof c.setSinkId, c.setSinkId.length, c.onsinkchange, typeof c.audioWorklet]; });
@@ -1611,6 +1613,20 @@ async fn knife75_tail_members() {
     assert_eq!(
         o["audioFaces"]["inst"],
         serde_json::json!([true, true, true, true, true, true, true, true])
+    );
+    assert_eq!(
+        o["audioFaces"]["stream"],
+        serde_json::json!([
+            true,
+            "MediaStream",
+            "[object MediaStream]",
+            [],
+            ["MediaStream", "EventTarget", "Object"],
+            "function",
+            0,
+            "string",
+            false
+        ])
     );
     assert_eq!(
         o["sink"],

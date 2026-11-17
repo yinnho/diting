@@ -211,7 +211,7 @@ globalThis.AudioContext = class AudioContext extends BaseAudioContext {
   set onerror(v) { _ctxBag(this).onerror = v; }
   close() { _ctxSetState(this, 'closed'); return Promise.resolve(); }
   createMediaElementSource(el) { return _audioNode(this, {mediaElement:el||null}, globalThis.MediaElementAudioSourceNode); }
-  createMediaStreamDestination() { return _audioNode(this, {stream:{getTracks(){return [];},getAudioTracks(){return [];}}}, globalThis.MediaStreamAudioDestinationNode); }
+  createMediaStreamDestination() { return _audioNode(this, {stream: new globalThis.MediaStream()}, globalThis.MediaStreamAudioDestinationNode); }
   createMediaStreamSource(stream) { return _audioNode(this, {mediaStream:stream||null}, globalThis.MediaStreamAudioSourceNode); }
   getOutputTimestamp() { return {contextTime:this.currentTime,performanceTime:0}; }
   resume() { _ctxSetState(this, 'running'); return Promise.resolve(); }
