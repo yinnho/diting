@@ -817,83 +817,6 @@ impl super::JsRuntime {
     }
 }
 
-#[cfg(test)]
-mod cancel_grace_tests {
-    use super::*;
-
-    /// #332: a watchdog stuck holding the pair mutex (the post-fire state —
-    /// a thread wedged inside terminate_execution never parks in the cvar
-    /// again, so it never releases) must turn into a bounded leak, not a
-    /// blocking lock + join. Healthy threads still signal and join.
-    #[test]
-    fn bounded_ceremony_leaks_a_stuck_holder_and_joins_a_healthy_one() {
-        // Wedge: a thread that takes the pair mutex and stays parked on a
-        // foreign condvar with the guard in hand — it never checks the
-        // cancel flag and never exits.
-        let pair = std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
-        let release =
-            std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
-        let pair_c = pair.clone();
-        let release_c = release.clone();
-        let stuck = std::thread::spawn(move || {
-            // Take the pair mutex IN this thread, then park on a foreign
-            // condvar with the guard in hand — the exact posture of a
-            // watchdog wedged past its fire (never parks in the pair's own
-            // cvar again, so it never observes the cancel flag).
-            let _hold = pair_c.0.lock().unwrap();
-            let (rlock, rcvar) = &*release_c;
-            let mut done = rlock.lock().unwrap();
-            while !*done {
-                done = rcvar.wait(done).unwrap();
-            }
-        });
-        // Let the wedge take effect before the ceremony starts.
-        std::thread::sleep(std::time::Duration::from_millis(100));
-
-        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(300);
-        let t0 = std::time::Instant::now();
-        let (signalled, joined) = bounded_cancel_and_join(&pair, Some(stuck), deadline);
-        let took = t0.elapsed();
-        assert!(
-            !signalled && !joined,
-            "a mutex-holding never-exiting thread must be declared wedged"
-        );
-        assert!(
-            took < std::time::Duration::from_secs(2),
-            "the ceremony must bound, took {took:?}"
-        );
-
-        // Healthy shape: a thread that parks in its OWN pair's cvar (the
-        // normal watchdog posture) wakes on the notify and exits; both
-        // slots true and fast. Fresh pair — the wedged one is still held.
-        let healthy_pair =
-            std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
-        let healthy = std::thread::spawn({
-            let pair = healthy_pair.clone();
-            move || {
-                let (lock, cvar) = &*pair;
-                let mut cancelled = lock.lock().unwrap();
-                while !*cancelled {
-                    cancelled = cvar.wait(cancelled).unwrap();
-                }
-            }
-        });
-        let (signalled, joined) = bounded_cancel_and_join(
-            &healthy_pair,
-            Some(healthy),
-            std::time::Instant::now() + std::time::Duration::from_millis(300),
-        );
-        assert!(
-            signalled && joined,
-            "a parked, well-behaved watchdog must signal and join"
-        );
-
-        // Release the wedge so the leaked thread can die with the test.
-        *release.0.lock().unwrap() = true;
-        release.1.notify_one();
-    }
-}
-
 impl super::JsRuntime {
     pub fn execute_script_guarded(&mut self, _name: &str, source: &str) -> Result<(), String> {
         if source.len() < 10_000 {
@@ -989,5 +912,82 @@ impl super::JsRuntime {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod cancel_grace_tests {
+    use super::*;
+
+    /// #332: a watchdog stuck holding the pair mutex (the post-fire state —
+    /// a thread wedged inside terminate_execution never parks in the cvar
+    /// again, so it never releases) must turn into a bounded leak, not a
+    /// blocking lock + join. Healthy threads still signal and join.
+    #[test]
+    fn bounded_ceremony_leaks_a_stuck_holder_and_joins_a_healthy_one() {
+        // Wedge: a thread that takes the pair mutex and stays parked on a
+        // foreign condvar with the guard in hand — it never checks the
+        // cancel flag and never exits.
+        let pair = std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
+        let release =
+            std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
+        let pair_c = pair.clone();
+        let release_c = release.clone();
+        let stuck = std::thread::spawn(move || {
+            // Take the pair mutex IN this thread, then park on a foreign
+            // condvar with the guard in hand — the exact posture of a
+            // watchdog wedged past its fire (never parks in the pair's own
+            // cvar again, so it never observes the cancel flag).
+            let _hold = pair_c.0.lock().unwrap();
+            let (rlock, rcvar) = &*release_c;
+            let mut done = rlock.lock().unwrap();
+            while !*done {
+                done = rcvar.wait(done).unwrap();
+            }
+        });
+        // Let the wedge take effect before the ceremony starts.
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(300);
+        let t0 = std::time::Instant::now();
+        let (signalled, joined) = bounded_cancel_and_join(&pair, Some(stuck), deadline);
+        let took = t0.elapsed();
+        assert!(
+            !signalled && !joined,
+            "a mutex-holding never-exiting thread must be declared wedged"
+        );
+        assert!(
+            took < std::time::Duration::from_secs(2),
+            "the ceremony must bound, took {took:?}"
+        );
+
+        // Healthy shape: a thread that parks in its OWN pair's cvar (the
+        // normal watchdog posture) wakes on the notify and exits; both
+        // slots true and fast. Fresh pair — the wedged one is still held.
+        let healthy_pair =
+            std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
+        let healthy = std::thread::spawn({
+            let pair = healthy_pair.clone();
+            move || {
+                let (lock, cvar) = &*pair;
+                let mut cancelled = lock.lock().unwrap();
+                while !*cancelled {
+                    cancelled = cvar.wait(cancelled).unwrap();
+                }
+            }
+        });
+        let (signalled, joined) = bounded_cancel_and_join(
+            &healthy_pair,
+            Some(healthy),
+            std::time::Instant::now() + std::time::Duration::from_millis(300),
+        );
+        assert!(
+            signalled && joined,
+            "a parked, well-behaved watchdog must signal and join"
+        );
+
+        // Release the wedge so the leaked thread can die with the test.
+        *release.0.lock().unwrap() = true;
+        release.1.notify_one();
     }
 }

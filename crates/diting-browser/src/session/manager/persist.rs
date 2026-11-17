@@ -415,37 +415,6 @@ pub(crate) fn eager_restore_mode() -> EagerRestoreMode {
     }
 }
 
-#[cfg(test)]
-mod restore_mode_tests {
-    use super::*;
-
-    #[test]
-    fn eager_restore_mode_parses_env() {
-        let _lock = RESTORE_SESSIONS_ENV_LOCK
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        std::env::remove_var("DITING_RESTORE_SESSIONS");
-        assert_eq!(eager_restore_mode(), EagerRestoreMode::All);
-        for v in ["1", "true", "ON", "all", ""] {
-            std::env::set_var("DITING_RESTORE_SESSIONS", v);
-            assert_eq!(eager_restore_mode(), EagerRestoreMode::All, "{v:?}");
-        }
-        for v in ["0", "false", "OFF", "no"] {
-            std::env::set_var("DITING_RESTORE_SESSIONS", v);
-            assert_eq!(eager_restore_mode(), EagerRestoreMode::Off, "{v:?}");
-        }
-        for v in ["skip-keepalive", "non-keepalive", "NO-KEEPALIVE"] {
-            std::env::set_var("DITING_RESTORE_SESSIONS", v);
-            assert_eq!(
-                eager_restore_mode(),
-                EagerRestoreMode::SkipKeepalive,
-                "{v:?}"
-            );
-        }
-        std::env::remove_var("DITING_RESTORE_SESSIONS");
-    }
-}
-
 impl SessionManager {
     /// Derive a new session carrying the source's login state: cookies,
     /// localStorage/sessionStorage, viewport pin, dialog policy, proxy and
@@ -583,5 +552,36 @@ impl SessionManager {
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod restore_mode_tests {
+    use super::*;
+
+    #[test]
+    fn eager_restore_mode_parses_env() {
+        let _lock = RESTORE_SESSIONS_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        std::env::remove_var("DITING_RESTORE_SESSIONS");
+        assert_eq!(eager_restore_mode(), EagerRestoreMode::All);
+        for v in ["1", "true", "ON", "all", ""] {
+            std::env::set_var("DITING_RESTORE_SESSIONS", v);
+            assert_eq!(eager_restore_mode(), EagerRestoreMode::All, "{v:?}");
+        }
+        for v in ["0", "false", "OFF", "no"] {
+            std::env::set_var("DITING_RESTORE_SESSIONS", v);
+            assert_eq!(eager_restore_mode(), EagerRestoreMode::Off, "{v:?}");
+        }
+        for v in ["skip-keepalive", "non-keepalive", "NO-KEEPALIVE"] {
+            std::env::set_var("DITING_RESTORE_SESSIONS", v);
+            assert_eq!(
+                eager_restore_mode(),
+                EagerRestoreMode::SkipKeepalive,
+                "{v:?}"
+            );
+        }
+        std::env::remove_var("DITING_RESTORE_SESSIONS");
     }
 }

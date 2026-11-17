@@ -15,6 +15,9 @@
 // `legacy:Name` and tools/webplatform/analyze checks that it does.
 const __platform = (function () {
   'use strict';
+  // One WeakMap for typed OM nodes. csskeyword only reads it; typedom_math
+  // and global_surface reuse the same object. Created here, before boot.
+  if (!globalThis.__ditingTOM) globalThis.__ditingTOM = new WeakMap();
   const defs = [];
   const loaded = new Map();
 
@@ -1910,11 +1913,11 @@ __platform.define("csskeyword", function (exports, require, P) {
 // read-write value accessor in Chrome's order — is generated from the
 // typed-om IDL in gen/csskeyword.gen.js. CSSStyleValue.parse of a keyword
 // uses this constructor, so the source string typedom serialization reads
-// is stored in the shared __ditingTOM map.
+// is stored in the shared __ditingTOM map created by platform/core.js.
 // Member order is the Chrome 145 shape audit.
 'use strict';
 
-const TOM = globalThis.__ditingTOM || (globalThis.__ditingTOM = new WeakMap());
+const TOM = globalThis.__ditingTOM;
 
 exports.ctor = function ctor(iface, target, ctx, args, parsed) {
   const value = parsed[0];

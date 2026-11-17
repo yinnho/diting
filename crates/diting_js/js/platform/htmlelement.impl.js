@@ -2,7 +2,7 @@
 //! layer: L2
 //! exposes: -
 //! requires-load: stylemap
-//! requires-call: legacy:DOMException, legacy:_markNative, legacy:document, legacy:DOMTokenList
+//! requires-call: legacy:DOMException, legacy:_markNative, legacy:document, legacy:DOMTokenList, legacy:Element
 
 // HTMLElement/Element behavior only; the member SHAPE (placement, order,
 // descriptor kinds, arity) is generated from the Chrome truth overlay in
