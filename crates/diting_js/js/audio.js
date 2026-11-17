@@ -46,14 +46,22 @@ Object.defineProperty(globalThis, '__diting_anConnect', { value: _audioNodeBase.
 const _anState = new WeakMap();
 Object.defineProperty(globalThis, '__diting_anState', { value: _anState, writable: true, enumerable: false, configurable: true });
 const _AN_KEYS = ['context', 'channelCount', 'channelCountMode', 'channelInterpretation', 'numberOfInputs', 'numberOfOutputs'];
-function _audioNode(ctx, extra) {
+function _audioNode(ctx, extra, Ctor) {
   const AN = globalThis.AudioNode;
-  // A real EventTarget (native listener core) wearing the AudioNode prototype, so
-  // add/removeEventListener/dispatchEvent are inherited exactly like Chrome's.
-  const o = Reflect.construct(EventTarget, [], Object);
-  Object.setPrototypeOf(o, AN && AN.prototype ? AN.prototype : EventTarget.prototype);
+  // A real EventTarget wearing the concrete node prototype (GainNode,
+  // AudioDestinationNode, …), so the chain matches Chrome and the listener
+  // methods stay inherited. Members the prototype already owns are stored
+  // non-enumerable: for-in sees nothing, Reflect.ownKeys still sees them.
+  const fallback = AN && AN.prototype ? AN.prototype : EventTarget.prototype;
+  const proto = Ctor && Ctor.prototype ? Ctor.prototype : fallback;
+  const o = Reflect.construct(EventTarget, [], Ctor || Object);
+  Object.setPrototypeOf(o, proto);
   const st = { context: ctx, channelCount: 2, channelCountMode: 'max', channelInterpretation: 'speakers', numberOfInputs: 1, numberOfOutputs: 1 };
-  if (extra) for (const k of Object.keys(extra)) { if (_AN_KEYS.indexOf(k) >= 0) st[k] = extra[k]; else o[k] = extra[k]; }
+  if (extra) for (const k of Object.keys(extra)) {
+    if (_AN_KEYS.indexOf(k) >= 0) st[k] = extra[k];
+    else if (Object.prototype.hasOwnProperty.call(proto, k)) Object.defineProperty(o, k, { value: extra[k], writable: true, enumerable: false, configurable: true });
+    else o[k] = extra[k];
+  }
   _anState.set(o, st);
   return o;
 }
@@ -132,7 +140,7 @@ globalThis.BaseAudioContext = class BaseAudioContext extends EventTarget {
     b.currentTime = 0;
     b.state = 'suspended';
     b.onstatechange = null;
-    b.destination = _audioNode(this, {maxChannelCount:2,numberOfInputs:1,numberOfOutputs:0,channelCount:2});
+    b.destination = _audioNode(this, {maxChannelCount:2,numberOfInputs:1,numberOfOutputs:0,channelCount:2}, globalThis.AudioDestinationNode);
     b.listener = {positionX:_audioParam(0),positionY:_audioParam(0),positionZ:_audioParam(0),forwardX:_audioParam(0),forwardY:_audioParam(0),forwardZ:_audioParam(-1),upX:_audioParam(0),upY:_audioParam(1),upZ:_audioParam(0),setPosition(){},setOrientation(){}};
   }
   get destination() { return _ctxBag(this).destination; }
@@ -159,7 +167,7 @@ globalThis.BaseAudioContext = class BaseAudioContext extends EventTarget {
   createConvolver() { return _audioNode(this, {buffer:null,normalize:true}); }
   createDelay() { return _audioNode(this, {delayTime:_audioParam(0,0,1)}); }
   createDynamicsCompressor() { return _audioNode(this, {threshold:_audioParam(_fp('compThreshold'),-100,0),knee:_audioParam(_fp('compKnee'),0,40),ratio:_audioParam(_fp('compRatio'),1,20),attack:_audioParam(0.003,0,1),release:_audioParam(0.25,0,1),reduction:0}); }
-  createGain() { return _audioNode(this, {gain:_audioParam(1)}); }
+  createGain() { return _audioNode(this, {gain:_audioParam(1)}, globalThis.GainNode); }
   createIIRFilter(feedforward, feedback) { return new globalThis.IIRFilterNode(this, { feedforward: feedforward, feedback: feedback }); }
   createOscillator() { return _audioNode(this, {type:'sine',frequency:_audioParam(440),detune:_audioParam(0),start(){},stop(){},onended:null}); }
   createPanner() { return _audioNode(this, {panningModel:'equalpower',distanceModel:'inverse',refDistance:1,maxDistance:10000,rolloffFactor:1,coneInnerAngle:360,coneOuterAngle:360,coneOuterGain:0,setPosition(){},setOrientation(){}}); }
