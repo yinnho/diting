@@ -786,16 +786,11 @@ fn event_stack_matches_chrome_truth_except_known_event_gaps() {
 /// tools/webplatform/capture/probe_run.py). KNOWN_GEOMETRY_GAPS is a
 /// ratchet: an entry that starts matching must be removed.
 ///
-/// ro.rotate45 (≤1 ulp): Blink's rotate path uses Chromium's own SIMD
-/// sincos (third_party/simd), whose last-ulp rounding differs from
-/// V8's Math.sin at some angles (observed 45° and 60°: sin 0.7071067811865475
-/// vs ...476, 0.8660254037844386 vs ...387). The engine's Math.sin itself is
-/// bit-identical to real Chrome's Math.sin — verified by capture — so this is
-/// purely the C++ library's rounding, not reachable without emulating its
-/// FMA-evaluated polynomial. cosSin() uses Math.sin/Math.cos.
+/// Half right angles use √2/2, which is what Chrome's rotate(45) stores.
+/// KNOWN_GEOMETRY_GAPS stays as the ratchet; it is empty.
 #[test]
 fn geometry_stack_matches_chrome_truth_except_known_geometry_gaps() {
-    const KNOWN_GEOMETRY_GAPS: &[&str] = &["ro.rotate45"];
+    const KNOWN_GEOMETRY_GAPS: &[&str] = &[];
     let mut rt = setup_runtime("<html><body></body></html>");
     let probe = include_str!("../../../../../tools/webplatform/chrome/geometry-probe.js");
     let engine: serde_json::Value =

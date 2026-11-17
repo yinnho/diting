@@ -4618,6 +4618,17 @@ function cosSin(deg) {
   if (isFinite(deg)) {
     const k = deg / 90;
     if (Number.isInteger(k)) return [[1, 0], [0, 1], [-1, 0], [0, -1]][((k % 4) + 4) % 4];
+    // 45° + 90°·n. Math.sin(π/4) is 1 ulp below √2/2; Blink's sincos rounds
+    // both components to Math.SQRT2/2 (truth ro.rotate45).
+    const h = deg / 45;
+    if (Number.isInteger(h)) {
+      const s2 = Math.SQRT2 / 2;
+      const q = ((h % 8) + 8) % 8;
+      if (q === 1) return [s2, s2];
+      if (q === 3) return [-s2, s2];
+      if (q === 5) return [-s2, -s2];
+      if (q === 7) return [s2, -s2];
+    }
   }
   const rad = deg * Math.PI / 180;
   return [Math.cos(rad), Math.sin(rad)];
