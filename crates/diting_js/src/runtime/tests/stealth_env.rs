@@ -1165,7 +1165,7 @@ async fn js_identity_follows_the_chrome_target() {
 /// canvas, observers, URL family, ...) against real Chrome 157 (chrome/enum-probe.js, enum-truth-157.json). for-in + hasOwnProperty is what
 /// for-in / JSON.stringify / Object.assign / spread see. KNOWN GAPS are listed explicitly and must shrink, never grow:
 ///   gl        - WebGL: headless Chrome answers null, the engine a fake context
-/// and keys that depend on the host page / shared state, not on the engine (stylesheet and div counts, localStorage left by other tests).
+/// and keys that depend on the host page / shared state, not on the engine (div counts, localStorage left by other tests).
 #[tokio::test(flavor = "current_thread")]
 async fn own_enumerable_keys_match_chrome_truth() {
     let mut rt = setup_runtime("<html><body></body></html>");
@@ -1182,7 +1182,6 @@ async fn own_enumerable_keys_match_chrome_truth() {
     .unwrap();
     const SKIP: &[&str] = &[
         "gl",
-        "sheets",
         "nodeList",
         "htmlColl",
         "rects",
