@@ -1424,6 +1424,20 @@ async fn knife75_tail_members() {
         t('audioSet', () => { const c = new AudioContext(); const g = c.createGain(); g.channelCount = 4; g.channelCountMode = 'explicit'; g.channelCountMode = 'bogus'; g.channelInterpretation = 'discrete'; let e; try { g.channelCount = 0; } catch (x) { e = x.name; } return [g.channelCount, g.channelCountMode, g.channelInterpretation, e]; });
         t('audioConnect', () => { const c = new AudioContext(); const g = c.createGain(); const r = g.connect(c.destination); return [r === c.destination, typeof g.disconnect, AudioNode.prototype.connect.length, Object.prototype.hasOwnProperty.call(g, 'connect')]; });
         t('audioEvents', () => { const c = new AudioContext(); const g = c.createGain(); let n = 0; g.addEventListener('x', () => n++); g.dispatchEvent(new Event('x')); return n; });
+        t('audioFaces', () => {
+          const c = new AudioContext();
+          const keys = (x) => { const ks = []; for (const k in x) if (Object.prototype.hasOwnProperty.call(x, k)) ks.push(k); return ks; };
+          const chain = (x) => { const out = []; let p = Object.getPrototypeOf(x); while (p) { const d = Object.getOwnPropertyDescriptor(p, 'constructor'); out.push(d && d.value && d.value.name); p = Object.getPrototypeOf(p); } return out; };
+          const g = c.createGain(), o = c.createOscillator(), a = c.createAnalyser(), d = c.destination, l = c.listener;
+          const p = c.createPanner(), bq = c.createBiquadFilter(), iir = c.createIIRFilter([1], [1]);
+          return {
+            names: [g.constructor.name, o.constructor.name, a.constructor.name, d.constructor.name, l.constructor.name, g.gain.constructor.name, o.frequency.constructor.name, c.createDelay().constructor.name, c.createStereoPanner().constructor.name, c.createPeriodicWave().constructor.name, c.createBufferSource().constructor.name, c.createDynamicsCompressor().constructor.name, c.createConvolver().constructor.name, c.createChannelMerger().constructor.name, c.createChannelSplitter().constructor.name, c.createWaveShaper().constructor.name, c.createScriptProcessor().constructor.name, c.createConstantSource().constructor.name, bq.constructor.name, iir.constructor.name, c.createMediaStreamDestination().constructor.name, c.createMediaElementSource(document.createElement('audio')).constructor.name, c.createMediaStreamSource(c.createMediaStreamDestination().stream).constructor.name],
+            enums: [keys(g), keys(o), keys(a), keys(d), keys(l), keys(g.gain), keys(o.frequency), keys(p), keys(bq), keys(iir)],
+            chains: [chain(g), chain(o), chain(d), chain(l), chain(g.gain)],
+            vals: [a.fftSize, a.frequencyBinCount, o.frequency.value, o.type, g.gain.value, g.gain.automationRate, d.maxChannelCount, d.numberOfOutputs, l.forwardZ.value, c.createStereoPanner().pan.value, p.orientationX.value, p.positionX.value, bq.frequency.value, bq.type, Object.prototype.toString.call(g), Object.prototype.toString.call(g.gain), Object.prototype.toString.call(l)],
+            inst: [g instanceof GainNode, g instanceof AudioNode, o instanceof OscillatorNode, o instanceof AudioScheduledSourceNode, d instanceof AudioDestinationNode, l instanceof AudioListener, g.gain instanceof AudioParam, a.getByteFrequencyData.length === 1],
+          };
+        });
         t('sink', () => { const c = new AudioContext(); return [c.sinkId, typeof c.setSinkId, c.setSinkId.length, c.onsinkchange, typeof c.audioWorklet]; });
         t('fileList', () => { const i = document.createElement('input'); i.type = 'file'; const fl = i.files; return [fl.constructor.name, fl.length, own(fl), Object.getOwnPropertyDescriptor(FileList.prototype, 'length').get.name, FileList.prototype.item.length, Object.prototype.toString.call(fl), [...fl].length]; });
         t('fileListFoo', () => { const dt = new DataTransfer(); dt.items.add(new File(['a'], 'a.txt')); const fl = dt.files; return [fl.length, fl.item(0).name, fl[0].name, own(fl), fl.item(5), [...fl].length]; });
@@ -1464,6 +1478,80 @@ async fn knife75_tail_members() {
         serde_json::json!([true, "function", 1, false])
     );
     assert_eq!(o["audioEvents"], 1);
+    assert_eq!(
+        o["audioFaces"]["names"],
+        serde_json::json!([
+            "GainNode",
+            "OscillatorNode",
+            "AnalyserNode",
+            "AudioDestinationNode",
+            "AudioListener",
+            "AudioParam",
+            "AudioParam",
+            "DelayNode",
+            "StereoPannerNode",
+            "PeriodicWave",
+            "AudioBufferSourceNode",
+            "DynamicsCompressorNode",
+            "ConvolverNode",
+            "ChannelMergerNode",
+            "ChannelSplitterNode",
+            "WaveShaperNode",
+            "ScriptProcessorNode",
+            "ConstantSourceNode",
+            "BiquadFilterNode",
+            "IIRFilterNode",
+            "MediaStreamAudioDestinationNode",
+            "MediaElementAudioSourceNode",
+            "MediaStreamAudioSourceNode"
+        ])
+    );
+    assert_eq!(
+        o["audioFaces"]["enums"],
+        serde_json::json!([[], [], [], [], [], [], [], [], [], []])
+    );
+    assert_eq!(
+        o["audioFaces"]["chains"],
+        serde_json::json!([
+            ["GainNode", "AudioNode", "EventTarget", "Object"],
+            [
+                "OscillatorNode",
+                "AudioScheduledSourceNode",
+                "AudioNode",
+                "EventTarget",
+                "Object"
+            ],
+            ["AudioDestinationNode", "AudioNode", "EventTarget", "Object"],
+            ["AudioListener", "Object"],
+            ["AudioParam", "Object"]
+        ])
+    );
+    assert_eq!(
+        o["audioFaces"]["vals"],
+        serde_json::json!([
+            2048,
+            1024,
+            440,
+            "sine",
+            1,
+            "a-rate",
+            2,
+            0,
+            -1,
+            0,
+            1,
+            0,
+            350,
+            "lowpass",
+            "[object GainNode]",
+            "[object AudioParam]",
+            "[object AudioListener]"
+        ])
+    );
+    assert_eq!(
+        o["audioFaces"]["inst"],
+        serde_json::json!([true, true, true, true, true, true, true, true])
+    );
     assert_eq!(
         o["sink"],
         serde_json::json!(["", "function", 1, null, "object"])

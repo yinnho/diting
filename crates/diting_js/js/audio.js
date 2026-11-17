@@ -3,10 +3,18 @@
 // Split out of bootstrap.js wholesale (god-file ratchet, pure move): top level only
 // declares bindings; every bootstrap helper it names is touched at call time.
 
+function _wear(Ctor, fields) {
+  const proto = Ctor && Ctor.prototype ? Ctor.prototype : Object.prototype;
+  const o = Object.create(proto);
+  for (const k of Object.keys(fields)) {
+    Object.defineProperty(o, k, { value: fields[k], writable: true, enumerable: false, configurable: true });
+  }
+  return o;
+}
 function _audioParam(value, min, max) {
   const FLT_MAX = 3.4028234663852886e38;
-  return {
-    value, defaultValue: value,
+  return _wear(globalThis.AudioParam, {
+    value, automationRate: 'a-rate', defaultValue: value,
     minValue: min === undefined ? -FLT_MAX : min,
     maxValue: max === undefined ? FLT_MAX : max,
     setValueAtTime(v) { this.value = v; return this; },
@@ -16,7 +24,15 @@ function _audioParam(value, min, max) {
     setValueCurveAtTime() { return this; },
     cancelScheduledValues() { return this; },
     cancelAndHoldAtTime() { return this; },
-  };
+  });
+}
+function _audioListener() {
+  return _wear(globalThis.AudioListener, {
+    positionX: _audioParam(0), positionY: _audioParam(0), positionZ: _audioParam(0),
+    forwardX: _audioParam(0), forwardY: _audioParam(0), forwardZ: _audioParam(-1),
+    upX: _audioParam(0), upY: _audioParam(1), upZ: _audioParam(0),
+    setPosition() {}, setOrientation() {},
+  });
 }
 const _audioNodeBase = {
   connect(dest) {
@@ -48,10 +64,10 @@ Object.defineProperty(globalThis, '__diting_anState', { value: _anState, writabl
 const _AN_KEYS = ['context', 'channelCount', 'channelCountMode', 'channelInterpretation', 'numberOfInputs', 'numberOfOutputs'];
 function _audioNode(ctx, extra, Ctor) {
   const AN = globalThis.AudioNode;
-  // A real EventTarget wearing the concrete node prototype (GainNode,
-  // AudioDestinationNode, …), so the chain matches Chrome and the listener
-  // methods stay inherited. Members the prototype already owns are stored
-  // non-enumerable: for-in sees nothing, Reflect.ownKeys still sees them.
+  // A real EventTarget wearing the concrete node prototype, so the chain
+  // matches Chrome and the listener methods stay inherited. With a concrete
+  // constructor, every extra member is an own non-enumerable value: for-in
+  // sees nothing, and the value still shadows the stub accessor.
   const fallback = AN && AN.prototype ? AN.prototype : EventTarget.prototype;
   const proto = Ctor && Ctor.prototype ? Ctor.prototype : fallback;
   const o = Reflect.construct(EventTarget, [], Ctor || Object);
@@ -59,7 +75,7 @@ function _audioNode(ctx, extra, Ctor) {
   const st = { context: ctx, channelCount: 2, channelCountMode: 'max', channelInterpretation: 'speakers', numberOfInputs: 1, numberOfOutputs: 1 };
   if (extra) for (const k of Object.keys(extra)) {
     if (_AN_KEYS.indexOf(k) >= 0) st[k] = extra[k];
-    else if (Object.prototype.hasOwnProperty.call(proto, k)) Object.defineProperty(o, k, { value: extra[k], writable: true, enumerable: false, configurable: true });
+    else if (Ctor) Object.defineProperty(o, k, { value: extra[k], writable: true, enumerable: false, configurable: true });
     else o[k] = extra[k];
   }
   _anState.set(o, st);
@@ -141,7 +157,7 @@ globalThis.BaseAudioContext = class BaseAudioContext extends EventTarget {
     b.state = 'suspended';
     b.onstatechange = null;
     b.destination = _audioNode(this, {maxChannelCount:2,numberOfInputs:1,numberOfOutputs:0,channelCount:2}, globalThis.AudioDestinationNode);
-    b.listener = {positionX:_audioParam(0),positionY:_audioParam(0),positionZ:_audioParam(0),forwardX:_audioParam(0),forwardY:_audioParam(0),forwardZ:_audioParam(-1),upX:_audioParam(0),upY:_audioParam(1),upZ:_audioParam(0),setPosition(){},setOrientation(){}};
+    b.listener = _audioListener();
   }
   get destination() { return _ctxBag(this).destination; }
   get sampleRate() { return _ctxBag(this).sampleRate; }
@@ -156,29 +172,28 @@ globalThis.BaseAudioContext = class BaseAudioContext extends EventTarget {
       getFloatFrequencyData(a){for(let i=0;i<a.length;i++)a[i]=-100+_fpRand(700+i)*5;},
       getByteTimeDomainData(a){for(let i=0;i<a.length;i++)a[i]=128;},
       getFloatTimeDomainData(a){for(let i=0;i<a.length;i++)a[i]=0;}
-    });
+    }, globalThis.AnalyserNode);
   }
   createBiquadFilter() { return new globalThis.BiquadFilterNode(this); }
   createBuffer(ch,len,rate) { return new AudioBuffer({numberOfChannels:ch,length:len,sampleRate:rate||this.sampleRate}); }
-  createBufferSource() { return _audioNode(this, {buffer:null,playbackRate:_audioParam(1),detune:_audioParam(0),loop:false,loopStart:0,loopEnd:0,start(){},stop(){},onended:null}); }
-  createChannelMerger(n) { return _audioNode(this, {numberOfInputs:n||6,numberOfOutputs:1}); }
-  createChannelSplitter(n) { return _audioNode(this, {numberOfInputs:1,numberOfOutputs:n||6}); }
-  createConstantSource() { return _audioNode(this, {offset:_audioParam(0),start(){},stop(){},onended:null}); }
-  createConvolver() { return _audioNode(this, {buffer:null,normalize:true}); }
-  createDelay() { return _audioNode(this, {delayTime:_audioParam(0,0,1)}); }
-  createDynamicsCompressor() { return _audioNode(this, {threshold:_audioParam(_fp('compThreshold'),-100,0),knee:_audioParam(_fp('compKnee'),0,40),ratio:_audioParam(_fp('compRatio'),1,20),attack:_audioParam(0.003,0,1),release:_audioParam(0.25,0,1),reduction:0}); }
+  createBufferSource() { return _audioNode(this, {buffer:null,playbackRate:_audioParam(1),detune:_audioParam(0),loop:false,loopStart:0,loopEnd:0,start(){},stop(){},onended:null}, globalThis.AudioBufferSourceNode); }
+  createChannelMerger(n) { return _audioNode(this, {numberOfInputs:n||6,numberOfOutputs:1}, globalThis.ChannelMergerNode); }
+  createChannelSplitter(n) { return _audioNode(this, {numberOfInputs:1,numberOfOutputs:n||6}, globalThis.ChannelSplitterNode); }
+  createConstantSource() { return _audioNode(this, {offset:_audioParam(0),start(){},stop(){},onended:null}, globalThis.ConstantSourceNode); }
+  createConvolver() { return _audioNode(this, {buffer:null,normalize:true}, globalThis.ConvolverNode); }
+  createDelay() { return _audioNode(this, {delayTime:_audioParam(0,0,1)}, globalThis.DelayNode); }
+  createDynamicsCompressor() { return _audioNode(this, {threshold:_audioParam(_fp('compThreshold'),-100,0),knee:_audioParam(_fp('compKnee'),0,40),ratio:_audioParam(_fp('compRatio'),1,20),attack:_audioParam(0.003,0,1),release:_audioParam(0.25,0,1),reduction:0}, globalThis.DynamicsCompressorNode); }
   createGain() { return _audioNode(this, {gain:_audioParam(1)}, globalThis.GainNode); }
   createIIRFilter(feedforward, feedback) { return new globalThis.IIRFilterNode(this, { feedforward: feedforward, feedback: feedback }); }
-  createOscillator() { return _audioNode(this, {type:'sine',frequency:_audioParam(440),detune:_audioParam(0),start(){},stop(){},onended:null}); }
-  createPanner() { return _audioNode(this, {panningModel:'equalpower',distanceModel:'inverse',refDistance:1,maxDistance:10000,rolloffFactor:1,coneInnerAngle:360,coneOuterAngle:360,coneOuterGain:0,setPosition(){},setOrientation(){}}); }
+  createOscillator() { return _audioNode(this, {type:'sine',frequency:_audioParam(440),detune:_audioParam(0),start(){},stop(){},onended:null}, globalThis.OscillatorNode); }
+  createPanner() { return _audioNode(this, {panningModel:'equalpower',distanceModel:'inverse',refDistance:1,maxDistance:10000,rolloffFactor:1,coneInnerAngle:360,coneOuterAngle:360,coneOuterGain:0,positionX:_audioParam(0),positionY:_audioParam(0),positionZ:_audioParam(0),orientationX:_audioParam(1),orientationY:_audioParam(0),orientationZ:_audioParam(0),setPosition(){},setOrientation(){}}, globalThis.PannerNode); }
   createPeriodicWave(real, imag) {
-    const w = {};
-    Object.defineProperty(w, Symbol.toStringTag, { value: 'PeriodicWave', configurable: true });
-    return w;
+    const C = globalThis.PeriodicWave;
+    return Object.create(C && C.prototype ? C.prototype : Object.prototype);
   }
-  createScriptProcessor() { return _audioNode(this, {onaudioprocess:null,bufferSize:4096}); }
-  createStereoPanner() { return _audioNode(this, {pan:_audioParam(0,-1,1)}); }
-  createWaveShaper() { return _audioNode(this, {curve:null,oversample:'none'}); }
+  createScriptProcessor() { return _audioNode(this, {onaudioprocess:null,bufferSize:4096}, globalThis.ScriptProcessorNode); }
+  createStereoPanner() { return _audioNode(this, {pan:_audioParam(0,-1,1)}, globalThis.StereoPannerNode); }
+  createWaveShaper() { return _audioNode(this, {curve:null,oversample:'none'}, globalThis.WaveShaperNode); }
   decodeAudioData(buf) { return Promise.resolve(this.createBuffer(2,44100,44100)); }
 };
 globalThis.AudioContext = class AudioContext extends BaseAudioContext {
@@ -195,9 +210,9 @@ globalThis.AudioContext = class AudioContext extends BaseAudioContext {
   get onerror() { return _ctxBag(this).onerror; }
   set onerror(v) { _ctxBag(this).onerror = v; }
   close() { _ctxSetState(this, 'closed'); return Promise.resolve(); }
-  createMediaElementSource(el) { return _audioNode(this, {mediaElement:el||null}); }
-  createMediaStreamDestination() { return _audioNode(this, {stream:{getTracks(){return [];},getAudioTracks(){return [];}}}); }
-  createMediaStreamSource(stream) { return _audioNode(this, {mediaStream:stream||null}); }
+  createMediaElementSource(el) { return _audioNode(this, {mediaElement:el||null}, globalThis.MediaElementAudioSourceNode); }
+  createMediaStreamDestination() { return _audioNode(this, {stream:{getTracks(){return [];},getAudioTracks(){return [];}}}, globalThis.MediaStreamAudioDestinationNode); }
+  createMediaStreamSource(stream) { return _audioNode(this, {mediaStream:stream||null}, globalThis.MediaStreamAudioSourceNode); }
   getOutputTimestamp() { return {contextTime:this.currentTime,performanceTime:0}; }
   resume() { _ctxSetState(this, 'running'); return Promise.resolve(); }
   suspend() { _ctxSetState(this, 'suspended'); return Promise.resolve(); }
@@ -310,7 +325,7 @@ _markNativeProto(globalThis.OfflineAudioContext.prototype);
 globalThis.BiquadFilterNode = function BiquadFilterNode(ctx) {
   if (arguments.length < 1) throw new TypeError("Failed to construct 'BiquadFilterNode': 1 argument required, but only 0 present.");
   if (!(ctx instanceof globalThis.BaseAudioContext)) throw new TypeError("Failed to construct 'BiquadFilterNode': parameter 1 is not of type 'BaseAudioContext'.");
-  const o = _audioNode(ctx, { type: 'lowpass', frequency: _audioParam(350, 0, 24000), Q: _audioParam(1), detune: _audioParam(0), gain: _audioParam(0, -40, 40), getFrequencyResponse() {} });
+  const o = _audioNode(ctx, { type: 'lowpass', frequency: _audioParam(350, 0, 24000), Q: _audioParam(1), detune: _audioParam(0), gain: _audioParam(0, -40, 40), getFrequencyResponse() {} }, BiquadFilterNode);
   Object.setPrototypeOf(o, BiquadFilterNode.prototype);
   return o;
 };
@@ -335,7 +350,7 @@ globalThis.IIRFilterNode = function IIRFilterNode(ctx, options) {
   const fb = o.feedback, ff = o.feedforward;
   if (fb[0] === 0) throw new DOMException("Failed to construct 'IIRFilterNode': First feedback coefficient cannot be zero.", 'InvalidStateError');
   if (!ff.some((x) => x !== 0)) throw new DOMException("Failed to construct 'IIRFilterNode': At least one feedforward coefficient must be non-zero.", 'InvalidStateError');
-  const n = _audioNode(ctx, { feedforward: ff, feedback: fb });
+  const n = _audioNode(ctx, { feedforward: ff, feedback: fb }, IIRFilterNode);
   Object.setPrototypeOf(n, IIRFilterNode.prototype);
   return n;
 };
