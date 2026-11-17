@@ -1143,6 +1143,13 @@ fn test_get_computed_style_initial_values_not_empty() {
                     maskX: getComputedStyle(document.getElementById('d')).webkitMaskPositionX,
                     reflect: getComputedStyle(document.getElementById('d')).webkitBoxReflect,
                     rowRule: getComputedStyle(document.getElementById('d')).rowRuleStyle,
+                    baseSrc: getComputedStyle(document.getElementById('d')).baselineSource,
+                    colWrap: getComputedStyle(document.getElementById('d')).columnWrap,
+                    range: getComputedStyle(document.getElementById('d')).dynamicRangeLimit,
+                    tap: getComputedStyle(document.getElementById('d')).webkitTapHighlightColor,
+                    rowColor: getComputedStyle(document.getElementById('d')).rowRuleColor,
+                    textFit: getComputedStyle(document.getElementById('d')).textFit,
+                    markerGroup: getComputedStyle(document.getElementById('d')).scrollMarkerGroup,
                 })"#,
             )
             .unwrap();
@@ -1248,6 +1255,13 @@ fn test_get_computed_style_initial_values_not_empty() {
     assert_eq!(v["maskX"], serde_json::json!("0%"));
     assert_eq!(v["reflect"], serde_json::json!("none"));
     assert_eq!(v["rowRule"], serde_json::json!("none"));
+    assert_eq!(v["baseSrc"], serde_json::json!("auto"));
+    assert_eq!(v["colWrap"], serde_json::json!("auto"));
+    assert_eq!(v["range"], serde_json::json!("no-limit"));
+    assert_eq!(v["tap"], serde_json::json!("rgba(0, 0, 0, 0.18)"));
+    assert_eq!(v["rowColor"], serde_json::json!("rgb(0, 0, 0)"));
+    assert_eq!(v["textFit"], serde_json::json!("none"));
+    assert_eq!(v["markerGroup"], serde_json::json!("none"));
 }
 
 /// Upstream a0e1ba5: CSSStyleDeclaration is a real global interface — the

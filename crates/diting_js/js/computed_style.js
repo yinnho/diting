@@ -418,6 +418,12 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
     '-webkit-mask-box-image-source': 'none', '-webkit-mask-box-image-slice': '0',
     '-webkit-mask-box-image-width': 'auto', '-webkit-mask-box-image-outset': '0',
     '-webkit-mask-box-image-repeat': 'stretch',
+    'baseline-source': 'auto', 'caret-animation': 'auto',
+    'column-wrap': 'auto', 'column-rule-break': 'auto', 'row-rule-break': 'auto',
+    'border-shape': 'none', 'dynamic-range-limit': 'no-limit',
+    'ruby-overhang': 'auto', 'scroll-marker-group': 'none', 'text-fit': 'none',
+    'timeline-trigger-name': 'none', 'trigger-scope': 'none',
+    '-webkit-tap-highlight-color': 'rgba(0, 0, 0, 0.18)',
     'z-index': 'auto', 'pointer-events': 'auto',
     'box-sizing': 'content-box', cursor: 'auto',
     'white-space': 'normal', 'text-align': 'start', 'text-align-last': 'auto', 'text-transform': 'none',
@@ -541,7 +547,8 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
         || kebab === 'text-decoration-color' || kebab === 'text-emphasis-color'
         || kebab === 'column-rule-color'
         || kebab === 'border-block-start-color' || kebab === 'border-block-end-color'
-        || kebab === 'border-inline-start-color' || kebab === 'border-inline-end-color') {
+        || kebab === 'border-inline-start-color' || kebab === 'border-inline-end-color'
+        || kebab === 'row-rule-color') {
       if (!pseudoName && target.getPropertyValue) {
         const specified = target.getPropertyValue(kebab);
         if (specified && !_CSS_WIDE_KW.test(specified) && specified.toLowerCase() !== 'currentcolor') {
