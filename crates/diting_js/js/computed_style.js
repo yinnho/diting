@@ -287,6 +287,15 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
       const dim = dimensionFor(kebab);
       if (dim != null) return dim;
     }
+    // Initial value is currentcolor. Chrome's computed value is the used
+    // color, so an unset read is rgb(0, 0, 0), not ''.
+    if (kebab === '-webkit-text-fill-color' || kebab === '-webkit-text-stroke-color') {
+      if (!pseudoName && target.getPropertyValue) {
+        const specified = target.getPropertyValue(kebab);
+        if (specified && !_CSS_WIDE_KW.test(specified)) return specified;
+      }
+      return lookup('color');
+    }
     if (defaultsKebab[rawProp]) return defaultsKebab[rawProp];
     if (defaultsKebab[kebab]) return defaultsKebab[kebab];
     return globalThis.__customPropInitial?.(kebab) ?? '';

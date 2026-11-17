@@ -1340,12 +1340,14 @@ async fn gcs_camel_webkit_alias_prefix() {
     // vendor alias read '' — the snapshot keys all carry the dash. The
     // kebab channel (getPropertyValue('-webkit-…')) always worked. Chrome
     // truth 2026-11-06: declared -webkit-line-clamp:3 → "3", unset →
-    // "none", webkitMaskImage initial → "none". webkitTextFillColor needs
-    // color-alias modeling and stays '' (follow-up noted in the issue).
+    // "none", webkitMaskImage initial → "none". webkitTextFillColor and
+    // webkitTextStrokeColor follow the used color (currentcolor).
     let mut rt = setup_runtime(
         r#"<html><body style="margin:0">
 <p id="p" style="-webkit-line-clamp:3">x</p>
 <p id="r">x</p>
+<p id="c" style="color: red">x</p>
+<p id="f" style="-webkit-text-fill-color: blue">x</p>
 </body></html>"#,
     );
     let script = r#"async () => {
@@ -1356,6 +1358,10 @@ async fn gcs_camel_webkit_alias_prefix() {
                 wmiU: g('r').webkitMaskImage,
                 kebab: g('r').getPropertyValue('-webkit-line-clamp'),
                 wtfc: g('r').webkitTextFillColor,
+                stroke: g('r').webkitTextStrokeColor,
+                colored: g('c').webkitTextFillColor,
+                color: g('c').color,
+                explicit: g('f').webkitTextFillColor,
             };
         }"#;
     let result = rt
@@ -1385,8 +1391,22 @@ async fn gcs_camel_webkit_alias_prefix() {
     );
     assert_eq!(
         v["wtfc"],
-        serde_json::json!(""),
-        "webkitTextFillColor still awaits color-alias modeling (Chrome: rgb(0, 0, 0)) — flip when that lands"
+        serde_json::json!("rgb(0, 0, 0)"),
+        "unset webkitTextFillColor is the used color"
+    );
+    assert_eq!(
+        v["stroke"],
+        serde_json::json!("rgb(0, 0, 0)"),
+        "unset webkitTextStrokeColor is the used color"
+    );
+    assert_eq!(
+        v["colored"], v["color"],
+        "webkitTextFillColor follows a specified color"
+    );
+    assert_eq!(
+        v["explicit"],
+        serde_json::json!("blue"),
+        "an explicit fill color is not replaced by currentcolor"
     );
 }
 
