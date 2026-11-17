@@ -1114,6 +1114,16 @@ fn test_get_computed_style_initial_values_not_empty() {
                     flood: getComputedStyle(document.getElementById('d')).floodColor,
                     mathStyle: getComputedStyle(document.getElementById('d')).mathStyle,
                     field: getComputedStyle(document.getElementById('d')).fieldSizing,
+                    clip: getComputedStyle(document.getElementById('d')).clip,
+                    containW: getComputedStyle(document.getElementById('d')).containIntrinsicWidth,
+                    ruby: getComputedStyle(document.getElementById('d')).rubyPosition,
+                    anchor: getComputedStyle(document.getElementById('d')).positionAnchor,
+                    area: getComputedStyle(document.getElementById('d')).positionArea,
+                    snapStop: getComputedStyle(document.getElementById('d')).scrollSnapStop,
+                    inset: getComputedStyle(document.getElementById('d')).insetBlockStart,
+                    cx: getComputedStyle(document.getElementById('d')).cx,
+                    rx: getComputedStyle(document.getElementById('d')).rx,
+                    barColor: getComputedStyle(document.getElementById('d')).scrollbarColor,
                 })"#,
             )
             .unwrap();
@@ -1190,6 +1200,16 @@ fn test_get_computed_style_initial_values_not_empty() {
     assert_eq!(v["flood"], serde_json::json!("rgb(0, 0, 0)"));
     assert_eq!(v["mathStyle"], serde_json::json!("normal"));
     assert_eq!(v["field"], serde_json::json!("fixed"));
+    assert_eq!(v["clip"], serde_json::json!("auto"));
+    assert_eq!(v["containW"], serde_json::json!("none"));
+    assert_eq!(v["ruby"], serde_json::json!("over"));
+    assert_eq!(v["anchor"], serde_json::json!("auto"));
+    assert_eq!(v["area"], serde_json::json!("none"));
+    assert_eq!(v["snapStop"], serde_json::json!("normal"));
+    assert_eq!(v["inset"], serde_json::json!("auto"));
+    assert_eq!(v["cx"], serde_json::json!("0px"));
+    assert_eq!(v["rx"], serde_json::json!("auto"));
+    assert_eq!(v["barColor"], serde_json::json!("auto"));
 }
 
 /// Upstream a0e1ba5: CSSStyleDeclaration is a real global interface — the
