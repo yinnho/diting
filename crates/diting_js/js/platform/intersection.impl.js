@@ -11,7 +11,7 @@
 // illegal and its eight members are prototype getters over a private slot;
 // the observer validates callback/options with exact wording, normalizes
 // rootMargin/scrollMargin to four tokens, keeps thresholds as sorted float32 and
-// hands out a fresh frozen copy per read. Pinned by chrome/ioentry-truth-145.json
+// hands out a fresh frozen copy per read. Pinned by chrome/ioentry-truth-157.json
 // (ioentry-probe.js, 31 keys) and diffed by intersection_matches_chrome_truth.
 //
 // BEHAVIOUR POLICY (unchanged, moved from bootstrap.js): without a layout
@@ -57,7 +57,7 @@ const PRE = "Failed to construct 'IntersectionObserver'";
 function parseMargin(v, fn) {
   const toks = String(v).trim().split(/\s+/);
   if (toks.length < 1 || toks.length > 4 || !toks.every((t) => /^-?(\d+\.?\d*|\.\d+)(px|%)$/.test(t))) {
-    throw new DOMException(PRE + ': rootMargin must be specified in pixels or percent.', 'SyntaxError');
+    throw new DOMException(PRE + ': rootMargin must be specified in absolute length units or percent.', 'SyntaxError');
   }
   const [t, r = t, b = t, l = r] = toks;
   return [t, r, b, l].join(' ');

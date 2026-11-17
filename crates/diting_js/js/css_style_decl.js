@@ -104,7 +104,7 @@ class CSSStyleDeclaration {
   item(i) { this._pull(); return Object.keys(this._props)[i] || ""; }
 }
 // (刀72) The CSS2Properties intermediate prototype is gone: the Chrome 145
-// captures (shape-audit-truth-145, k72) show CSSStyleDeclaration straight over
+// captures (shape-audit-truth-157, k72) show CSSStyleDeclaration straight over
 // Object and no CSS2Properties interface at all (that level appears in later
 // Chromes — the old comment cited a 155 capture; the target here is 145).
 _markNativeProto(CSSStyleDeclaration.prototype);

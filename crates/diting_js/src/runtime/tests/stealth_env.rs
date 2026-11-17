@@ -173,7 +173,7 @@ fn internal_underscore_state_is_not_enumerable() {
     }
     // The zone.js walk still finds the interface operations (that's the
     // #27 face — ops must stay enumerable) and nothing else. Order is
-    // Chrome's own-key truth (shape-audit-truth-145; re-probed on 156):
+    // Chrome's own-key truth (shape-audit-truth-157; re-probed on 156):
     // Blink installs the legacy observer ops disconnect-first, not the
     // IDL source order.
     assert_eq!(

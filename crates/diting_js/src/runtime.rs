@@ -181,6 +181,12 @@ fn v8_flags_before_first_isolate() {
         // --allow-natives-syntax on and off again (frozen flags make
         // any later set_flags_from_string a V8_Fatal).
         v8::V8::set_flags_from_string("--no-freeze-flags-after-init");
+        // Chrome 157 ships Iterator.concat and stages Iterator.zip /
+        // zipKeyed. V8 installs both while restoring a context, and
+        // fatals if a snapshot script already owns the name. Leave
+        // the three names to V8; do not define them in tail_members.
+        v8::V8::set_flags_from_string("--js-iterator-sequencing");
+        v8::V8::set_flags_from_string("--js-joint-iteration");
         v8::V8::set_flags_from_string(&format!("--stack-size={kb}"));
     });
     // #224: same one-shot shape for the old-space ceiling. V8's

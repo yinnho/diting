@@ -1,6 +1,6 @@
 // 刀79: stub defaults. Pure-stub interfaces (stub_members.js) whose getters answered undefined: on a real instance Chrome 145
 // reports these primitive/null defaults (default-value reconciliation over every no-arg constructible interface,
-// chrome/defaults-probe.js -> defaults-truth-145.json). The stub getter keeps its brand check; only an `undefined` answer is
+// chrome/defaults-probe.js -> defaults-truth-157.json). The stub getter keeps its brand check; only an `undefined` answer is
 // replaced. Loaded after stub_members.js (which installs the getters).
 (() => {
   const G = globalThis;

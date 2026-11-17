@@ -8,7 +8,7 @@
 // 'default', the first requestPermission() settles 'denied' (and stays), and
 // constructing a Notification without permission asynchronously fires a
 // trusted plain `error` Event - the notification never shows. Every fact
-// below is pinned by chrome/notification-truth-145.json (notification-probe.js)
+// below is pinned by chrome/notification-truth-157.json (notification-probe.js)
 // and diffed by notification_matches_chrome_truth.
 
 let permission = 'default';

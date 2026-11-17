@@ -8,9 +8,9 @@
 // (bootstrap.js _Canvas2D, now THE CanvasRenderingContext2D class) returned `undefined`/`null` for lang, direction, fontKerning,
 // fontStretch, fontVariantCaps, textRendering, letterSpacing, wordSpacing, filter, imageSmoothing*, shadow*, lineCap, lineJoin,
 // miterLimit, lineDashOffset - and accepted any value without validating it. Canvas fingerprinting scripts both READ these
-// defaults and WRITE them (shadowBlur, lineCap, ...). Pinned by chrome/cvstate-truth-145.json (cvstate-probe.js) and diffed by
-// canvasstate_matches_chrome_truth. Chrome ignores invalid enum values and non-finite numbers silently; 'inherit' for direction
-// resolves to the canvas's direction ('ltr'). No rendering effect (the software rasterizer here has no shadow/filter pipeline),
+// defaults and WRITE them (shadowBlur, lineCap, ...). Pinned by chrome/cvstate-truth-157.json (cvstate-probe.js) and diffed by
+// canvasstate_matches_chrome_truth. Chrome ignores invalid enum values and non-finite numbers silently. direction stays the
+// keyword written when it is ltr, rtl, or inherit; anything else is ignored. No rendering effect (the software rasterizer here has no shadow/filter pipeline),
 // exactly as before - this is the state surface.
 
 const C = globalThis.CanvasRenderingContext2D;
@@ -23,7 +23,7 @@ function st(o, fn) {
   return s;
 }
 function defaults() {
-  return { lang: 'inherit', direction: 'ltr', fontKerning: 'auto', fontStretch: 'normal', fontVariantCaps: 'normal', letterSpacing: '0px',
+  return { lang: 'inherit', direction: 'inherit', fontKerning: 'auto', fontStretch: 'normal', fontVariantCaps: 'normal', letterSpacing: '0px',
     textRendering: 'auto', wordSpacing: '0px', filter: 'none', imageSmoothingQuality: 'low', imageSmoothingEnabled: true,
     shadowColor: 'rgba(0, 0, 0, 0)', shadowOffsetX: 0, shadowOffsetY: 0, shadowBlur: 0, lineCap: 'butt', lineJoin: 'miter',
     miterLimit: 10, lineDashOffset: 0, lineDash: [] };
@@ -57,7 +57,7 @@ const spacingAttr = (name) => attr(name, (s, v) => {
 
 // Chrome's relative order of the attributes: lang first, the text/line state in the order below (shape_fix ORDER finalizes it).
 attr('lang', (s, v) => { s.lang = String(v); });
-attr('direction', (s, v) => { const x = String(v); if (x === 'ltr' || x === 'rtl') s.direction = x; else if (x === 'inherit') s.direction = 'ltr'; });
+attr('direction', (s, v) => { const x = String(v); if (x === 'ltr' || x === 'rtl' || x === 'inherit') s.direction = x; });
 enumAttr('fontKerning'); enumAttr('fontStretch'); enumAttr('fontVariantCaps');
 spacingAttr('letterSpacing'); enumAttr('textRendering'); spacingAttr('wordSpacing');
 attr('filter', (s, v) => { const x = String(v).trim(); if (x === 'none' || /^[a-z-]+\(.*\)$/i.test(x)) s.filter = x; });

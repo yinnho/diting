@@ -9,7 +9,7 @@
 // getAttributeNode returned a new detached-looking object each call whose value never followed the element. Chrome: one
 // NamedNodeMap per element (legacy platform object: indexed + named properties), and one Attr node per attribute that stays the
 // same object while the attribute exists, tracks its value both ways, and is detached (ownerElement null, last value kept) when
-// the attribute is removed - re-adding the name makes a NEW Attr. Pinned by chrome/nnm-truth-145.json (nnm-probe.js, 37 keys)
+// the attribute is removed - re-adding the name makes a NEW Attr. Pinned by chrome/nnm-truth-157.json (nnm-probe.js, 37 keys)
 // and diffed by namednodemap_matches_chrome_truth.
 //
 // Model: per element a Map name -> Attr (only attributes somebody asked for), a recorded namespace table for setAttributeNS, and

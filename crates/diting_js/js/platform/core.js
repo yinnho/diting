@@ -179,7 +179,7 @@ const __platform = (function () {
   }
   // Reflected IDL attribute, installed on a (possibly pre-existing native)
   // prototype. spec is DATA (generated per member from measured Chrome
-  // fingerprints - chrome/htmlreflect-truth-145.json - or the earlier knives'
+  // fingerprints - chrome/htmlreflect-truth-157.json - or the earlier knives'
   // truth tables):
   //   attr      content attribute name (already lowercase)
   //   iface     interface name for setter error prefixes (default: the
@@ -210,7 +210,7 @@ const __platform = (function () {
   // Every setter converts through `conv` so Symbols throw Chrome's
   // "Failed to set the 'x' property on 'I': Cannot convert a Symbol value
   // to a string" TypeError; DOMString conversion is String(v) - null reads
-  // back 'null', undefined 'undefined' (htmlreflect-truth-145 extra.*).
+  // back 'null', undefined 'undefined' (htmlreflect-truth-157 extra.*).
   const HTML_WS_INT = /^[\t\n\f\r ]*([+-]?)([0-9]+)/;
   function parseIntAttr(v) {
     const m = HTML_WS_INT.exec(v);

@@ -672,7 +672,7 @@ async fn htmlmedia_members_match_chrome_truth() {
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/htmlmedia-truth-145.json"
+        "../../../../../tools/webplatform/chrome/htmlmedia-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();
@@ -725,7 +725,7 @@ async fn editcontext_matches_chrome_truth() {
     let engine: serde_json::Value =
         serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/webplatform/chrome/editctx-truth-145.json"
+        "../../../../../tools/webplatform/chrome/editctx-truth-157.json"
     ))
     .unwrap();
     let mut bad = Vec::new();

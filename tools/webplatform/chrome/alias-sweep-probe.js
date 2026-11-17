@@ -1,6 +1,6 @@
 // (刀96) LegacyAlias identity sweep: every window key with a
 // webkit/WebKit prefix vs its prefix-stripped twin. Chrome 145 truth
-// (alias-sweep-truth-145.json): exactly 8 SAME aliases — the sweep CANNOT
+// (alias-sweep-truth-157.json): exactly 8 SAME aliases — the sweep CANNOT
 // see WebKitCSSMatrix (twin name "CSSMatrix" does not exist), so known
 // LegacyAlias pairs are also probed directly alongside.
 (function () {

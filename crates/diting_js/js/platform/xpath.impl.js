@@ -15,7 +15,7 @@
 // Chrome), the core function library with arity checks, node-set / number / string /
 // boolean conversions and the comparison rules, namespace resolution, and the
 // XPathResult / XPathExpression / XPathEvaluator interfaces. Pinned by
-// chrome/xpath-truth-145.json (xpath-probe.js, 552 keys: ~120 paths over every axis,
+// chrome/xpath-truth-157.json (xpath-probe.js, 552 keys: ~120 paths over every axis,
 // ~330 scalar expressions and functions, result types, ~130 malformed expressions,
 // namespaces, order) and diffed by xpath_matches_chrome_truth.
 //

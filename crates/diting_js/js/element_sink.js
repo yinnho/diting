@@ -3,7 +3,7 @@
 // For its whole life the engine reflected every HTML/SVG member onto
 // Element.prototype with localName guards ("the kitchen sink"), mirroring
 // the interesting ones one level down (#27). The whole-surface shape audit
-// against Chrome 145 (shape-audit-truth-145.json) says Element.prototype
+// against Chrome 145 (shape-audit-truth-157.json) says Element.prototype
 // carried 94 members Chrome has NOWHERE on Element: a <div> answered
 // .value/.rows/.href/.type with guard-rejected ghosts, for-in over an
 // element exposed them all, and getOwnPropertyDescriptor(Element.prototype,
@@ -45,7 +45,7 @@
 }
 
 // The sink, out. Every member here: Chrome does not own it on
-// Element.prototype (shape-audit-truth-145.json), and every interface that
+// Element.prototype (shape-audit-truth-157.json), and every interface that
 // needs it has received the descriptor (bootstrap _interfaceProps table,
 // the selection-family retarget onto input/textarea, the SVG homes above,
 // or the platform bundle's generated installs).

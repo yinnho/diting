@@ -252,7 +252,7 @@ Object.defineProperty(_SourceBufferList, 'name', { value: 'SourceBufferList', co
 // MSE objects are EventTargets but NOT Nodes — Chrome says
 // `new MediaSource() instanceof Node` is false. The chain is DIRECT:
 // MediaSource/SourceBuffer.prototype → EventTarget.prototype (truth
-// eventtarget-chain-truth-145.json; the old _MseEventTarget intermediate
+// eventtarget-chain-truth-157.json; the old _MseEventTarget intermediate
 // is gone — Chrome has no such level), the core's parent hook returns
 // null for non-Node targets (no tree path, no nid assumptions), and every
 // firing site already builds real Events. The on<type> handlers are

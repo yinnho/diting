@@ -13,7 +13,7 @@
 // PopStateEvent, ClipboardEvent) and the value class
 // RTCSessionDescription. HashChangeEvent and InputDeviceCapabilities are
 // generated. Every fact is pinned by
-// chrome/smallmembers-truth-145.json (smallmembers-probe.js) and diffed by
+// chrome/smallmembers-truth-157.json (smallmembers-probe.js) and diffed by
 // smallmembers_match_chrome_truth. Patches to bootstrap classes re-seat each
 // prototype into Chrome's own member order.
 

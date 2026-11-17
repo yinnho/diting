@@ -10,7 +10,7 @@
 // 'not-allowed' and then a trusted plain 'end' (never 'start'); stop()/abort()
 // while started cancel the error and leave only 'end'. SpeechRecognitionResult/
 // ResultList/Alternative are not exposed on window. The webkit* names are the
-// SAME interface objects. Every fact is pinned by chrome/speech-truth-145.json
+// SAME interface objects. Every fact is pinned by chrome/speech-truth-157.json
 // (speech-probe.js) and diffed by speech_family_matches_chrome_truth.
 
 // ---- conversions

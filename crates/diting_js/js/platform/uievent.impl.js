@@ -9,7 +9,7 @@
 // The bootstrap classes kept a hand-picked subset of the init dictionary
 // (`o.screenX||0`) and dropped everything else, so movementX, keyCode,
 // tiltX, getModifierState ... could not exist at all (92 of 111 probe keys
-// off). Every fact below is pinned by chrome/uievent-truth-145.json (real
+// off). Every fact below is pinned by chrome/uievent-truth-157.json (real
 // Chrome 145, uievent-probe.js) and diffed by uievent_family_matches_chrome_truth.
 //
 // Shape: the constructor is a plain function that builds the native Event with

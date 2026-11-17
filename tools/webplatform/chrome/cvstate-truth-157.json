@@ -60,7 +60,7 @@
   4
  ],
  "defaults": {
-  "direction": "ltr",
+  "direction": "inherit",
   "filter": "none",
   "fontKerning": "auto",
   "fontStretch": "normal",
@@ -87,10 +87,10 @@
  "enum.direction": [
   "ltr",
   "rtl",
-  "ltr",
-  "ltr",
-  "ltr",
-  "ltr"
+  "inherit",
+  "inherit",
+  "inherit",
+  "inherit"
  ],
  "enum.fontKerning": [
   "auto",
@@ -234,7 +234,7 @@
   [],
   "#000000",
   1,
-  "ltr"
+  "inherit"
  ],
  "round.errors": [
   "TypeError: Failed to execute 'roundRect' on 'CanvasRenderingContext2D': 4 arguments required, but only 0 present.",

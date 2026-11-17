@@ -924,10 +924,13 @@ impl<Sink: TokenSink> Tokenizer<Sink> {
                     },
                     // ↪ U+003F QUESTION MARK (?)
                     '?' => {
-                        // Set the temporary buffer to the empty string.
-                        // Switch to the processing instruction open state.
+                        // Chrome 157 turns `<?target data?>` into a processing
+                        // instruction. A leading NUL marks this bogus comment
+                        // so the tree builder can tell it from `<!--...-->`.
+                        // NUL cannot occur in a real comment (the bogus-comment
+                        // state rewrites U+0000 to U+FFFD).
                         self.bad_char_error();
-                        go!(self: clear_comment; reconsume BogusComment)
+                        go!(self: clear_comment; push_comment '\0'; reconsume BogusComment)
                     },
                     // ↪ Anything else
                     _ => {

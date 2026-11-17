@@ -7,7 +7,7 @@
 // Fetch-standard Headers (M4 knife 15). The bootstrap class was an object map
 // keyed by lowercase name whose append() overwrote - duplicate headers were
 // lost, nothing was validated or normalized, iteration was insertion-ordered
-// and there was no getSetCookie. Pinned by chrome/headers-truth-145.json
+// and there was no getSetCookie. Pinned by chrome/headers-truth-157.json
 // (headers-probe.js, 75 keys: construction corpus, name/value validity,
 // normalization, duplicate combining, sorted live iteration, set-cookie,
 // iterator protocol) and diffed by headers_match_chrome_truth.

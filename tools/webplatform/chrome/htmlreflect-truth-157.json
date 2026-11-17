@@ -97,6 +97,7 @@
   "HTMLInputElement": {
    "checkValidity": 0,
    "constructor": 0,
+   "createValueRange": 2,
    "reportValidity": 0,
    "select": 0,
    "setCustomValidity": 1,
@@ -209,6 +210,7 @@
   "HTMLTextAreaElement": {
    "checkValidity": 0,
    "constructor": 0,
+   "createValueRange": 2,
    "reportValidity": 0,
    "select": 0,
    "setCustomValidity": 1,
@@ -2018,15 +2020,15 @@
      "RESET": "",
      "RIGHT": "",
      "RTL": "",
-     "SAME-ORIGIN": "",
+     "SAME-ORIGIN": "same-origin",
      "SCRIPT": "",
      "SEARCH": "",
      "SEND": "",
      "SENTENCES": "",
      "SERVICEWORKER": "",
      "SHAREDWORKER": "",
-     "STRICT-ORIGIN": "",
-     "STRICT-ORIGIN-WHEN-CROSS-ORIGIN": "",
+     "STRICT-ORIGIN": "strict-origin",
+     "STRICT-ORIGIN-WHEN-CROSS-ORIGIN": "strict-origin-when-cross-origin",
      "STYLE": "",
      "SUBMIT": "",
      "SUBTITLES": "",
@@ -2118,15 +2120,15 @@
      "reset": "",
      "right": "",
      "rtl": "",
-     "same-origin": "",
+     "same-origin": "same-origin",
      "script": "",
      "search": "",
      "send": "",
      "sentences": "",
      "serviceworker": "",
      "sharedworker": "",
-     "strict-origin": "",
-     "strict-origin-when-cross-origin": "",
+     "strict-origin": "strict-origin",
+     "strict-origin-when-cross-origin": "strict-origin-when-cross-origin",
      "style": "",
      "submit": "",
      "subtitles": "",
@@ -4715,15 +4717,15 @@
      "RESET": "",
      "RIGHT": "",
      "RTL": "",
-     "SAME-ORIGIN": "",
+     "SAME-ORIGIN": "same-origin",
      "SCRIPT": "",
      "SEARCH": "",
      "SEND": "",
      "SENTENCES": "",
      "SERVICEWORKER": "",
      "SHAREDWORKER": "",
-     "STRICT-ORIGIN": "",
-     "STRICT-ORIGIN-WHEN-CROSS-ORIGIN": "",
+     "STRICT-ORIGIN": "strict-origin",
+     "STRICT-ORIGIN-WHEN-CROSS-ORIGIN": "strict-origin-when-cross-origin",
      "STYLE": "",
      "SUBMIT": "",
      "SUBTITLES": "",
@@ -4815,15 +4817,15 @@
      "reset": "",
      "right": "",
      "rtl": "",
-     "same-origin": "",
+     "same-origin": "same-origin",
      "script": "",
      "search": "",
      "send": "",
      "sentences": "",
      "serviceworker": "",
      "sharedworker": "",
-     "strict-origin": "",
-     "strict-origin-when-cross-origin": "",
+     "strict-origin": "strict-origin",
+     "strict-origin-when-cross-origin": "strict-origin-when-cross-origin",
      "style": "",
      "submit": "",
      "subtitles": "",
@@ -9269,6 +9271,114 @@
      "yes": "sentences"
     }
    },
+   "autocorrect": {
+    "attr": "autocorrect",
+    "def": true,
+    "fromAttr": {
+     "": true,
+     "-3": true,
+     "/rel/p?q=1": true,
+     "0": true,
+     "1e2": true,
+     "2147483648": true,
+     "5": true,
+     "99999999999": true,
+     "9px": true,
+     "ABC": true,
+     "abc": true,
+     "anonymous": true,
+     "false": true,
+     "http://x.test/a b": true,
+     "true": true,
+     "use-credentials": true
+    },
+    "set": {
+     "big": {
+      "attr": [
+       "autocorrect",
+       "on"
+      ],
+      "read": true
+     },
+     "empty": {
+      "attr": [
+       "autocorrect",
+       "off"
+      ],
+      "read": false
+     },
+     "false": {
+      "attr": [
+       "autocorrect",
+       "off"
+      ],
+      "read": false
+     },
+     "neg1": {
+      "attr": [
+       "autocorrect",
+       "on"
+      ],
+      "read": true
+     },
+     "null": {
+      "attr": [
+       "autocorrect",
+       "off"
+      ],
+      "read": false
+     },
+     "num1.9": {
+      "attr": [
+       "autocorrect",
+       "on"
+      ],
+      "read": true
+     },
+     "num5": {
+      "attr": [
+       "autocorrect",
+       "on"
+      ],
+      "read": true
+     },
+     "rel": {
+      "attr": [
+       "autocorrect",
+       "on"
+      ],
+      "read": true
+     },
+     "str": {
+      "attr": [
+       "autocorrect",
+       "on"
+      ],
+      "read": true
+     },
+     "true": {
+      "attr": [
+       "autocorrect",
+       "on"
+      ],
+      "read": true
+     },
+     "undef": {
+      "attr": [
+       "autocorrect",
+       "off"
+      ],
+      "read": false
+     },
+     "zero": {
+      "attr": [
+       "autocorrect",
+       "off"
+      ],
+      "read": false
+     }
+    }
+   },
    "autofocus": {
     "attr": "autofocus",
     "def": false,
@@ -10410,6 +10520,410 @@
      "worker": "",
      "xslt": "",
      "yes": ""
+    }
+   },
+   "focusGroup": {
+    "attr": "focusgroup",
+    "def": "OBJ:DOMTokenList",
+    "fromAttr": {
+     "": "OBJ:DOMTokenList",
+     "-3": "OBJ:DOMTokenList",
+     "/rel/p?q=1": "OBJ:DOMTokenList",
+     "0": "OBJ:DOMTokenList",
+     "1e2": "OBJ:DOMTokenList",
+     "2147483648": "OBJ:DOMTokenList",
+     "5": "OBJ:DOMTokenList",
+     "99999999999": "OBJ:DOMTokenList",
+     "9px": "OBJ:DOMTokenList",
+     "ABC": "OBJ:DOMTokenList",
+     "abc": "OBJ:DOMTokenList",
+     "anonymous": "OBJ:DOMTokenList",
+     "false": "OBJ:DOMTokenList",
+     "http://x.test/a b": "OBJ:DOMTokenList",
+     "true": "OBJ:DOMTokenList",
+     "use-credentials": "OBJ:DOMTokenList"
+    },
+    "set": {
+     "big": {
+      "attr": [
+       "focusgroup",
+       "2147483648"
+      ],
+      "read": "OBJ:DOMTokenList"
+     },
+     "empty": {
+      "attr": [
+       "focusgroup",
+       ""
+      ],
+      "read": "OBJ:DOMTokenList"
+     },
+     "false": {
+      "attr": [
+       "focusgroup",
+       "false"
+      ],
+      "read": "OBJ:DOMTokenList"
+     },
+     "neg1": {
+      "attr": [
+       "focusgroup",
+       "-1"
+      ],
+      "read": "OBJ:DOMTokenList"
+     },
+     "null": {
+      "attr": [
+       "focusgroup",
+       "null"
+      ],
+      "read": "OBJ:DOMTokenList"
+     },
+     "num1.9": {
+      "attr": [
+       "focusgroup",
+       "1.9"
+      ],
+      "read": "OBJ:DOMTokenList"
+     },
+     "num5": {
+      "attr": [
+       "focusgroup",
+       "5"
+      ],
+      "read": "OBJ:DOMTokenList"
+     },
+     "rel": {
+      "attr": [
+       "focusgroup",
+       "/rel/p?q=1"
+      ],
+      "read": "OBJ:DOMTokenList"
+     },
+     "str": {
+      "attr": [
+       "focusgroup",
+       "ABC"
+      ],
+      "read": "OBJ:DOMTokenList"
+     },
+     "true": {
+      "attr": [
+       "focusgroup",
+       "true"
+      ],
+      "read": "OBJ:DOMTokenList"
+     },
+     "undef": {
+      "attr": [
+       "focusgroup",
+       "undefined"
+      ],
+      "read": "OBJ:DOMTokenList"
+     },
+     "zero": {
+      "attr": [
+       "focusgroup",
+       "0"
+      ],
+      "read": "OBJ:DOMTokenList"
+     }
+    },
+    "vocab": {
+     "": "OBJ:DOMTokenList",
+     "ANONYMOUS": "OBJ:DOMTokenList",
+     "APPLICATION/X-WWW-FORM-URLENCODED": "OBJ:DOMTokenList",
+     "ASYNC": "OBJ:DOMTokenList",
+     "AUDIO": "OBJ:DOMTokenList",
+     "AUDIOWORKLET": "OBJ:DOMTokenList",
+     "AUTO": "OBJ:DOMTokenList",
+     "BOTTOM": "OBJ:DOMTokenList",
+     "BUTTON": "OBJ:DOMTokenList",
+     "CAPTIONS": "OBJ:DOMTokenList",
+     "CENTER": "OBJ:DOMTokenList",
+     "CHAPTERS": "OBJ:DOMTokenList",
+     "CHARACTERS": "OBJ:DOMTokenList",
+     "CHECKBOX": "OBJ:DOMTokenList",
+     "CIRC": "OBJ:DOMTokenList",
+     "CIRCLE": "OBJ:DOMTokenList",
+     "CLOSED": "OBJ:DOMTokenList",
+     "DECIMAL": "OBJ:DOMTokenList",
+     "DEFAULT": "OBJ:DOMTokenList",
+     "DESCRIPTIONS": "OBJ:DOMTokenList",
+     "DIALOG": "OBJ:DOMTokenList",
+     "DOCUMENT": "OBJ:DOMTokenList",
+     "DONE": "OBJ:DOMTokenList",
+     "EAGER": "OBJ:DOMTokenList",
+     "EMAIL": "OBJ:DOMTokenList",
+     "EMBED": "OBJ:DOMTokenList",
+     "ENTER": "OBJ:DOMTokenList",
+     "FALSE": "OBJ:DOMTokenList",
+     "FETCH": "OBJ:DOMTokenList",
+     "FONT": "OBJ:DOMTokenList",
+     "FRAME": "OBJ:DOMTokenList",
+     "GET": "OBJ:DOMTokenList",
+     "GO": "OBJ:DOMTokenList",
+     "HIGH": "OBJ:DOMTokenList",
+     "IFRAME": "OBJ:DOMTokenList",
+     "IMAGE": "OBJ:DOMTokenList",
+     "INHERIT": "OBJ:DOMTokenList",
+     "JSON": "OBJ:DOMTokenList",
+     "JUSTIFY": "OBJ:DOMTokenList",
+     "LAZY": "OBJ:DOMTokenList",
+     "LEFT": "OBJ:DOMTokenList",
+     "LOW": "OBJ:DOMTokenList",
+     "LTR": "OBJ:DOMTokenList",
+     "MANIFEST": "OBJ:DOMTokenList",
+     "MANUAL": "OBJ:DOMTokenList",
+     "METADATA": "OBJ:DOMTokenList",
+     "MIDDLE": "OBJ:DOMTokenList",
+     "MULTIPART/FORM-DATA": "OBJ:DOMTokenList",
+     "NEXT": "OBJ:DOMTokenList",
+     "NO": "OBJ:DOMTokenList",
+     "NO-REFERRER": "OBJ:DOMTokenList",
+     "NO-REFERRER-WHEN-DOWNGRADE": "OBJ:DOMTokenList",
+     "NONE": "OBJ:DOMTokenList",
+     "NUMERIC": "OBJ:DOMTokenList",
+     "OBJECT": "OBJ:DOMTokenList",
+     "OFF": "OBJ:DOMTokenList",
+     "ON": "OBJ:DOMTokenList",
+     "OPEN": "OBJ:DOMTokenList",
+     "ORIGIN": "OBJ:DOMTokenList",
+     "ORIGIN-WHEN-CROSS-ORIGIN": "OBJ:DOMTokenList",
+     "PAINTWORKLET": "OBJ:DOMTokenList",
+     "PLAINTEXT-ONLY": "OBJ:DOMTokenList",
+     "POLY": "OBJ:DOMTokenList",
+     "POLYGON": "OBJ:DOMTokenList",
+     "POST": "OBJ:DOMTokenList",
+     "PREVIOUS": "OBJ:DOMTokenList",
+     "RADIO": "OBJ:DOMTokenList",
+     "RECT": "OBJ:DOMTokenList",
+     "RECTANGLE": "OBJ:DOMTokenList",
+     "RENDER-BLOCKING": "OBJ:DOMTokenList",
+     "REPORT": "OBJ:DOMTokenList",
+     "RESET": "OBJ:DOMTokenList",
+     "RIGHT": "OBJ:DOMTokenList",
+     "RTL": "OBJ:DOMTokenList",
+     "SAME-ORIGIN": "OBJ:DOMTokenList",
+     "SCRIPT": "OBJ:DOMTokenList",
+     "SEARCH": "OBJ:DOMTokenList",
+     "SEND": "OBJ:DOMTokenList",
+     "SENTENCES": "OBJ:DOMTokenList",
+     "SERVICEWORKER": "OBJ:DOMTokenList",
+     "SHAREDWORKER": "OBJ:DOMTokenList",
+     "STRICT-ORIGIN": "OBJ:DOMTokenList",
+     "STRICT-ORIGIN-WHEN-CROSS-ORIGIN": "OBJ:DOMTokenList",
+     "STYLE": "OBJ:DOMTokenList",
+     "SUBMIT": "OBJ:DOMTokenList",
+     "SUBTITLES": "OBJ:DOMTokenList",
+     "SYNC": "OBJ:DOMTokenList",
+     "TEL": "OBJ:DOMTokenList",
+     "TEXT": "OBJ:DOMTokenList",
+     "TEXT/PLAIN": "OBJ:DOMTokenList",
+     "TOP": "OBJ:DOMTokenList",
+     "TRACK": "OBJ:DOMTokenList",
+     "TRUE": "OBJ:DOMTokenList",
+     "UNSAFE-URL": "OBJ:DOMTokenList",
+     "URL": "OBJ:DOMTokenList",
+     "USE-CREDENTIALS": "OBJ:DOMTokenList",
+     "VIDEO": "OBJ:DOMTokenList",
+     "WORDS": "OBJ:DOMTokenList",
+     "WORKER": "OBJ:DOMTokenList",
+     "XSLT": "OBJ:DOMTokenList",
+     "YES": "OBJ:DOMTokenList",
+     "anonymous": "OBJ:DOMTokenList",
+     "application/x-www-form-urlencoded": "OBJ:DOMTokenList",
+     "async": "OBJ:DOMTokenList",
+     "audio": "OBJ:DOMTokenList",
+     "audioworklet": "OBJ:DOMTokenList",
+     "auto": "OBJ:DOMTokenList",
+     "bottom": "OBJ:DOMTokenList",
+     "button": "OBJ:DOMTokenList",
+     "captions": "OBJ:DOMTokenList",
+     "center": "OBJ:DOMTokenList",
+     "chapters": "OBJ:DOMTokenList",
+     "characters": "OBJ:DOMTokenList",
+     "checkbox": "OBJ:DOMTokenList",
+     "circ": "OBJ:DOMTokenList",
+     "circle": "OBJ:DOMTokenList",
+     "closed": "OBJ:DOMTokenList",
+     "decimal": "OBJ:DOMTokenList",
+     "default": "OBJ:DOMTokenList",
+     "descriptions": "OBJ:DOMTokenList",
+     "dialog": "OBJ:DOMTokenList",
+     "document": "OBJ:DOMTokenList",
+     "done": "OBJ:DOMTokenList",
+     "eager": "OBJ:DOMTokenList",
+     "email": "OBJ:DOMTokenList",
+     "embed": "OBJ:DOMTokenList",
+     "enter": "OBJ:DOMTokenList",
+     "false": "OBJ:DOMTokenList",
+     "fetch": "OBJ:DOMTokenList",
+     "font": "OBJ:DOMTokenList",
+     "frame": "OBJ:DOMTokenList",
+     "get": "OBJ:DOMTokenList",
+     "go": "OBJ:DOMTokenList",
+     "high": "OBJ:DOMTokenList",
+     "iframe": "OBJ:DOMTokenList",
+     "image": "OBJ:DOMTokenList",
+     "inherit": "OBJ:DOMTokenList",
+     "json": "OBJ:DOMTokenList",
+     "justify": "OBJ:DOMTokenList",
+     "lazy": "OBJ:DOMTokenList",
+     "left": "OBJ:DOMTokenList",
+     "low": "OBJ:DOMTokenList",
+     "ltr": "OBJ:DOMTokenList",
+     "manifest": "OBJ:DOMTokenList",
+     "manual": "OBJ:DOMTokenList",
+     "metadata": "OBJ:DOMTokenList",
+     "middle": "OBJ:DOMTokenList",
+     "multipart/form-data": "OBJ:DOMTokenList",
+     "next": "OBJ:DOMTokenList",
+     "no": "OBJ:DOMTokenList",
+     "no-referrer": "OBJ:DOMTokenList",
+     "no-referrer-when-downgrade": "OBJ:DOMTokenList",
+     "none": "OBJ:DOMTokenList",
+     "numeric": "OBJ:DOMTokenList",
+     "object": "OBJ:DOMTokenList",
+     "off": "OBJ:DOMTokenList",
+     "on": "OBJ:DOMTokenList",
+     "open": "OBJ:DOMTokenList",
+     "origin": "OBJ:DOMTokenList",
+     "origin-when-cross-origin": "OBJ:DOMTokenList",
+     "paintworklet": "OBJ:DOMTokenList",
+     "plaintext-only": "OBJ:DOMTokenList",
+     "poly": "OBJ:DOMTokenList",
+     "polygon": "OBJ:DOMTokenList",
+     "post": "OBJ:DOMTokenList",
+     "previous": "OBJ:DOMTokenList",
+     "radio": "OBJ:DOMTokenList",
+     "rect": "OBJ:DOMTokenList",
+     "rectangle": "OBJ:DOMTokenList",
+     "render-blocking": "OBJ:DOMTokenList",
+     "report": "OBJ:DOMTokenList",
+     "reset": "OBJ:DOMTokenList",
+     "right": "OBJ:DOMTokenList",
+     "rtl": "OBJ:DOMTokenList",
+     "same-origin": "OBJ:DOMTokenList",
+     "script": "OBJ:DOMTokenList",
+     "search": "OBJ:DOMTokenList",
+     "send": "OBJ:DOMTokenList",
+     "sentences": "OBJ:DOMTokenList",
+     "serviceworker": "OBJ:DOMTokenList",
+     "sharedworker": "OBJ:DOMTokenList",
+     "strict-origin": "OBJ:DOMTokenList",
+     "strict-origin-when-cross-origin": "OBJ:DOMTokenList",
+     "style": "OBJ:DOMTokenList",
+     "submit": "OBJ:DOMTokenList",
+     "subtitles": "OBJ:DOMTokenList",
+     "sync": "OBJ:DOMTokenList",
+     "tel": "OBJ:DOMTokenList",
+     "text": "OBJ:DOMTokenList",
+     "text/plain": "OBJ:DOMTokenList",
+     "top": "OBJ:DOMTokenList",
+     "track": "OBJ:DOMTokenList",
+     "true": "OBJ:DOMTokenList",
+     "unsafe-url": "OBJ:DOMTokenList",
+     "url": "OBJ:DOMTokenList",
+     "use-credentials": "OBJ:DOMTokenList",
+     "video": "OBJ:DOMTokenList",
+     "words": "OBJ:DOMTokenList",
+     "worker": "OBJ:DOMTokenList",
+     "xslt": "OBJ:DOMTokenList",
+     "yes": "OBJ:DOMTokenList"
+    }
+   },
+   "focusGroupStart": {
+    "attr": "focusgroupstart",
+    "def": false,
+    "fromAttr": {
+     "": true,
+     "-3": true,
+     "/rel/p?q=1": true,
+     "0": true,
+     "1e2": true,
+     "2147483648": true,
+     "5": true,
+     "99999999999": true,
+     "9px": true,
+     "ABC": true,
+     "abc": true,
+     "anonymous": true,
+     "false": true,
+     "http://x.test/a b": true,
+     "true": true,
+     "use-credentials": true
+    },
+    "set": {
+     "big": {
+      "attr": [
+       "focusgroupstart",
+       ""
+      ],
+      "read": true
+     },
+     "empty": {
+      "attr": null,
+      "read": false
+     },
+     "false": {
+      "attr": null,
+      "read": false
+     },
+     "neg1": {
+      "attr": [
+       "focusgroupstart",
+       ""
+      ],
+      "read": true
+     },
+     "null": {
+      "attr": null,
+      "read": false
+     },
+     "num1.9": {
+      "attr": [
+       "focusgroupstart",
+       ""
+      ],
+      "read": true
+     },
+     "num5": {
+      "attr": [
+       "focusgroupstart",
+       ""
+      ],
+      "read": true
+     },
+     "rel": {
+      "attr": [
+       "focusgroupstart",
+       ""
+      ],
+      "read": true
+     },
+     "str": {
+      "attr": [
+       "focusgroupstart",
+       ""
+      ],
+      "read": true
+     },
+     "true": {
+      "attr": [
+       "focusgroupstart",
+       ""
+      ],
+      "read": true
+     },
+     "undef": {
+      "attr": null,
+      "read": false
+     },
+     "zero": {
+      "attr": null,
+      "read": false
+     }
     }
    },
    "hidden": {
@@ -26039,15 +26553,15 @@
      "RESET": "",
      "RIGHT": "",
      "RTL": "",
-     "SAME-ORIGIN": "",
+     "SAME-ORIGIN": "same-origin",
      "SCRIPT": "",
      "SEARCH": "",
      "SEND": "",
      "SENTENCES": "",
      "SERVICEWORKER": "",
      "SHAREDWORKER": "",
-     "STRICT-ORIGIN": "",
-     "STRICT-ORIGIN-WHEN-CROSS-ORIGIN": "",
+     "STRICT-ORIGIN": "strict-origin",
+     "STRICT-ORIGIN-WHEN-CROSS-ORIGIN": "strict-origin-when-cross-origin",
      "STYLE": "",
      "SUBMIT": "",
      "SUBTITLES": "",
@@ -26139,15 +26653,15 @@
      "reset": "",
      "right": "",
      "rtl": "",
-     "same-origin": "",
+     "same-origin": "same-origin",
      "script": "",
      "search": "",
      "send": "",
      "sentences": "",
      "serviceworker": "",
      "sharedworker": "",
-     "strict-origin": "",
-     "strict-origin-when-cross-origin": "",
+     "strict-origin": "strict-origin",
+     "strict-origin-when-cross-origin": "strict-origin-when-cross-origin",
      "style": "",
      "submit": "",
      "subtitles": "",
@@ -26584,99 +27098,6 @@
        "0"
       ],
       "read": "0"
-     }
-    }
-   },
-   "sharedStorageWritable": {
-    "attr": "sharedstoragewritable",
-    "def": false,
-    "fromAttr": {
-     "": true,
-     "-3": true,
-     "/rel/p?q=1": true,
-     "0": true,
-     "1e2": true,
-     "2147483648": true,
-     "5": true,
-     "99999999999": true,
-     "9px": true,
-     "ABC": true,
-     "abc": true,
-     "anonymous": true,
-     "false": true,
-     "http://x.test/a b": true,
-     "true": true,
-     "use-credentials": true
-    },
-    "set": {
-     "big": {
-      "attr": [
-       "sharedstoragewritable",
-       ""
-      ],
-      "read": true
-     },
-     "empty": {
-      "attr": null,
-      "read": false
-     },
-     "false": {
-      "attr": null,
-      "read": false
-     },
-     "neg1": {
-      "attr": [
-       "sharedstoragewritable",
-       ""
-      ],
-      "read": true
-     },
-     "null": {
-      "attr": null,
-      "read": false
-     },
-     "num1.9": {
-      "attr": [
-       "sharedstoragewritable",
-       ""
-      ],
-      "read": true
-     },
-     "num5": {
-      "attr": [
-       "sharedstoragewritable",
-       ""
-      ],
-      "read": true
-     },
-     "rel": {
-      "attr": [
-       "sharedstoragewritable",
-       ""
-      ],
-      "read": true
-     },
-     "str": {
-      "attr": [
-       "sharedstoragewritable",
-       ""
-      ],
-      "read": true
-     },
-     "true": {
-      "attr": [
-       "sharedstoragewritable",
-       ""
-      ],
-      "read": true
-     },
-     "undef": {
-      "attr": null,
-      "read": false
-     },
-     "zero": {
-      "attr": null,
-      "read": false
      }
     }
    },
@@ -30010,15 +30431,15 @@
      "RESET": "",
      "RIGHT": "",
      "RTL": "",
-     "SAME-ORIGIN": "",
+     "SAME-ORIGIN": "same-origin",
      "SCRIPT": "",
      "SEARCH": "",
      "SEND": "",
      "SENTENCES": "",
      "SERVICEWORKER": "",
      "SHAREDWORKER": "",
-     "STRICT-ORIGIN": "",
-     "STRICT-ORIGIN-WHEN-CROSS-ORIGIN": "",
+     "STRICT-ORIGIN": "strict-origin",
+     "STRICT-ORIGIN-WHEN-CROSS-ORIGIN": "strict-origin-when-cross-origin",
      "STYLE": "",
      "SUBMIT": "",
      "SUBTITLES": "",
@@ -30110,15 +30531,15 @@
      "reset": "",
      "right": "",
      "rtl": "",
-     "same-origin": "",
+     "same-origin": "same-origin",
      "script": "",
      "search": "",
      "send": "",
      "sentences": "",
      "serviceworker": "",
      "sharedworker": "",
-     "strict-origin": "",
-     "strict-origin-when-cross-origin": "",
+     "strict-origin": "strict-origin",
+     "strict-origin-when-cross-origin": "strict-origin-when-cross-origin",
      "style": "",
      "submit": "",
      "subtitles": "",
@@ -30137,99 +30558,6 @@
      "worker": "",
      "xslt": "",
      "yes": ""
-    }
-   },
-   "sharedStorageWritable": {
-    "attr": "sharedstoragewritable",
-    "def": false,
-    "fromAttr": {
-     "": true,
-     "-3": true,
-     "/rel/p?q=1": true,
-     "0": true,
-     "1e2": true,
-     "2147483648": true,
-     "5": true,
-     "99999999999": true,
-     "9px": true,
-     "ABC": true,
-     "abc": true,
-     "anonymous": true,
-     "false": true,
-     "http://x.test/a b": true,
-     "true": true,
-     "use-credentials": true
-    },
-    "set": {
-     "big": {
-      "attr": [
-       "sharedstoragewritable",
-       ""
-      ],
-      "read": true
-     },
-     "empty": {
-      "attr": null,
-      "read": false
-     },
-     "false": {
-      "attr": null,
-      "read": false
-     },
-     "neg1": {
-      "attr": [
-       "sharedstoragewritable",
-       ""
-      ],
-      "read": true
-     },
-     "null": {
-      "attr": null,
-      "read": false
-     },
-     "num1.9": {
-      "attr": [
-       "sharedstoragewritable",
-       ""
-      ],
-      "read": true
-     },
-     "num5": {
-      "attr": [
-       "sharedstoragewritable",
-       ""
-      ],
-      "read": true
-     },
-     "rel": {
-      "attr": [
-       "sharedstoragewritable",
-       ""
-      ],
-      "read": true
-     },
-     "str": {
-      "attr": [
-       "sharedstoragewritable",
-       ""
-      ],
-      "read": true
-     },
-     "true": {
-      "attr": [
-       "sharedstoragewritable",
-       ""
-      ],
-      "read": true
-     },
-     "undef": {
-      "attr": null,
-      "read": false
-     },
-     "zero": {
-      "attr": null,
-      "read": false
-     }
     }
    },
    "sizes": {
@@ -38833,15 +39161,15 @@
      "RESET": "",
      "RIGHT": "",
      "RTL": "",
-     "SAME-ORIGIN": "",
+     "SAME-ORIGIN": "same-origin",
      "SCRIPT": "",
      "SEARCH": "",
      "SEND": "",
      "SENTENCES": "",
      "SERVICEWORKER": "",
      "SHAREDWORKER": "",
-     "STRICT-ORIGIN": "",
-     "STRICT-ORIGIN-WHEN-CROSS-ORIGIN": "",
+     "STRICT-ORIGIN": "strict-origin",
+     "STRICT-ORIGIN-WHEN-CROSS-ORIGIN": "strict-origin-when-cross-origin",
      "STYLE": "",
      "SUBMIT": "",
      "SUBTITLES": "",
@@ -38933,15 +39261,15 @@
      "reset": "",
      "right": "",
      "rtl": "",
-     "same-origin": "",
+     "same-origin": "same-origin",
      "script": "",
      "search": "",
      "send": "",
      "sentences": "",
      "serviceworker": "",
      "sharedworker": "",
-     "strict-origin": "",
-     "strict-origin-when-cross-origin": "",
+     "strict-origin": "strict-origin",
+     "strict-origin-when-cross-origin": "strict-origin-when-cross-origin",
      "style": "",
      "submit": "",
      "subtitles": "",
@@ -42193,6 +42521,317 @@
     "fromAttr": {},
     "set": {}
    },
+   "loading": {
+    "attr": "loading",
+    "def": "eager",
+    "fromAttr": {
+     "": "eager",
+     "-3": "eager",
+     "/rel/p?q=1": "eager",
+     "0": "eager",
+     "1e2": "eager",
+     "2147483648": "eager",
+     "5": "eager",
+     "99999999999": "eager",
+     "9px": "eager",
+     "ABC": "eager",
+     "abc": "eager",
+     "anonymous": "eager",
+     "false": "eager",
+     "http://x.test/a b": "eager",
+     "true": "eager",
+     "use-credentials": "eager"
+    },
+    "set": {
+     "big": {
+      "attr": [
+       "loading",
+       "2147483648"
+      ],
+      "read": "eager"
+     },
+     "empty": {
+      "attr": [
+       "loading",
+       ""
+      ],
+      "read": "eager"
+     },
+     "false": {
+      "attr": [
+       "loading",
+       "false"
+      ],
+      "read": "eager"
+     },
+     "neg1": {
+      "attr": [
+       "loading",
+       "-1"
+      ],
+      "read": "eager"
+     },
+     "null": {
+      "attr": [
+       "loading",
+       "null"
+      ],
+      "read": "eager"
+     },
+     "num1.9": {
+      "attr": [
+       "loading",
+       "1.9"
+      ],
+      "read": "eager"
+     },
+     "num5": {
+      "attr": [
+       "loading",
+       "5"
+      ],
+      "read": "eager"
+     },
+     "rel": {
+      "attr": [
+       "loading",
+       "/rel/p?q=1"
+      ],
+      "read": "eager"
+     },
+     "str": {
+      "attr": [
+       "loading",
+       "ABC"
+      ],
+      "read": "eager"
+     },
+     "true": {
+      "attr": [
+       "loading",
+       "true"
+      ],
+      "read": "eager"
+     },
+     "undef": {
+      "attr": [
+       "loading",
+       "undefined"
+      ],
+      "read": "eager"
+     },
+     "zero": {
+      "attr": [
+       "loading",
+       "0"
+      ],
+      "read": "eager"
+     }
+    },
+    "vocab": {
+     "": "eager",
+     "ANONYMOUS": "eager",
+     "APPLICATION/X-WWW-FORM-URLENCODED": "eager",
+     "ASYNC": "eager",
+     "AUDIO": "eager",
+     "AUDIOWORKLET": "eager",
+     "AUTO": "eager",
+     "BOTTOM": "eager",
+     "BUTTON": "eager",
+     "CAPTIONS": "eager",
+     "CENTER": "eager",
+     "CHAPTERS": "eager",
+     "CHARACTERS": "eager",
+     "CHECKBOX": "eager",
+     "CIRC": "eager",
+     "CIRCLE": "eager",
+     "CLOSED": "eager",
+     "DECIMAL": "eager",
+     "DEFAULT": "eager",
+     "DESCRIPTIONS": "eager",
+     "DIALOG": "eager",
+     "DOCUMENT": "eager",
+     "DONE": "eager",
+     "EAGER": "eager",
+     "EMAIL": "eager",
+     "EMBED": "eager",
+     "ENTER": "eager",
+     "FALSE": "eager",
+     "FETCH": "eager",
+     "FONT": "eager",
+     "FRAME": "eager",
+     "GET": "eager",
+     "GO": "eager",
+     "HIGH": "eager",
+     "IFRAME": "eager",
+     "IMAGE": "eager",
+     "INHERIT": "eager",
+     "JSON": "eager",
+     "JUSTIFY": "eager",
+     "LAZY": "lazy",
+     "LEFT": "eager",
+     "LOW": "eager",
+     "LTR": "eager",
+     "MANIFEST": "eager",
+     "MANUAL": "eager",
+     "METADATA": "eager",
+     "MIDDLE": "eager",
+     "MULTIPART/FORM-DATA": "eager",
+     "NEXT": "eager",
+     "NO": "eager",
+     "NO-REFERRER": "eager",
+     "NO-REFERRER-WHEN-DOWNGRADE": "eager",
+     "NONE": "eager",
+     "NUMERIC": "eager",
+     "OBJECT": "eager",
+     "OFF": "eager",
+     "ON": "eager",
+     "OPEN": "eager",
+     "ORIGIN": "eager",
+     "ORIGIN-WHEN-CROSS-ORIGIN": "eager",
+     "PAINTWORKLET": "eager",
+     "PLAINTEXT-ONLY": "eager",
+     "POLY": "eager",
+     "POLYGON": "eager",
+     "POST": "eager",
+     "PREVIOUS": "eager",
+     "RADIO": "eager",
+     "RECT": "eager",
+     "RECTANGLE": "eager",
+     "RENDER-BLOCKING": "eager",
+     "REPORT": "eager",
+     "RESET": "eager",
+     "RIGHT": "eager",
+     "RTL": "eager",
+     "SAME-ORIGIN": "eager",
+     "SCRIPT": "eager",
+     "SEARCH": "eager",
+     "SEND": "eager",
+     "SENTENCES": "eager",
+     "SERVICEWORKER": "eager",
+     "SHAREDWORKER": "eager",
+     "STRICT-ORIGIN": "eager",
+     "STRICT-ORIGIN-WHEN-CROSS-ORIGIN": "eager",
+     "STYLE": "eager",
+     "SUBMIT": "eager",
+     "SUBTITLES": "eager",
+     "SYNC": "eager",
+     "TEL": "eager",
+     "TEXT": "eager",
+     "TEXT/PLAIN": "eager",
+     "TOP": "eager",
+     "TRACK": "eager",
+     "TRUE": "eager",
+     "UNSAFE-URL": "eager",
+     "URL": "eager",
+     "USE-CREDENTIALS": "eager",
+     "VIDEO": "eager",
+     "WORDS": "eager",
+     "WORKER": "eager",
+     "XSLT": "eager",
+     "YES": "eager",
+     "anonymous": "eager",
+     "application/x-www-form-urlencoded": "eager",
+     "async": "eager",
+     "audio": "eager",
+     "audioworklet": "eager",
+     "auto": "eager",
+     "bottom": "eager",
+     "button": "eager",
+     "captions": "eager",
+     "center": "eager",
+     "chapters": "eager",
+     "characters": "eager",
+     "checkbox": "eager",
+     "circ": "eager",
+     "circle": "eager",
+     "closed": "eager",
+     "decimal": "eager",
+     "default": "eager",
+     "descriptions": "eager",
+     "dialog": "eager",
+     "document": "eager",
+     "done": "eager",
+     "eager": "eager",
+     "email": "eager",
+     "embed": "eager",
+     "enter": "eager",
+     "false": "eager",
+     "fetch": "eager",
+     "font": "eager",
+     "frame": "eager",
+     "get": "eager",
+     "go": "eager",
+     "high": "eager",
+     "iframe": "eager",
+     "image": "eager",
+     "inherit": "eager",
+     "json": "eager",
+     "justify": "eager",
+     "lazy": "lazy",
+     "left": "eager",
+     "low": "eager",
+     "ltr": "eager",
+     "manifest": "eager",
+     "manual": "eager",
+     "metadata": "eager",
+     "middle": "eager",
+     "multipart/form-data": "eager",
+     "next": "eager",
+     "no": "eager",
+     "no-referrer": "eager",
+     "no-referrer-when-downgrade": "eager",
+     "none": "eager",
+     "numeric": "eager",
+     "object": "eager",
+     "off": "eager",
+     "on": "eager",
+     "open": "eager",
+     "origin": "eager",
+     "origin-when-cross-origin": "eager",
+     "paintworklet": "eager",
+     "plaintext-only": "eager",
+     "poly": "eager",
+     "polygon": "eager",
+     "post": "eager",
+     "previous": "eager",
+     "radio": "eager",
+     "rect": "eager",
+     "rectangle": "eager",
+     "render-blocking": "eager",
+     "report": "eager",
+     "reset": "eager",
+     "right": "eager",
+     "rtl": "eager",
+     "same-origin": "eager",
+     "script": "eager",
+     "search": "eager",
+     "send": "eager",
+     "sentences": "eager",
+     "serviceworker": "eager",
+     "sharedworker": "eager",
+     "strict-origin": "eager",
+     "strict-origin-when-cross-origin": "eager",
+     "style": "eager",
+     "submit": "eager",
+     "subtitles": "eager",
+     "sync": "eager",
+     "tel": "eager",
+     "text": "eager",
+     "text/plain": "eager",
+     "top": "eager",
+     "track": "eager",
+     "true": "eager",
+     "unsafe-url": "eager",
+     "url": "eager",
+     "use-credentials": "eager",
+     "video": "eager",
+     "words": "eager",
+     "worker": "eager",
+     "xslt": "eager",
+     "yes": "eager"
+    }
+   },
    "loop": {
     "attr": "loop",
     "def": false,
@@ -44076,7 +44715,7 @@
      "2147483648": 1,
      "5": 1,
      "99999999999": 1,
-     "9px": 0,
+     "9px": 1,
      "ABC": 0,
      "abc": 0,
      "anonymous": 0,
@@ -44172,7 +44811,7 @@
      "2147483648": 2147483648,
      "5": 5,
      "99999999999": 99999999999,
-     "9px": 1,
+     "9px": 9,
      "ABC": 1,
      "abc": 1,
      "anonymous": 1,
@@ -44268,7 +44907,7 @@
      "2147483648": 2147483648,
      "5": 5,
      "99999999999": 99999999999,
-     "9px": 0,
+     "9px": 9,
      "ABC": 0,
      "abc": 0,
      "anonymous": 0,
@@ -44364,7 +45003,7 @@
      "2147483648": 1,
      "5": 1,
      "99999999999": 1,
-     "9px": 0.5,
+     "9px": 1,
      "ABC": 0.5,
      "abc": 0.5,
      "anonymous": 0.5,
@@ -44460,7 +45099,7 @@
      "2147483648": 1,
      "5": 1,
      "99999999999": 1,
-     "9px": 0,
+     "9px": 1,
      "ABC": 0,
      "abc": 0,
      "anonymous": 0,
@@ -48963,7 +49602,7 @@
      "2147483648": 2147483648,
      "5": 5,
      "99999999999": 99999999999,
-     "9px": 1,
+     "9px": 9,
      "ABC": 1,
      "abc": 1,
      "anonymous": 1,
@@ -48981,31 +49620,19 @@
       "read": 2147483648
      },
      "empty": {
-      "attr": [
-       "max",
-       "1"
-      ],
+      "attr": null,
       "read": 1
      },
      "false": {
-      "attr": [
-       "max",
-       "1"
-      ],
+      "attr": null,
       "read": 1
      },
      "neg1": {
-      "attr": [
-       "max",
-       "1"
-      ],
+      "attr": null,
       "read": 1
      },
      "null": {
-      "attr": [
-       "max",
-       "1"
-      ],
+      "attr": null,
       "read": 1
      },
      "num1.9": {
@@ -49039,10 +49666,7 @@
       "throw": "TypeError: Failed to set the 'max' property on 'HTMLProgressElement': The provided double value is non-finite."
      },
      "zero": {
-      "attr": [
-       "max",
-       "1"
-      ],
+      "attr": null,
       "read": 1
      }
     }
@@ -49064,7 +49688,7 @@
      "2147483648": 1,
      "5": 1,
      "99999999999": 1,
-     "9px": 0,
+     "9px": 1,
      "ABC": 0,
      "abc": 0,
      "anonymous": 0,
@@ -54678,6 +55302,114 @@
     "fromAttr": {},
     "set": {}
    },
+   "htmlFor": {
+    "attr": "for",
+    "def": "",
+    "fromAttr": {
+     "": "",
+     "-3": "-3",
+     "/rel/p?q=1": "/rel/p?q=1",
+     "0": "0",
+     "1e2": "1e2",
+     "2147483648": "2147483648",
+     "5": "5",
+     "99999999999": "99999999999",
+     "9px": "9px",
+     "ABC": "ABC",
+     "abc": "abc",
+     "anonymous": "anonymous",
+     "false": "false",
+     "http://x.test/a b": "http://x.test/a b",
+     "true": "true",
+     "use-credentials": "use-credentials"
+    },
+    "set": {
+     "big": {
+      "attr": [
+       "for",
+       "2147483648"
+      ],
+      "read": "2147483648"
+     },
+     "empty": {
+      "attr": [
+       "for",
+       ""
+      ],
+      "read": ""
+     },
+     "false": {
+      "attr": [
+       "for",
+       "false"
+      ],
+      "read": "false"
+     },
+     "neg1": {
+      "attr": [
+       "for",
+       "-1"
+      ],
+      "read": "-1"
+     },
+     "null": {
+      "attr": [
+       "for",
+       "null"
+      ],
+      "read": "null"
+     },
+     "num1.9": {
+      "attr": [
+       "for",
+       "1.9"
+      ],
+      "read": "1.9"
+     },
+     "num5": {
+      "attr": [
+       "for",
+       "5"
+      ],
+      "read": "5"
+     },
+     "rel": {
+      "attr": [
+       "for",
+       "/rel/p?q=1"
+      ],
+      "read": "/rel/p?q=1"
+     },
+     "str": {
+      "attr": [
+       "for",
+       "ABC"
+      ],
+      "read": "ABC"
+     },
+     "true": {
+      "attr": [
+       "for",
+       "true"
+      ],
+      "read": "true"
+     },
+     "undef": {
+      "attr": [
+       "for",
+       "undefined"
+      ],
+      "read": "undefined"
+     },
+     "zero": {
+      "attr": [
+       "for",
+       "0"
+      ],
+      "read": "0"
+     }
+    }
+   },
    "shadowRootClonable": {
     "attr": "shadowrootclonable",
     "def": false,
@@ -54768,6 +55500,114 @@
      "zero": {
       "attr": null,
       "read": false
+     }
+    }
+   },
+   "shadowRootCustomElementRegistry": {
+    "attr": "shadowrootcustomelementregistry",
+    "def": "",
+    "fromAttr": {
+     "": "",
+     "-3": "-3",
+     "/rel/p?q=1": "/rel/p?q=1",
+     "0": "0",
+     "1e2": "1e2",
+     "2147483648": "2147483648",
+     "5": "5",
+     "99999999999": "99999999999",
+     "9px": "9px",
+     "ABC": "ABC",
+     "abc": "abc",
+     "anonymous": "anonymous",
+     "false": "false",
+     "http://x.test/a b": "http://x.test/a b",
+     "true": "true",
+     "use-credentials": "use-credentials"
+    },
+    "set": {
+     "big": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "2147483648"
+      ],
+      "read": "2147483648"
+     },
+     "empty": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       ""
+      ],
+      "read": ""
+     },
+     "false": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "false"
+      ],
+      "read": "false"
+     },
+     "neg1": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "-1"
+      ],
+      "read": "-1"
+     },
+     "null": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "null"
+      ],
+      "read": "null"
+     },
+     "num1.9": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "1.9"
+      ],
+      "read": "1.9"
+     },
+     "num5": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "5"
+      ],
+      "read": "5"
+     },
+     "rel": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "/rel/p?q=1"
+      ],
+      "read": "/rel/p?q=1"
+     },
+     "str": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "ABC"
+      ],
+      "read": "ABC"
+     },
+     "true": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "true"
+      ],
+      "read": "true"
+     },
+     "undef": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "undefined"
+      ],
+      "read": "undefined"
+     },
+     "zero": {
+      "attr": [
+       "shadowrootcustomelementregistry",
+       "0"
+      ],
+      "read": "0"
      }
     }
    },
@@ -55175,6 +56015,108 @@
      "yes": ""
     }
    },
+   "shadowRootReferenceTarget": {
+    "attr": "shadowrootreferencetarget",
+    "def": null,
+    "fromAttr": {
+     "": "",
+     "-3": "-3",
+     "/rel/p?q=1": "/rel/p?q=1",
+     "0": "0",
+     "1e2": "1e2",
+     "2147483648": "2147483648",
+     "5": "5",
+     "99999999999": "99999999999",
+     "9px": "9px",
+     "ABC": "ABC",
+     "abc": "abc",
+     "anonymous": "anonymous",
+     "false": "false",
+     "http://x.test/a b": "http://x.test/a b",
+     "true": "true",
+     "use-credentials": "use-credentials"
+    },
+    "set": {
+     "big": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "2147483648"
+      ],
+      "read": "2147483648"
+     },
+     "empty": {
+      "attr": [
+       "shadowrootreferencetarget",
+       ""
+      ],
+      "read": ""
+     },
+     "false": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "false"
+      ],
+      "read": "false"
+     },
+     "neg1": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "-1"
+      ],
+      "read": "-1"
+     },
+     "null": {
+      "attr": null,
+      "read": null
+     },
+     "num1.9": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "1.9"
+      ],
+      "read": "1.9"
+     },
+     "num5": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "5"
+      ],
+      "read": "5"
+     },
+     "rel": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "/rel/p?q=1"
+      ],
+      "read": "/rel/p?q=1"
+     },
+     "str": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "ABC"
+      ],
+      "read": "ABC"
+     },
+     "true": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "true"
+      ],
+      "read": "true"
+     },
+     "undef": {
+      "attr": null,
+      "read": null
+     },
+     "zero": {
+      "attr": [
+       "shadowrootreferencetarget",
+       "0"
+      ],
+      "read": "0"
+     }
+    }
+   },
    "shadowRootSerializable": {
     "attr": "shadowrootserializable",
     "def": false,
@@ -55265,114 +56207,6 @@
      "zero": {
       "attr": null,
       "read": false
-     }
-    }
-   },
-   "shadowRootCustomElementRegistry": {
-    "attr": "shadowrootcustomelementregistry",
-    "def": "",
-    "fromAttr": {
-     "": "",
-     "-3": "-3",
-     "/rel/p?q=1": "/rel/p?q=1",
-     "0": "0",
-     "1e2": "1e2",
-     "2147483648": "2147483648",
-     "5": "5",
-     "99999999999": "99999999999",
-     "9px": "9px",
-     "ABC": "ABC",
-     "abc": "abc",
-     "anonymous": "anonymous",
-     "false": "false",
-     "http://x.test/a b": "http://x.test/a b",
-     "true": "true",
-     "use-credentials": "use-credentials"
-    },
-    "set": {
-     "big": {
-      "attr": [
-       "shadowrootcustomelementregistry",
-       "2147483648"
-      ],
-      "read": "2147483648"
-     },
-     "empty": {
-      "attr": [
-       "shadowrootcustomelementregistry",
-       ""
-      ],
-      "read": ""
-     },
-     "false": {
-      "attr": [
-       "shadowrootcustomelementregistry",
-       "false"
-      ],
-      "read": "false"
-     },
-     "neg1": {
-      "attr": [
-       "shadowrootcustomelementregistry",
-       "-1"
-      ],
-      "read": "-1"
-     },
-     "null": {
-      "attr": [
-       "shadowrootcustomelementregistry",
-       "null"
-      ],
-      "read": "null"
-     },
-     "num1.9": {
-      "attr": [
-       "shadowrootcustomelementregistry",
-       "1.9"
-      ],
-      "read": "1.9"
-     },
-     "num5": {
-      "attr": [
-       "shadowrootcustomelementregistry",
-       "5"
-      ],
-      "read": "5"
-     },
-     "rel": {
-      "attr": [
-       "shadowrootcustomelementregistry",
-       "/rel/p?q=1"
-      ],
-      "read": "/rel/p?q=1"
-     },
-     "str": {
-      "attr": [
-       "shadowrootcustomelementregistry",
-       "ABC"
-      ],
-      "read": "ABC"
-     },
-     "true": {
-      "attr": [
-       "shadowrootcustomelementregistry",
-       "true"
-      ],
-      "read": "true"
-     },
-     "undef": {
-      "attr": [
-       "shadowrootcustomelementregistry",
-       "undefined"
-      ],
-      "read": "undefined"
-     },
-     "zero": {
-      "attr": [
-       "shadowrootcustomelementregistry",
-       "0"
-      ],
-      "read": "0"
      }
     }
    },
@@ -55685,216 +56519,6 @@
      "worker": "named",
      "xslt": "named",
      "yes": "named"
-    }
-   },
-   "htmlFor": {
-    "attr": "for",
-    "def": "",
-    "fromAttr": {
-     "": "",
-     "-3": "-3",
-     "/rel/p?q=1": "/rel/p?q=1",
-     "0": "0",
-     "1e2": "1e2",
-     "2147483648": "2147483648",
-     "5": "5",
-     "99999999999": "99999999999",
-     "9px": "9px",
-     "ABC": "ABC",
-     "abc": "abc",
-     "anonymous": "anonymous",
-     "false": "false",
-     "http://x.test/a b": "http://x.test/a b",
-     "true": "true",
-     "use-credentials": "use-credentials"
-    },
-    "set": {
-     "big": {
-      "attr": [
-       "for",
-       "2147483648"
-      ],
-      "read": "2147483648"
-     },
-     "empty": {
-      "attr": [
-       "for",
-       ""
-      ],
-      "read": ""
-     },
-     "false": {
-      "attr": [
-       "for",
-       "false"
-      ],
-      "read": "false"
-     },
-     "neg1": {
-      "attr": [
-       "for",
-       "-1"
-      ],
-      "read": "-1"
-     },
-     "null": {
-      "attr": [
-       "for",
-       "null"
-      ],
-      "read": "null"
-     },
-     "num1.9": {
-      "attr": [
-       "for",
-       "1.9"
-      ],
-      "read": "1.9"
-     },
-     "num5": {
-      "attr": [
-       "for",
-       "5"
-      ],
-      "read": "5"
-     },
-     "rel": {
-      "attr": [
-       "for",
-       "/rel/p?q=1"
-      ],
-      "read": "/rel/p?q=1"
-     },
-     "str": {
-      "attr": [
-       "for",
-       "ABC"
-      ],
-      "read": "ABC"
-     },
-     "true": {
-      "attr": [
-       "for",
-       "true"
-      ],
-      "read": "true"
-     },
-     "undef": {
-      "attr": [
-       "for",
-       "undefined"
-      ],
-      "read": "undefined"
-     },
-     "zero": {
-      "attr": [
-       "for",
-       "0"
-      ],
-      "read": "0"
-     }
-    }
-   },
-   "shadowRootReferenceTarget": {
-    "attr": "shadowrootreferencetarget",
-    "def": null,
-    "fromAttr": {
-     "": "",
-     "-3": "-3",
-     "/rel/p?q=1": "/rel/p?q=1",
-     "0": "0",
-     "1e2": "1e2",
-     "2147483648": "2147483648",
-     "5": "5",
-     "99999999999": "99999999999",
-     "9px": "9px",
-     "ABC": "ABC",
-     "abc": "abc",
-     "anonymous": "anonymous",
-     "false": "false",
-     "http://x.test/a b": "http://x.test/a b",
-     "true": "true",
-     "use-credentials": "use-credentials"
-    },
-    "set": {
-     "big": {
-      "attr": [
-       "shadowrootreferencetarget",
-       "2147483648"
-      ],
-      "read": "2147483648"
-     },
-     "empty": {
-      "attr": [
-       "shadowrootreferencetarget",
-       ""
-      ],
-      "read": ""
-     },
-     "false": {
-      "attr": [
-       "shadowrootreferencetarget",
-       "false"
-      ],
-      "read": "false"
-     },
-     "neg1": {
-      "attr": [
-       "shadowrootreferencetarget",
-       "-1"
-      ],
-      "read": "-1"
-     },
-     "null": {
-      "attr": null,
-      "read": null
-     },
-     "num1.9": {
-      "attr": [
-       "shadowrootreferencetarget",
-       "1.9"
-      ],
-      "read": "1.9"
-     },
-     "num5": {
-      "attr": [
-       "shadowrootreferencetarget",
-       "5"
-      ],
-      "read": "5"
-     },
-     "rel": {
-      "attr": [
-       "shadowrootreferencetarget",
-       "/rel/p?q=1"
-      ],
-      "read": "/rel/p?q=1"
-     },
-     "str": {
-      "attr": [
-       "shadowrootreferencetarget",
-       "ABC"
-      ],
-      "read": "ABC"
-     },
-     "true": {
-      "attr": [
-       "shadowrootreferencetarget",
-       "true"
-      ],
-      "read": "true"
-     },
-     "undef": {
-      "attr": null,
-      "read": null
-     },
-     "zero": {
-      "attr": [
-       "shadowrootreferencetarget",
-       "0"
-      ],
-      "read": "0"
-     }
     }
    }
   },
@@ -59703,6 +60327,7 @@
    "attachInternals": "function",
    "attributeStyleMap": "ro",
    "autocapitalize": "rw",
+   "autocorrect": "rw",
    "autofocus": "rw",
    "blur": "function",
    "click": "function",
@@ -59714,6 +60339,8 @@
    "editContext": "rw",
    "enterKeyHint": "rw",
    "focus": "function",
+   "focusGroup": "rw",
+   "focusGroupStart": "rw",
    "hidden": "rw",
    "hidePopover": "function",
    "inert": "rw",
@@ -59938,7 +60565,6 @@
    "referrerPolicy": "rw",
    "sandbox": "rw",
    "scrolling": "rw",
-   "sharedStorageWritable": "rw",
    "src": "rw",
    "srcdoc": "rw",
    "width": "rw"
@@ -59966,7 +60592,6 @@
    "naturalHeight": "ro",
    "naturalWidth": "ro",
    "referrerPolicy": "rw",
-   "sharedStorageWritable": "rw",
    "sizes": "rw",
    "src": "rw",
    "srcset": "rw",
@@ -59984,6 +60609,7 @@
    "checkValidity": "function",
    "checked": "rw",
    "constructor": "function",
+   "createValueRange": "function",
    "defaultChecked": "rw",
    "defaultValue": "rw",
    "dirName": "rw",
@@ -60115,6 +60741,7 @@
    "ended": "ro",
    "error": "ro",
    "load": "function",
+   "loading": "rw",
    "loop": "rw",
    "mediaKeys": "ro",
    "muted": "rw",
@@ -60332,20 +60959,21 @@
   "HTMLTemplateElement": {
    "constructor": "function",
    "content": "ro",
+   "htmlFor": "rw",
    "shadowRootClonable": "rw",
+   "shadowRootCustomElementRegistry": "rw",
    "shadowRootDelegatesFocus": "rw",
    "shadowRootMode": "rw",
+   "shadowRootReferenceTarget": "rw",
    "shadowRootSerializable": "rw",
-   "shadowRootCustomElementRegistry": "rw",
-   "shadowRootSlotAssignment": "rw",
-   "htmlFor": "rw",
-   "shadowRootReferenceTarget": "rw"
+   "shadowRootSlotAssignment": "rw"
   },
   "HTMLTextAreaElement": {
    "autocomplete": "rw",
    "checkValidity": "function",
    "cols": "rw",
    "constructor": "function",
+   "createValueRange": "function",
    "defaultValue": "rw",
    "dirName": "rw",
    "disabled": "rw",
@@ -60655,8 +61283,11 @@
    "hidePopover",
    "showPopover",
    "togglePopover",
+   "autocorrect",
    "onscrollsnapchange",
    "onscrollsnapchanging",
+   "focusGroup",
+   "focusGroupStart",
    "constructor",
    "onpointerrawupdate"
   ],
@@ -60733,7 +61364,6 @@
    "constructor"
   ],
   "HTMLIFrameElement": [
-   "sharedStorageWritable",
    "src",
    "srcdoc",
    "name",
@@ -60792,8 +61422,7 @@
    "decode",
    "constructor",
    "browsingTopics",
-   "attributionSrc",
-   "sharedStorageWritable"
+   "attributionSrc"
   ],
   "HTMLInputElement": [
    "accept",
@@ -60855,6 +61484,7 @@
    "stepDown",
    "stepUp",
    "webkitEntries",
+   "createValueRange",
    "constructor"
   ],
   "HTMLLegendElement": [
@@ -60953,6 +61583,7 @@
    "load",
    "pause",
    "play",
+   "loading",
    "sinkId",
    "remote",
    "disableRemotePlayback",
@@ -61191,6 +61822,7 @@
    "setCustomValidity",
    "setRangeText",
    "setSelectionRange",
+   "createValueRange",
    "constructor"
   ],
   "HTMLTimeElement": [
@@ -61595,6 +62227,47 @@
    "tag": false,
    "terms-of-service": false
   },
+  "HTMLElement.focusGroup": {
+   "allow-downloads": false,
+   "allow-forms": false,
+   "allow-modals": false,
+   "allow-popups": false,
+   "allow-same-origin": false,
+   "allow-scripts": false,
+   "alternate": false,
+   "author": false,
+   "bookmark": false,
+   "canonical": false,
+   "compression-dictionary": false,
+   "dns-prefetch": false,
+   "expect": false,
+   "external": false,
+   "help": false,
+   "icon": false,
+   "license": false,
+   "manifest": false,
+   "modulepreload": false,
+   "next": false,
+   "nodownload": false,
+   "nofollow": false,
+   "nofullscreen": false,
+   "nonexistent": false,
+   "noopener": false,
+   "noreferrer": false,
+   "noremoteplayback": false,
+   "opener": false,
+   "pingback": false,
+   "preconnect": false,
+   "prefetch": false,
+   "preload": false,
+   "prev": false,
+   "privacy-policy": false,
+   "render-blocking": false,
+   "search": false,
+   "stylesheet": false,
+   "tag": false,
+   "terms-of-service": false
+  },
   "HTMLFormElement.relList": {
    "allow-downloads": false,
    "allow-forms": false,
@@ -61963,47 +62636,6 @@
    "stylesheet": false,
    "tag": false,
    "terms-of-service": false
-  },
-  "HTMLElement.focusGroup": {
-   "render-blocking": false,
-   "noopener": false,
-   "noreferrer": false,
-   "opener": false,
-   "stylesheet": false,
-   "preload": false,
-   "modulepreload": false,
-   "icon": false,
-   "allow-forms": false,
-   "allow-scripts": false,
-   "allow-same-origin": false,
-   "allow-popups": false,
-   "allow-modals": false,
-   "allow-downloads": false,
-   "nofollow": false,
-   "prefetch": false,
-   "dns-prefetch": false,
-   "preconnect": false,
-   "canonical": false,
-   "alternate": false,
-   "author": false,
-   "bookmark": false,
-   "external": false,
-   "help": false,
-   "license": false,
-   "next": false,
-   "prev": false,
-   "search": false,
-   "tag": false,
-   "privacy-policy": false,
-   "terms-of-service": false,
-   "manifest": false,
-   "compression-dictionary": false,
-   "expect": false,
-   "pingback": false,
-   "nonexistent": false,
-   "nodownload": false,
-   "nofullscreen": false,
-   "noremoteplayback": false
   }
  }
 }

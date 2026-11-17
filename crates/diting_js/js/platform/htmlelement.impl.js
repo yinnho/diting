@@ -9,11 +9,11 @@
 // gen/htmlelement.gen.js, and uniform attribute reflection is DATA there
 // (P.reflector). This module owns the NON-uniform semantics; every fact
 // below that could be misremembered is pinned by a key in
-// tools/webplatform/chrome/htmlelement-truth-145.json (captured from real
+// tools/webplatform/chrome/htmlelement-truth-157.json (captured from real
 // Chrome 145) and diffed by the htmlelement_members_match_chrome_truth test.
 // Knife-4 staged-family behavior (part/attributeStyleMap/computedStyleMap/
 // fullscreen trio/pointer lock/moveBefore/ariaNotify) is pinned by
-// element-staged-truth-145.json and diffed by
+// element-staged-truth-157.json and diffed by
 // element_staged_members_match_chrome_truth.
 
 // ---- nonce: internal slot, deliberately NOT reflected (truth set.nonce:
@@ -141,10 +141,10 @@ const SET = {
   editContext() { /* swallow */ },
   classList(el, v) { el.className = v === undefined || v === null ? '' : String(v); },
   outerHTML(el, v) {
-    // Chrome replaces the node via fragment parsing; the pinned case is the
-    // parentless throw (truth outerHTML.set, exact message).
+    // Chrome replaces the node via fragment parsing. A parentless element
+    // ignores the set (truth outerHTML.set: the node stays, no throw).
     const parent = el.parentNode;
-    if (!parent) throw new DOMException("Failed to set the 'outerHTML' property on 'Element': This element has no parent node.", 'NoModificationAllowedError');
+    if (!parent) return;
     el.insertAdjacentHTML('beforebegin', String(v));
     el.remove();
   },
@@ -193,7 +193,7 @@ const CALL = {
   webkitMatchesSelector(el, ctx, args) { return el.matches(args[0]); },
 
   // ---- staged families (knife 4; every message pinned by
-  // element-staged-truth-145.json mb.*/rfs.*/rpl.* keys)
+  // element-staged-truth-157.json mb.*/rfs.*/rpl.* keys)
   computedStyleMap(el) { return SM.computedFor(el); },
   moveBefore(el, ctx, args) {
     const node = args[0];

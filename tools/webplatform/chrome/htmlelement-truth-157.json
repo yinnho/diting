@@ -1,8 +1,14 @@
 {
  "EL.kinds": {
+  "activeViewTransition": "ro",
   "after": "function",
+  "afterHTML": "function",
+  "afterHTMLUnsafe": "function",
   "animate": "function",
   "append": "function",
+  "appendHTML": "function",
+  "appendHTMLUnsafe": "function",
+  "ariaActionsElements": "rw",
   "ariaActiveDescendantElement": "rw",
   "ariaAtomic": "rw",
   "ariaAutoComplete": "rw",
@@ -45,7 +51,6 @@
   "ariaRoleDescription": "rw",
   "ariaRowCount": "rw",
   "ariaRowIndex": "rw",
-  "ariaActionsElements": "rw",
   "ariaRowIndexText": "rw",
   "ariaRowSpan": "rw",
   "ariaSelected": "rw",
@@ -59,6 +64,8 @@
   "attachShadow": "function",
   "attributes": "ro",
   "before": "function",
+  "beforeHTML": "function",
+  "beforeHTMLUnsafe": "function",
   "checkVisibility": "function",
   "childElementCount": "ro",
   "children": "ro",
@@ -72,6 +79,7 @@
   "computedStyleMap": "function",
   "constructor": "function",
   "currentCSSZoom": "ro",
+  "customElementRegistry": "ro",
   "elementTiming": "rw",
   "firstElementChild": "ro",
   "getAnimations": "function",
@@ -113,7 +121,10 @@
   "part": "rw",
   "prefix": "ro",
   "prepend": "function",
+  "prependHTML": "function",
+  "prependHTMLUnsafe": "function",
   "previousElementSibling": "ro",
+  "pseudo": "function",
   "querySelector": "function",
   "querySelectorAll": "function",
   "releasePointerCapture": "function",
@@ -123,6 +134,8 @@
   "removeAttributeNode": "function",
   "replaceChildren": "function",
   "replaceWith": "function",
+  "replaceWithHTML": "function",
+  "replaceWithHTMLUnsafe": "function",
   "requestFullscreen": "function",
   "requestPointerLock": "function",
   "role": "rw",
@@ -139,10 +152,24 @@
   "setAttributeNS": "function",
   "setAttributeNode": "function",
   "setAttributeNodeNS": "function",
+  "setHTML": "function",
   "setHTMLUnsafe": "function",
   "setPointerCapture": "function",
   "shadowRoot": "ro",
   "slot": "rw",
+  "startViewTransition": "function",
+  "streamAfterHTML": "function",
+  "streamAfterHTMLUnsafe": "function",
+  "streamAppendHTML": "function",
+  "streamAppendHTMLUnsafe": "function",
+  "streamBeforeHTML": "function",
+  "streamBeforeHTMLUnsafe": "function",
+  "streamHTML": "function",
+  "streamHTMLUnsafe": "function",
+  "streamPrependHTML": "function",
+  "streamPrependHTMLUnsafe": "function",
+  "streamReplaceWithHTML": "function",
+  "streamReplaceWithHTMLUnsafe": "function",
   "tagName": "ro",
   "toggleAttribute": "function",
   "webkitMatchesSelector": "function",
@@ -177,10 +204,12 @@
   "onbeforepaste",
   "onsearch",
   "elementTiming",
+  "customElementRegistry",
   "onfullscreenchange",
   "onfullscreenerror",
   "onwebkitfullscreenchange",
   "onwebkitfullscreenerror",
+  "activeViewTransition",
   "role",
   "ariaAtomic",
   "ariaAutoComplete",
@@ -281,6 +310,7 @@
   "setAttributeNodeNS",
   "setHTMLUnsafe",
   "setPointerCapture",
+  "startViewTransition",
   "toggleAttribute",
   "webkitMatchesSelector",
   "webkitRequestFullScreen",
@@ -296,7 +326,31 @@
   "ariaErrorMessageElements",
   "ariaFlowToElements",
   "ariaLabelledByElements",
+  "afterHTML",
+  "afterHTMLUnsafe",
+  "appendHTML",
+  "appendHTMLUnsafe",
+  "beforeHTML",
+  "beforeHTMLUnsafe",
+  "prependHTML",
+  "prependHTMLUnsafe",
+  "replaceWithHTML",
+  "replaceWithHTMLUnsafe",
+  "streamAfterHTML",
+  "streamAfterHTMLUnsafe",
+  "streamAppendHTML",
+  "streamAppendHTMLUnsafe",
+  "streamBeforeHTML",
+  "streamBeforeHTMLUnsafe",
+  "streamHTML",
+  "streamHTMLUnsafe",
+  "streamPrependHTML",
+  "streamPrependHTMLUnsafe",
+  "streamReplaceWithHTML",
+  "streamReplaceWithHTMLUnsafe",
   "ariaNotify",
+  "pseudo",
+  "setHTML",
   "constructor"
  ],
  "HT.kinds": {
@@ -593,6 +647,8 @@
  ],
  "attachInternals.plain": "THROW DOMException(NotSupportedError): Failed to execute 'attachInternals' on 'HTMLElement': Unable to attach ElementInternals to non-custom elements.",
  "autocapitalize.attr.upper": "words",
+ "autocorrect.attr.invalid": true,
+ "autocorrect.attr.off": false,
  "ce.inherit": [
   "inherit",
   false,
@@ -647,6 +703,23 @@
   "showPopover": 0,
   "togglePopover": 0
  },
+ "focusGroup.empty": [
+  0,
+  ""
+ ],
+ "focusGroup.same": true,
+ "focusGroup.set": [
+  2,
+  "a b",
+  "a",
+  "b",
+  "a b"
+ ],
+ "focusGroup.undef": [
+  1,
+  "undefined",
+  "undefined"
+ ],
  "hasAttributeNS": true,
  "hasAttributeNS.cases": [
   false,
@@ -774,7 +847,10 @@
   "onwebkittransitionend": "HT+SVG+DOC",
   "onwheel": "HT+SVG+DOC"
  },
- "outerHTML.set": "THROW DOMException(NoModificationAllowedError): Failed to set the 'outerHTML' property on 'Element': This element has no parent node.",
+ "outerHTML.set": [
+  "SPAN",
+  "string"
+ ],
  "set.accessKey": [
   "jk",
   "jk"
@@ -787,10 +863,6 @@
   "sentences",
   "nonsense"
  ],
- "set.autofocus": [
-  true,
-  ""
- ],
  "set.autocorrect": [
   false,
   "off"
@@ -799,32 +871,9 @@
   true,
   "on"
  ],
- "autocorrect.attr.off": false,
- "autocorrect.attr.invalid": true,
- "set.focusGroupStart": [
+ "set.autofocus": [
   true,
   ""
- ],
- "set.focusGroupStart.zero": [
-  false,
-  null
- ],
- "focusGroup.same": true,
- "focusGroup.set": [
-  2,
-  "a b",
-  "a",
-  "b",
-  "a b"
- ],
- "focusGroup.empty": [
-  0,
-  ""
- ],
- "focusGroup.undef": [
-  1,
-  "undefined",
-  "undefined"
  ],
  "set.contentEditable": [
   "true",
@@ -855,6 +904,14 @@
  "set.enterKeyHint": [
   "go",
   "GO"
+ ],
+ "set.focusGroupStart": [
+  true,
+  ""
+ ],
+ "set.focusGroupStart.zero": [
+  false,
+  null
  ],
  "set.hidden": [
   false,

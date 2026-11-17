@@ -2,7 +2,7 @@
 //! snapshot_restore.rs (snapshot creation is a whole-isolate exclusive op).
 //!
 //! The probe (tools/webplatform/chrome/native-pilot-probe.js) ran in real
-//! Chrome 145 -> native-pilot-truth-145.json. Here the SAME probe runs in a
+//! Chrome 145 -> native-pilot-truth-157.json. Here the SAME probe runs in a
 //! bare V8 isolate whose DOMRect is a Rust native interface, both through
 //! the snapshot path (bake -> restore) and the fresh-VM path. Every probe
 //! must equal Chrome's, except the documented bare-isolate allowances.
@@ -14,10 +14,10 @@ use std::sync::Mutex;
 static ISOLATE_LOCK: Mutex<()> = Mutex::new(());
 
 const PROBE: &str = include_str!("../../../tools/webplatform/chrome/native-pilot-probe.js");
-const TRUTH: &str = include_str!("../../../tools/webplatform/chrome/native-pilot-truth-145.json");
+const TRUTH: &str = include_str!("../../../tools/webplatform/chrome/native-pilot-truth-157.json");
 const DEX_PROBE: &str = include_str!("../../../tools/webplatform/chrome/domexception-probe.js");
 const DEX_TRUTH: &str =
-    include_str!("../../../tools/webplatform/chrome/domexception-truth-145.json");
+    include_str!("../../../tools/webplatform/chrome/domexception-truth-157.json");
 
 /// Probes a bare isolate cannot answer (no structuredClone, etc.).
 const ALLOWED_BARE: &[&str] = &["structuredClone"];

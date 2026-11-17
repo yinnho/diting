@@ -19,13 +19,13 @@ if [ "${1:-}" = "--update" ]; then
   python3 $WP/gen/gen_canvas_face.py
   python3 $WP/gen/gen_window_order.py "$WINORDER"
   python3 $WP/gen/gen_iface.py $WP/spec/storage.json crates/diting_js/js/platform/gen/storage.gen.js gen/storage
-  python3 $WP/gen/gen_iface.py $WP/spec/geometry.json crates/diting_js/js/platform/gen/geometry.gen.js gen/geometry $WP/chrome/geometry-truth-145.json
+  python3 $WP/gen/gen_iface.py $WP/spec/geometry.json crates/diting_js/js/platform/gen/geometry.gen.js gen/geometry $WP/chrome/geometry-truth-157.json
   python3 $WP/gen/gen_iface.py $WP/spec/css-typed-om.json crates/diting_js/js/platform/gen/cssunit.gen.js gen/cssunit $WP/chrome/cssunit-truth-157.json
-  python3 $WP/gen/gen_iface.py $WP/spec/css-keyword.json crates/diting_js/js/platform/gen/csskeyword.gen.js gen/csskeyword $WP/chrome/csskeyword-truth-145.json
-  python3 $WP/gen/gen_iface.py $WP/spec/input-device.json crates/diting_js/js/platform/gen/inputdevice.gen.js gen/inputdevice $WP/chrome/inputdevice-truth-145.json
-  python3 $WP/gen/gen_iface.py $WP/spec/textformat.json crates/diting_js/js/platform/gen/textformat.gen.js gen/textformat $WP/chrome/textformat-truth-145.json
-  python3 $WP/gen/gen_iface.py $WP/spec/webrtc-ice.json crates/diting_js/js/platform/gen/rtcice.gen.js gen/rtcice $WP/chrome/rtcicecandidate-truth-145.json
-  python3 $WP/gen/gen_iface.py $WP/spec/xpath-eval.json crates/diting_js/js/platform/gen/xpath.gen.js gen/xpath $WP/chrome/xpath-truth-145.json
+  python3 $WP/gen/gen_iface.py $WP/spec/css-keyword.json crates/diting_js/js/platform/gen/csskeyword.gen.js gen/csskeyword $WP/chrome/csskeyword-truth-157.json
+  python3 $WP/gen/gen_iface.py $WP/spec/input-device.json crates/diting_js/js/platform/gen/inputdevice.gen.js gen/inputdevice $WP/chrome/inputdevice-truth-157.json
+  python3 $WP/gen/gen_iface.py $WP/spec/textformat.json crates/diting_js/js/platform/gen/textformat.gen.js gen/textformat $WP/chrome/textformat-truth-157.json
+  python3 $WP/gen/gen_iface.py $WP/spec/webrtc-ice.json crates/diting_js/js/platform/gen/rtcice.gen.js gen/rtcice $WP/chrome/rtcicecandidate-truth-157.json
+  python3 $WP/gen/gen_iface.py $WP/spec/xpath-eval.json crates/diting_js/js/platform/gen/xpath.gen.js gen/xpath $WP/chrome/xpath-truth-157.json
   python3 $WP/gen/gen_iface.py $WP/spec/css-animations.json crates/diting_js/js/platform/gen/animationevent.gen.js gen/animationevent
   python3 $WP/gen/gen_iface.py $WP/spec/hashchange.json crates/diting_js/js/platform/gen/hashchange.gen.js gen/hashchange
   python3 $WP/gen/gen_iface.py $WP/spec/css-transitions.json crates/diting_js/js/platform/gen/transitionevent.gen.js gen/transitionevent
@@ -36,10 +36,10 @@ if [ "${1:-}" = "--update" ]; then
   python3 $WP/gen/gen_iface.py $WP/spec/character-bounds.json crates/diting_js/js/platform/gen/characterbounds.gen.js gen/characterbounds
   python3 $WP/gen/gen_iface.py $WP/spec/textupdate.json crates/diting_js/js/platform/gen/textupdate.gen.js gen/textupdate
   python3 $WP/gen/gen_iface.py $WP/spec/webvtt.json crates/diting_js/js/platform/gen/vttcue.gen.js gen/vttcue $WP/chrome/vttcue-truth-157.json
-  python3 $WP/gen/gen_iface.py $WP/spec/speech-phrase.json crates/diting_js/js/platform/gen/phrase.gen.js gen/phrase $WP/chrome/phrase-truth-145.json
-  python3 $WP/gen/gen_iface.py $WP/spec/htmlelement.json crates/diting_js/js/platform/gen/htmlelement.gen.js gen/htmlelement $WP/chrome/htmlelement-truth-145.json patch-common
-  python3 $WP/gen/gen_iface.py $WP/spec/htmlmedia.json crates/diting_js/js/platform/gen/htmlmedia.gen.js gen/htmlmedia $WP/chrome/htmlmedia-truth-145.json patch-media
-  python3 $WP/gen/gen_iface.py $WP/spec/htmlmedia.json crates/diting_js/js/platform/gen/htmlreflect.gen.js gen/htmlreflect $WP/chrome/htmlreflect-truth-145.json patch-reflect
+  python3 $WP/gen/gen_iface.py $WP/spec/speech-phrase.json crates/diting_js/js/platform/gen/phrase.gen.js gen/phrase $WP/chrome/phrase-truth-157.json
+  python3 $WP/gen/gen_iface.py $WP/spec/htmlelement.json crates/diting_js/js/platform/gen/htmlelement.gen.js gen/htmlelement $WP/chrome/htmlelement-truth-157.json patch-common
+  python3 $WP/gen/gen_iface.py $WP/spec/htmlmedia.json crates/diting_js/js/platform/gen/htmlmedia.gen.js gen/htmlmedia $WP/chrome/htmlmedia-truth-157.json patch-media
+  python3 $WP/gen/gen_iface.py $WP/spec/htmlmedia.json crates/diting_js/js/platform/gen/htmlreflect.gen.js gen/htmlreflect $WP/chrome/htmlreflect-truth-157.json patch-reflect
   python3 $WP/bundle.py
   (cd $WP/chrome && sha *.json > MANIFEST.sha256)
   echo "updated"; exit 0
@@ -70,22 +70,22 @@ gen_value() { # <spec> <name> <truth>
   diff -q "$tmp/$2.gen.js" "crates/diting_js/js/platform/gen/$2.gen.js" >/dev/null \
     || { echo "FAIL: crates/diting_js/js/platform/gen/$2.gen.js is stale vs gen_iface.py" >&2; fail=1; }
 }
-gen_value geometry.json geometry geometry-truth-145.json
+gen_value geometry.json geometry geometry-truth-157.json
 gen_value css-typed-om.json cssunit cssunit-truth-157.json
 # CSSKeywordValue: one USVString. Keyword parse() constructs it.
-gen_value css-keyword.json csskeyword csskeyword-truth-145.json
+gen_value css-keyword.json csskeyword csskeyword-truth-157.json
 # InputDeviceCapabilities: length 0 and firesTouchEvents. The dictionary stays in the impl.
-gen_value input-device.json inputdevice inputdevice-truth-145.json
+gen_value input-device.json inputdevice inputdevice-truth-157.json
 # TextFormat: length 0 and four readonly getters. Enum and unsigned long stay in the impl.
-gen_value textformat.json textformat textformat-truth-145.json
+gen_value textformat.json textformat textformat-truth-157.json
 # RTCIceCandidate: length 0 and the parsed candidate fields. Dictionary and parse stay in the impl.
-gen_value webrtc-ice.json rtcice rtcicecandidate-truth-145.json
+gen_value webrtc-ice.json rtcice rtcicecandidate-truth-157.json
 # XPathEvaluator: length 0 and the three mixin operations. Evaluation stays in the impl.
-gen_value xpath-eval.json xpath xpath-truth-145.json
+gen_value xpath-eval.json xpath xpath-truth-157.json
 # vttcue: the #67 marginal-cost family, generated with no generator change.
 gen_value webvtt.json vttcue vttcue-truth-157.json
 # SpeechRecognitionPhrase: simple DOMString ctor; float boost stays in the impl.
-gen_value speech-phrase.json phrase phrase-truth-145.json
+gen_value speech-phrase.json phrase phrase-truth-157.json
 python3 $WP/gen/gen_iface.py $WP/spec/css-animations.json "$tmp/animationevent.gen.js" gen/animationevent >/dev/null
 diff -q "$tmp/animationevent.gen.js" crates/diting_js/js/platform/gen/animationevent.gen.js >/dev/null \
   || { echo "FAIL: crates/diting_js/js/platform/gen/animationevent.gen.js is stale vs gen_iface.py" >&2; fail=1; }
@@ -128,9 +128,9 @@ gen_patch() { # <spec> <name> <truth> <strategy>
   diff -q "$tmp/$2.gen.js" "crates/diting_js/js/platform/gen/$2.gen.js" >/dev/null \
     || { echo "FAIL: crates/diting_js/js/platform/gen/$2.gen.js is stale vs gen_iface.py ($4)" >&2; fail=1; }
 }
-gen_patch htmlelement.json htmlelement htmlelement-truth-145.json patch-common
-gen_patch htmlmedia.json htmlmedia htmlmedia-truth-145.json patch-media
-gen_patch htmlmedia.json htmlreflect htmlreflect-truth-145.json patch-reflect
+gen_patch htmlelement.json htmlelement htmlelement-truth-157.json patch-common
+gen_patch htmlmedia.json htmlmedia htmlmedia-truth-157.json patch-media
+gen_patch htmlmedia.json htmlreflect htmlreflect-truth-157.json patch-reflect
 python3 $WP/bundle.py "$tmp/platform_bundle.js" >/dev/null
 diff -q "$tmp/platform_bundle.js" crates/diting_js/js/platform_bundle.js >/dev/null \
   || { echo "FAIL: crates/diting_js/js/platform_bundle.js is stale vs bundle.py" >&2; fail=1; }

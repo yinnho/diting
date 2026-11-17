@@ -8,7 +8,7 @@
 // Chrome parses the candidate-attribute string into foundation / component /
 // priority / address / protocol / port / type / tcpType / relatedAddress /
 // relatedPort, and the parse is ALL-OR-NOTHING: any malformed token leaves
-// every parsed field null. Pinned by chrome/rtcice-truth-145.json
+// every parsed field null. Pinned by chrome/rtcice-truth-157.json
 // (rtcice-probe.js, 72 keys: a 43-candidate corpus, constructor conversions
 // and validation, toJSON) and diffed by rtcice_matches_chrome_truth.
 
