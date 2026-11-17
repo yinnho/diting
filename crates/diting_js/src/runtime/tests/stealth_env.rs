@@ -1164,7 +1164,6 @@ async fn js_identity_follows_the_chrome_target() {
 /// M4 knife 53 - the own-ENUMERABLE keys of ~200 objects (every element tag, nodes, ranges, events, XHR/WebSocket/streams, singletons,
 /// canvas, observers, URL family, ...) against real Chrome 157 (chrome/enum-probe.js, enum-truth-157.json). for-in + hasOwnProperty is what
 /// for-in / JSON.stringify / Object.assign / spread see. KNOWN GAPS are listed explicitly and must shrink, never grow:
-///   newdoc    - createHTMLDocument()/DOMParser documents are plain objects, not Documents
 ///   gl        - WebGL: headless Chrome answers null, the engine a fake context
 /// and keys that depend on the host page / shared state, not on the engine (stylesheet and div counts, localStorage left by other tests).
 #[tokio::test(flavor = "current_thread")]
@@ -1182,7 +1181,6 @@ async fn own_enumerable_keys_match_chrome_truth() {
     ))
     .unwrap();
     const SKIP: &[&str] = &[
-        "newdoc",
         "gl",
         "sheets",
         "nodeList",
@@ -1200,6 +1198,13 @@ async fn own_enumerable_keys_match_chrome_truth() {
         if &engine[k] != want {
             bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
         }
+    }
+    let want_chain = &truth["#chains"]["newdoc"];
+    let got_chain = &engine["#chains"]["newdoc"];
+    if got_chain != want_chain {
+        bad.push(format!(
+            "#chains.newdoc:\n   engine {got_chain}\n   chrome {want_chain}"
+        ));
     }
     assert!(
         bad.is_empty(),
