@@ -1080,6 +1080,17 @@ fn test_get_computed_style_initial_values_not_empty() {
                     touchAction: getComputedStyle(document.getElementById('d')).touchAction,
                     quotes: getComputedStyle(document.getElementById('d')).quotes,
                     verticalAlign: getComputedStyle(document.getElementById('d')).verticalAlign,
+                    radius: getComputedStyle(document.getElementById('d')).borderTopLeftRadius,
+                    maxWidth: getComputedStyle(document.getElementById('d')).maxWidth,
+                    rotate: getComputedStyle(document.getElementById('d')).rotate,
+                    scale: getComputedStyle(document.getElementById('d')).scale,
+                    translate: getComputedStyle(document.getElementById('d')).translate,
+                    fontOpt: getComputedStyle(document.getElementById('d')).fontOpticalSizing,
+                    maskClip: getComputedStyle(document.getElementById('d')).maskClip,
+                    maskComp: getComputedStyle(document.getElementById('d')).maskComposite,
+                    wrapMode: getComputedStyle(document.getElementById('d')).textWrapMode,
+                    colFill: getComputedStyle(document.getElementById('d')).columnFill,
+                    snap: getComputedStyle(document.getElementById('d')).scrollSnapType,
                 })"#,
             )
             .unwrap();
@@ -1122,6 +1133,17 @@ fn test_get_computed_style_initial_values_not_empty() {
     assert_eq!(v["touchAction"], serde_json::json!("auto"));
     assert_eq!(v["quotes"], serde_json::json!("auto"));
     assert_eq!(v["verticalAlign"], serde_json::json!("baseline"));
+    assert_eq!(v["radius"], serde_json::json!("0px"));
+    assert_eq!(v["maxWidth"], serde_json::json!("none"));
+    assert_eq!(v["rotate"], serde_json::json!("none"));
+    assert_eq!(v["scale"], serde_json::json!("none"));
+    assert_eq!(v["translate"], serde_json::json!("none"));
+    assert_eq!(v["fontOpt"], serde_json::json!("auto"));
+    assert_eq!(v["maskClip"], serde_json::json!("border-box"));
+    assert_eq!(v["maskComp"], serde_json::json!("add"));
+    assert_eq!(v["wrapMode"], serde_json::json!("wrap"));
+    assert_eq!(v["colFill"], serde_json::json!("balance"));
+    assert_eq!(v["snap"], serde_json::json!("none"));
 }
 
 /// Upstream a0e1ba5: CSSStyleDeclaration is a real global interface — the
