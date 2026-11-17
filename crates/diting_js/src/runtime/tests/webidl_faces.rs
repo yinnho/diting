@@ -1428,11 +1428,11 @@ async fn rtcice_matches_chrome_truth() {
 /// member present, the members both sides have in the same relative order.
 /// KNOWN: Text/Comment/ProcessingInstruction/DocumentFragment carry extra own
 /// members (nodeName/nodeType/cloneNode/innerHTML/nodeValue - Chrome puts them
-/// on Node.prototype) and DocumentFragment/ProcessingInstruction constructor
-/// lengths differ: the node-level placement family.
+/// on Node.prototype). Constructor length is part of the shape: a match that
+/// is still listed below fails the test.
 #[tokio::test(flavor = "current_thread")]
 async fn smallmembers_match_chrome_truth() {
-    const KNOWN_LEN: &[&str] = &["DocumentFragment", "ProcessingInstruction"];
+    const KNOWN_LEN: &[&str] = &[];
     let mut rt = setup_runtime("<html><body></body></html>");
     let probe = include_str!("../../../../../tools/webplatform/chrome/smallmembers-probe.js");
     let result = rt
@@ -1483,6 +1483,11 @@ async fn smallmembers_match_chrome_truth() {
                     bad.push(format!(
                         "shape {name}: ctor length engine {} chrome {}",
                         e["len"], t["len"]
+                    ));
+                }
+                if t["len"] == e["len"] && KNOWN_LEN.contains(&name.as_str()) {
+                    bad.push(format!(
+                        "shape {name}: ctor length now matches Chrome - remove it from KNOWN_LEN"
                     ));
                 }
             }

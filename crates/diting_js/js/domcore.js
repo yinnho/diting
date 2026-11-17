@@ -511,7 +511,7 @@ class CDATASection extends Text {
 // and carries a separate target. Backed by a text node so data/nodeValue/
 // textContent/length work without native PI support.
 class ProcessingInstruction extends CharacterData {
-  constructor(nid, target) { super(nid); this._target = target;  __hideOwn(this);}
+  constructor(...a) { super(a[0]); this._target = a[1];  __hideOwn(this);}
   get target() { return this._target; }
   get nodeName() { return this._target; }
   get nodeType() { return 7; }
@@ -3733,7 +3733,7 @@ class DocumentFragment extends Node {
   // fallback `_nid` stayed undefined and the first appendChild tripped the
   // _dom Illegal-invocation guard — an escaping error the detector treats as
   // a broken environment.
-  constructor(nid) {
+  constructor(...a) { let nid = a[0];
     if (nid === undefined || nid === null || isNaN(+nid)) {
       nid = +_dom("create_document_fragment");
     }
