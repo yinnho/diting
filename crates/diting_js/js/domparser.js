@@ -77,7 +77,6 @@ globalThis.DOMParser = class DOMParser {
     const findByTagName = (name) => walk(root, n => n.tagName === name);
 
     const docNode = {
-      _root: root,
       nodeName: "#document",
       nodeType: 9,
       contentType: isXml ? (mimeType || "application/xml") : "text/html",
@@ -183,7 +182,6 @@ globalThis.DOMParser = class DOMParser {
       appendChild: function (n) { try { root.appendChild(n); } catch (e) {} return n; },
       removeChild: function (n) { try { root.removeChild(n); } catch (e) {} return n; },
       insertBefore: function (n, ref) { try { root.insertBefore(n, ref); } catch (e) {} return n; },
-      _docType: null,
       get doctype() { return this._docType; },
       cloneNode: function (deep) {
         return new DOMParser().parseFromString(root.outerHTML, mimeType);
@@ -191,6 +189,28 @@ globalThis.DOMParser = class DOMParser {
       contains(n) { return root.contains ? root.contains(n) : false; },
       addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; },
     };
+    // Wear the real document prototype so instanceof / constructor match
+    // Chrome, but keep these members own: Document.prototype reads the live
+    // page. They are non-enumerable; the only own enumerable key is location
+    // (LegacyUnforgeable). No browsing context, so it answers null.
+    const Ctor = isXml ? globalThis.XMLDocument : globalThis.HTMLDocument;
+    if (Ctor && Ctor.prototype) Object.setPrototypeOf(docNode, Ctor.prototype);
+    // Underscore slots stay off getOwnPropertyNames, so define them here
+    // rather than hoping the enumerability walk sees them.
+    Object.defineProperty(docNode, '_root', { value: root, writable: true, enumerable: false, configurable: true });
+    Object.defineProperty(docNode, '_docType', { value: null, writable: true, enumerable: false, configurable: true });
+    for (const k of Object.getOwnPropertyNames(docNode)) {
+      const d = Object.getOwnPropertyDescriptor(docNode, k);
+      if (!d || !d.enumerable) continue;
+      d.enumerable = false;
+      Object.defineProperty(docNode, k, d);
+    }
+    Object.defineProperty(docNode, 'location', {
+      get() { return null; },
+      set(v) { const loc = this.location; loc.href = v; },
+      enumerable: true,
+      configurable: false,
+    });
     return docNode;
   }
 };

@@ -1547,8 +1547,9 @@ async fn docmisc_matches_chrome_truth() {
 /// and their accessor errors, ~130 malformed expressions with exact wording, namespace
 /// resolution (NamespaceError, resolver forms), unordered-vs-ordered result order,
 /// iterator invalidation on mutation, XPathExpression / XPathEvaluator / createNSResolver.
-/// KNOWN gap (engine, not XPath): documents made by DOMParser / createHTMLDocument /
-/// createDocument are not Document instances here, so they carry no evaluate().
+/// DOMParser / createHTMLDocument documents are HTMLDocument or XMLDocument
+/// facades over a detached tree. evaluate is inherited and walks the node
+/// the caller passes.
 #[tokio::test(flavor = "current_thread")]
 async fn xpath_matches_chrome_truth() {
     let mut rt = setup_runtime("<html><body></body></html>");
