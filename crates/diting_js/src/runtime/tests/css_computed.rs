@@ -1103,6 +1103,17 @@ fn test_get_computed_style_initial_values_not_empty() {
                     fill: getComputedStyle(document.getElementById('d')).fill,
                     strokeW: getComputedStyle(document.getElementById('d')).strokeWidth,
                     webkitStroke: getComputedStyle(document.getElementById('d')).webkitTextStrokeWidth,
+                    boxOrient: getComputedStyle(document.getElementById('d')).webkitBoxOrient,
+                    boxPack: getComputedStyle(document.getElementById('d')).webkitBoxPack,
+                    boxFlex: getComputedStyle(document.getElementById('d')).webkitBoxFlex,
+                    animTl: getComputedStyle(document.getElementById('d')).animationTimeline,
+                    vtName: getComputedStyle(document.getElementById('d')).viewTransitionName,
+                    scrollTl: getComputedStyle(document.getElementById('d')).scrollTimelineAxis,
+                    marker: getComputedStyle(document.getElementById('d')).markerStart,
+                    pathD: getComputedStyle(document.getElementById('d')).d,
+                    flood: getComputedStyle(document.getElementById('d')).floodColor,
+                    mathStyle: getComputedStyle(document.getElementById('d')).mathStyle,
+                    field: getComputedStyle(document.getElementById('d')).fieldSizing,
                 })"#,
             )
             .unwrap();
@@ -1168,6 +1179,17 @@ fn test_get_computed_style_initial_values_not_empty() {
     assert_eq!(v["fill"], serde_json::json!("rgb(0, 0, 0)"));
     assert_eq!(v["strokeW"], serde_json::json!("1px"));
     assert_eq!(v["webkitStroke"], serde_json::json!("0px"));
+    assert_eq!(v["boxOrient"], serde_json::json!("horizontal"));
+    assert_eq!(v["boxPack"], serde_json::json!("start"));
+    assert_eq!(v["boxFlex"], serde_json::json!("0"));
+    assert_eq!(v["animTl"], serde_json::json!("auto"));
+    assert_eq!(v["vtName"], serde_json::json!("none"));
+    assert_eq!(v["scrollTl"], serde_json::json!("block"));
+    assert_eq!(v["marker"], serde_json::json!("none"));
+    assert_eq!(v["pathD"], serde_json::json!("none"));
+    assert_eq!(v["flood"], serde_json::json!("rgb(0, 0, 0)"));
+    assert_eq!(v["mathStyle"], serde_json::json!("normal"));
+    assert_eq!(v["field"], serde_json::json!("fixed"));
 }
 
 /// Upstream a0e1ba5: CSSStyleDeclaration is a real global interface — the
