@@ -1424,6 +1424,24 @@ async fn knife75_tail_members() {
         t('audioSet', () => { const c = new AudioContext(); const g = c.createGain(); g.channelCount = 4; g.channelCountMode = 'explicit'; g.channelCountMode = 'bogus'; g.channelInterpretation = 'discrete'; let e; try { g.channelCount = 0; } catch (x) { e = x.name; } return [g.channelCount, g.channelCountMode, g.channelInterpretation, e]; });
         t('audioConnect', () => { const c = new AudioContext(); const g = c.createGain(); const r = g.connect(c.destination); return [r === c.destination, typeof g.disconnect, AudioNode.prototype.connect.length, Object.prototype.hasOwnProperty.call(g, 'connect')]; });
         t('audioEvents', () => { const c = new AudioContext(); const g = c.createGain(); let n = 0; g.addEventListener('x', () => n++); g.dispatchEvent(new Event('x')); return n; });
+        t('oacEvent', () => {
+          const buf = new AudioBuffer({ numberOfChannels: 1, length: 8, sampleRate: 8000 });
+          const ev = new OfflineAudioCompletionEvent('complete', { renderedBuffer: buf, bubbles: true });
+          const keys = (x) => { const ks = []; for (const k in x) if (Object.prototype.hasOwnProperty.call(x, k)) ks.push(k); return ks; };
+          const chain = (x) => { const out = []; let p = Object.getPrototypeOf(x); while (p) { const d = Object.getOwnPropertyDescriptor(p, 'constructor'); out.push(d && d.value && d.value.name); p = Object.getPrototypeOf(p); } return out; };
+          const err = (f) => { try { f(); return 'ok'; } catch (e) { return e.name + ':' + e.message; } };
+          return {
+            face: [ev.constructor.name, ev instanceof OfflineAudioCompletionEvent, ev instanceof Event, ev.type, ev.bubbles, ev.cancelable, ev.renderedBuffer === buf, ev.renderedBuffer.length, keys(ev), Object.prototype.toString.call(ev), Object.prototype.hasOwnProperty.call(ev, 'renderedBuffer')],
+            chain: chain(ev),
+            len: OfflineAudioCompletionEvent.length,
+            nonew: err(() => OfflineAudioCompletionEvent('complete', { renderedBuffer: buf })),
+            argc0: err(() => new OfflineAudioCompletionEvent()),
+            argc1: err(() => new OfflineAudioCompletionEvent('complete')),
+            miss: err(() => new OfflineAudioCompletionEvent('complete', {})),
+            bad: err(() => new OfflineAudioCompletionEvent('complete', { renderedBuffer: {} })),
+            inv: err(() => Object.getOwnPropertyDescriptor(OfflineAudioCompletionEvent.prototype, 'renderedBuffer').get.call({})),
+          };
+        });
         t('audioFaces', () => {
           const c = new AudioContext();
           const keys = (x) => { const ks = []; for (const k in x) if (Object.prototype.hasOwnProperty.call(x, k)) ks.push(k); return ks; };
@@ -1478,6 +1496,48 @@ async fn knife75_tail_members() {
         serde_json::json!([true, "function", 1, false])
     );
     assert_eq!(o["audioEvents"], 1);
+    assert_eq!(
+        o["oacEvent"]["face"],
+        serde_json::json!([
+            "OfflineAudioCompletionEvent",
+            true,
+            true,
+            "complete",
+            true,
+            false,
+            true,
+            8,
+            ["isTrusted"],
+            "[object OfflineAudioCompletionEvent]",
+            false
+        ])
+    );
+    assert_eq!(
+        o["oacEvent"]["chain"],
+        serde_json::json!(["OfflineAudioCompletionEvent", "Event", "Object"])
+    );
+    assert_eq!(o["oacEvent"]["len"], 2);
+    assert_eq!(
+        o["oacEvent"]["nonew"],
+        "TypeError:Failed to construct 'OfflineAudioCompletionEvent': Please use the 'new' operator, this DOM object constructor cannot be called as a function."
+    );
+    assert_eq!(
+        o["oacEvent"]["argc0"],
+        "TypeError:Failed to construct 'OfflineAudioCompletionEvent': 2 arguments required, but only 0 present."
+    );
+    assert_eq!(
+        o["oacEvent"]["argc1"],
+        "TypeError:Failed to construct 'OfflineAudioCompletionEvent': 2 arguments required, but only 1 present."
+    );
+    assert_eq!(
+        o["oacEvent"]["miss"],
+        "TypeError:Failed to construct 'OfflineAudioCompletionEvent': Failed to read the 'renderedBuffer' property from 'OfflineAudioCompletionEventInit': Required member is undefined."
+    );
+    assert_eq!(
+        o["oacEvent"]["bad"],
+        "TypeError:Failed to construct 'OfflineAudioCompletionEvent': Failed to read the 'renderedBuffer' property from 'OfflineAudioCompletionEventInit': The provided value is not of type 'AudioBuffer'."
+    );
+    assert_eq!(o["oacEvent"]["inv"], "TypeError:Illegal invocation");
     assert_eq!(
         o["audioFaces"]["names"],
         serde_json::json!([

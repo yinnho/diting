@@ -170,7 +170,7 @@ async fn canvas_jpeg_readout_and_audio_face_p4() {
             r.ac_extends_et = ac instanceof EventTarget;
             r.complete_evt = (function(){
                 var o2 = new OfflineAudioContext(1, 500, 44100);
-                o2.addEventListener('complete', function(ev){ window.__completeFired = ev.type; });
+                o2.addEventListener('complete', function(ev){ window.__completeFired = ev.type + ':' + ev.constructor.name + ':' + ev.renderedBuffer.length; });
                 o2.startRendering();
                 return 'armed'; // 'complete' fires from a microtask — read on the next eval
             })();
@@ -327,8 +327,8 @@ async fn canvas_jpeg_readout_and_audio_face_p4() {
     let fired = rt.evaluate("window.__completeFired || 'never'").unwrap();
     assert_eq!(
         fired.as_str().unwrap_or("never"),
-        "complete",
-        "'complete' listener fires from startRendering"
+        "complete:OfflineAudioCompletionEvent:500",
+        "'complete' listener fires an OfflineAudioCompletionEvent from startRendering"
     );
     assert_eq!(
         v["ab_own"],
