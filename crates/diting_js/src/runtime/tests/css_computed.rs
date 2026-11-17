@@ -1091,6 +1091,18 @@ fn test_get_computed_style_initial_values_not_empty() {
                     wrapMode: getComputedStyle(document.getElementById('d')).textWrapMode,
                     colFill: getComputedStyle(document.getElementById('d')).columnFill,
                     snap: getComputedStyle(document.getElementById('d')).scrollSnapType,
+                    blockW: getComputedStyle(document.getElementById('d')).borderBlockStartWidth,
+                    blockS: getComputedStyle(document.getElementById('d')).borderBlockStartStyle,
+                    blockC: getComputedStyle(document.getElementById('d')).borderBlockStartColor,
+                    scrollM: getComputedStyle(document.getElementById('d')).scrollMarginTop,
+                    scrollP: getComputedStyle(document.getElementById('d')).scrollPaddingTop,
+                    justifySelf: getComputedStyle(document.getElementById('d')).justifySelf,
+                    gridCol: getComputedStyle(document.getElementById('d')).gridColumnStart,
+                    textRender: getComputedStyle(document.getElementById('d')).textRendering,
+                    stroke: getComputedStyle(document.getElementById('d')).stroke,
+                    fill: getComputedStyle(document.getElementById('d')).fill,
+                    strokeW: getComputedStyle(document.getElementById('d')).strokeWidth,
+                    webkitStroke: getComputedStyle(document.getElementById('d')).webkitTextStrokeWidth,
                 })"#,
             )
             .unwrap();
@@ -1144,6 +1156,18 @@ fn test_get_computed_style_initial_values_not_empty() {
     assert_eq!(v["wrapMode"], serde_json::json!("wrap"));
     assert_eq!(v["colFill"], serde_json::json!("balance"));
     assert_eq!(v["snap"], serde_json::json!("none"));
+    assert_eq!(v["blockW"], serde_json::json!("0px"));
+    assert_eq!(v["blockS"], serde_json::json!("none"));
+    assert_eq!(v["blockC"], serde_json::json!("rgb(0, 0, 0)"));
+    assert_eq!(v["scrollM"], serde_json::json!("0px"));
+    assert_eq!(v["scrollP"], serde_json::json!("auto"));
+    assert_eq!(v["justifySelf"], serde_json::json!("auto"));
+    assert_eq!(v["gridCol"], serde_json::json!("auto"));
+    assert_eq!(v["textRender"], serde_json::json!("auto"));
+    assert_eq!(v["stroke"], serde_json::json!("none"));
+    assert_eq!(v["fill"], serde_json::json!("rgb(0, 0, 0)"));
+    assert_eq!(v["strokeW"], serde_json::json!("1px"));
+    assert_eq!(v["webkitStroke"], serde_json::json!("0px"));
 }
 
 /// Upstream a0e1ba5: CSSStyleDeclaration is a real global interface — the

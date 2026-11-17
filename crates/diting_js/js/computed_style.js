@@ -314,7 +314,33 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
     'mask-clip': 'border-box', 'mask-origin': 'border-box', 'mask-repeat': 'repeat',
     'mask-mode': 'match-source', 'mask-composite': 'add',
     'offset-path': 'none', 'offset-distance': '0px', 'offset-rotate': 'auto',
-    'column-fill': 'balance',
+    'column-fill': 'balance', 'column-rule-width': 'medium',
+    'border-block-start-style': 'none', 'border-block-end-style': 'none',
+    'border-inline-start-style': 'none', 'border-inline-end-style': 'none',
+    'border-block-start-width': '0px', 'border-block-end-width': '0px',
+    'border-inline-start-width': '0px', 'border-inline-end-width': '0px',
+    'scroll-margin-top': '0px', 'scroll-margin-right': '0px',
+    'scroll-margin-bottom': '0px', 'scroll-margin-left': '0px',
+    'scroll-padding-top': 'auto', 'scroll-padding-right': 'auto',
+    'scroll-padding-bottom': 'auto', 'scroll-padding-left': 'auto',
+    'justify-self': 'auto',
+    'grid-column-start': 'auto', 'grid-column-end': 'auto',
+    'grid-row-start': 'auto', 'grid-row-end': 'auto', 'grid-template-areas': 'none',
+    'font-variant-numeric': 'normal', 'font-variant-east-asian': 'normal',
+    'font-variant-position': 'normal', 'font-variant-alternates': 'normal',
+    'font-feature-settings': 'normal',
+    'text-rendering': 'auto', 'text-size-adjust': 'auto',
+    'image-orientation': 'from-image', 'content-visibility': 'visible',
+    'overflow-clip-margin': '0px',
+    'counter-increment': 'none', 'counter-reset': 'none', 'counter-set': 'none',
+    fill: 'rgb(0, 0, 0)', 'fill-opacity': '1', 'fill-rule': 'nonzero',
+    stroke: 'none', 'stroke-width': '1px', 'stroke-opacity': '1',
+    'stroke-linecap': 'butt', 'stroke-linejoin': 'miter', 'stroke-miterlimit': '4',
+    'stroke-dasharray': 'none', 'stroke-dashoffset': '0px',
+    'paint-order': 'normal', 'vector-effect': 'none',
+    'clip-rule': 'nonzero', 'text-anchor': 'start',
+    '-webkit-text-stroke-width': '0px', '-webkit-text-security': 'none',
+    '-webkit-font-smoothing': 'auto', '-webkit-user-drag': 'auto',
     'z-index': 'auto', 'pointer-events': 'auto',
     'box-sizing': 'content-box', cursor: 'auto',
     'white-space': 'normal', 'text-align': 'start', 'text-align-last': 'auto', 'text-transform': 'none',
@@ -436,7 +462,9 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
     if (kebab === '-webkit-text-fill-color' || kebab === '-webkit-text-stroke-color'
         || kebab === '-webkit-text-emphasis-color' || kebab === 'outline-color'
         || kebab === 'text-decoration-color' || kebab === 'text-emphasis-color'
-        || kebab === 'column-rule-color') {
+        || kebab === 'column-rule-color'
+        || kebab === 'border-block-start-color' || kebab === 'border-block-end-color'
+        || kebab === 'border-inline-start-color' || kebab === 'border-inline-end-color') {
       if (!pseudoName && target.getPropertyValue) {
         const specified = target.getPropertyValue(kebab);
         if (specified && !_CSS_WIDE_KW.test(specified) && specified.toLowerCase() !== 'currentcolor') {
