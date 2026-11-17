@@ -33,15 +33,14 @@ use crate::client::ResourceType;
 ///
 /// Returns `(sec_ch_ua_header, sec_ch_ua_platform_header)`.
 pub fn derive_client_hints(ua: &str) -> (String, String) {
-    // Major version: first \d+ after "Chrome/". Fleet fallback claims 145 —
-    // the TLS preset's own major, and one the xhs edge routes to production
-    // (146-153/155/156 land in its customer.sit loop).
+    // Major version: first \d+ after "Chrome/". A UA with no Chrome token
+    // still has to agree with the fleet (chrome-target), not a leftover major.
     let version = ua
         .split("Chrome/")
         .nth(1)
         .and_then(|s| s.split('.').next())
         .and_then(|s| s.parse::<u32>().ok())
-        .unwrap_or(145);
+        .unwrap_or(diting_env::chrome_target::CHROME_MAJOR);
 
     let platform = if ua.contains("Macintosh") || ua.contains("Mac OS X") {
         "\"macOS\""
@@ -63,7 +62,7 @@ pub fn derive_client_hints(ua: &str) -> (String, String) {
 /// (bootstrap.js `__ditingBrandList`) for any major the fleet claims;
 /// 145 and 155 were both hardcoded wrong before this.
 /// 154 → `"Chromium";v="154", "Google Chrome";v="154", "Not A(Brand";v="99"`
-/// (algorithm example; the fleet itself claims 145).
+/// (algorithm example; the fleet itself follows chrome-target).
 fn grease_brand_list(version: u32) -> String {
     const CHARS: [&str; 11] = [" ", "(", ":", "-", ".", "/", ")", ";", "=", "?", "_"];
     const VERS: [&str; 3] = ["8", "99", "24"];

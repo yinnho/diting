@@ -66,10 +66,14 @@ fn derive_client_hints_android() {
 
 #[test]
 fn derive_client_hints_defaults_when_no_version() {
-    // No Chrome/ token → falls back to the fleet major (145).
+    // No Chrome/ token → the fleet major from chrome-target.
+    // 157: seed%11 → "Not-A.Brand", seed%3 → v99, seed%6=1 → grease, GC, Chromium.
     let ua = "Mozilla/5.0 (Macintosh) Gecko Firefox/120.0";
     let (ch_ua, _) = derive_client_hints(ua);
-    assert!(ch_ua.contains(r#""Chromium";v="145""#));
+    assert_eq!(
+        ch_ua,
+        r#""Not-A.Brand";v="99", "Google Chrome";v="157", "Chromium";v="157""#
+    );
 }
 
 // Env- and flag-sensitive (1f7486c pattern): the lock serializes tests
