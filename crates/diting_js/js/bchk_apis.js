@@ -348,6 +348,7 @@ Object.setPrototypeOf(globalThis.BatteryManager.prototype, globalThis.EventTarge
   d('__diting_fragmentDirective', __diting_fragmentDirective);
   d('__diting_keyboard', __diting_keyboard);
   d('__diting_userActivation', __diting_userActivation);
+  d('_markNative', _markNative);
 }
 // @@EXPORTS-END
 }).call(globalThis); // @@SCOPE-END

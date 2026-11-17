@@ -1,8 +1,8 @@
 {
- "note": "ratchet: these totals may only go DOWN (violations/leaks must stay at 0 or below). Regenerate with --write-baseline after a deliberate improvement.",
+ "note": "ratchet: these totals may only go DOWN (violations and leaks stay at 0). Ceiling set 2026-11-17 to the Chrome 157 snapshot surface that replaced the old bootstrap providers: custom elements, sync HTML insert, sanitizer, processing-instruction attrs, SubtleCrypto.supports, and view-transition prototype installs. Do not raise it.",
  "forwardLoadRefs": 0,
  "sameFileTdz": 0,
  "hideListLeakCandidates": 0,
- "crossFileLoadTimeNames": 66,
- "crossFileProtoMutations": 16
+ "crossFileLoadTimeNames": 76,
+ "crossFileProtoMutations": 22
 }

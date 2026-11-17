@@ -15,8 +15,12 @@ use std::convert::TryInto;
 use std::ffi::c_void;
 use std::os::raw::{c_char, c_int, c_uint, c_ulong};
 
+#[allow(unknown_lints)]
 #[allow(
     clippy::useless_transmute,
+    clippy::unnecessary_transmutes,
+    unnecessary_transmutes,
+    suspicious_runtime_symbol_definitions,
     clippy::derive_partial_eq_without_eq,
     clippy::ptr_offset_with_cast,
     dead_code

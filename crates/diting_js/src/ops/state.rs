@@ -60,6 +60,16 @@ pub static INTERCEPT_RESOLUTION_TIMEOUT_MS: std::sync::atomic::AtomicU64 =
 #[cfg(feature = "screenshot")]
 type IframeLayoutCache =
     std::cell::RefCell<Option<(u64, NodeId, u32, u32, std::rc::Rc<LayoutRun>)>>;
+/// (epoch, solved geometry, paint-stripped cascade) — see
+/// `JsState::geometry_cache`.
+#[cfg(feature = "screenshot")]
+type GeometryCache = std::cell::RefCell<
+    Option<(
+        u64,
+        diting_layout::SolvedGeometry,
+        Vec<(u32, diting_css::ComputedStyle)>,
+    )>,
+>;
 
 /// One REAL per-request timing sample for the JS `performance` resource
 /// buffer (#126): captured around the actual stylesheet/script fetches in
@@ -214,13 +224,7 @@ pub struct JsState {
     /// reuses the solve only when that identity still matches, so a
     /// color class does not re-solve and a width class does.
     #[cfg(feature = "screenshot")]
-    pub(super) geometry_cache: std::cell::RefCell<
-        Option<(
-            u64,
-            diting_layout::SolvedGeometry,
-            Vec<(u32, diting_css::ComputedStyle)>,
-        )>,
-    >,
+    pub(super) geometry_cache: GeometryCache,
     /// Memoized layout run for an orphan subtree (a fabricated iframe
     /// document, obscura #976 family), keyed (epoch, subtree root, viewport
     /// w/h bits). Kept apart from `layout_cache` on purpose: a sub-run's

@@ -12,6 +12,9 @@
 // `legacy:Name` and tools/webplatform/analyze checks that it does.
 const __platform = (function () {
   'use strict';
+  // One WeakMap for typed OM nodes. csskeyword only reads it; typedom_math
+  // and global_surface reuse the same object. Created here, before boot.
+  if (!globalThis.__ditingTOM) globalThis.__ditingTOM = new WeakMap();
   const defs = [];
   const loaded = new Map();
 
