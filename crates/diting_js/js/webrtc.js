@@ -2,7 +2,41 @@
 // WebRTC / MediaStream / CacheStorage / setHTMLUnsafe faces — ratchet split
 // out of bootstrap.js. Top level
 // only declares bindings; nothing here is read before call time.
-globalThis.MediaStream = class MediaStream { constructor(){const ms=__diting_liftSlot(this);ms.id=(globalThis.crypto && globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID() : '');ms.active=false;} getTracks(){return [];} getAudioTracks(){return [];} getVideoTracks(){return [];} addTrack(){} removeTrack(){} clone(){return new MediaStream();} };
+globalThis.MediaStream = class MediaStream {
+  constructor(source) {
+    const ms = __diting_liftSlot(this);
+    ms.id = (globalThis.crypto && globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID() : '');
+    ms.tracks = [];
+    if (source && typeof source.getTracks === 'function') {
+      for (const t of source.getTracks()) this.addTrack(typeof t.clone === 'function' ? t.clone() : t);
+    } else if (source && typeof source.length === 'number') {
+      for (let i = 0; i < source.length; i++) this.addTrack(source[i]);
+    }
+  }
+  // Chrome: active is true while any track is still live. An empty stream stays false.
+  get active() {
+    const list = __diting_liftSlot(this).tracks || [];
+    for (let i = 0; i < list.length; i++) if (list[i] && list[i].readyState !== 'ended') return true;
+    return false;
+  }
+  getTracks() { return (__diting_liftSlot(this).tracks || []).slice(); }
+  getAudioTracks() { return this.getTracks().filter((t) => t.kind === 'audio'); }
+  getVideoTracks() { return this.getTracks().filter((t) => t.kind === 'video'); }
+  addTrack(track) {
+    if (!track || (track.kind !== 'audio' && track.kind !== 'video')) return;
+    const list = __diting_liftSlot(this).tracks;
+    if (!list || list.indexOf(track) >= 0) return;
+    list.push(track);
+  }
+  removeTrack(track) {
+    const list = __diting_liftSlot(this).tracks || [];
+    const i = list.indexOf(track);
+    if (i >= 0) list.splice(i, 1);
+  }
+  clone() {
+    return new MediaStream(this);
+  }
+};
 // 刀62: MediaStreamTrack full Chrome face — 20 own prototype members in
 // Chrome's raw order (kind first, constructor LAST; probed), no statics,
 // getCapabilities on the PROTOTYPE (statics probed empty), `new` is an
