@@ -265,6 +265,38 @@ fn grid_track_zero_serializes_as_px() {
 }
 
 #[test]
+fn grid_track_em_uses_element_font() {
+    // em is this element's font-size. rem is the root. calc of plain
+    // lengths folds. Viewport units use the font context's window.
+    let fonts = FontCtx {
+        own: 20.0,
+        root: 32.0,
+        ..FontCtx::default()
+    };
+    let mut s = ComputedStyle::default();
+    apply_declarations_with(&mut s, "grid-template-columns: 1em", &fonts);
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("20px"));
+    apply_declarations_with(&mut s, "grid-template-columns: 1rem", &fonts);
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("32px"));
+    apply_declarations_with(&mut s, "grid-template-columns: minmax(0, 2em)", &fonts);
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("minmax(0px, 40px)"));
+    apply_declarations_with(&mut s, "grid-template-columns: calc(10px + 1em)", &fonts);
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("30px"));
+    apply_declarations_with(&mut s, "grid-template-columns: repeat(2, 1em)", &fonts);
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("repeat(2, 20px)"));
+    let wide = FontCtx {
+        own: 16.0,
+        root: 16.0,
+        viewport_w: 1000.0,
+        viewport_h: 500.0,
+    };
+    apply_declarations_with(&mut s, "grid-template-columns: 10vw", &wide);
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("100px"));
+    apply_declarations_with(&mut s, "grid-template-columns: 10vh", &wide);
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("50px"));
+}
+
+#[test]
 fn grid_repeat_expands_inline() {
     // The landing-page idiom: repeat(4, 1fr). Before this batch the
     // token failed to parse, the whole declaration dropped, and the

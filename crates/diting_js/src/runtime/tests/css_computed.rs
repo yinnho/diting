@@ -1113,6 +1113,79 @@ fn grid_track_zero_matches_chrome() {
 }
 
 #[test]
+fn grid_track_em_matches_chrome() {
+    // em uses the element's own font-size, rem the root. A plain-length
+    // calc folds. Viewport units use the pinned window. 1fr beside an em
+    // track still becomes used px on a grid container.
+    let mut rt = setup_runtime(
+        "<html><head><style>\
+         #em { font-size: 30px; grid-template-columns: 1em }\
+         #rem { font-size: 30px; grid-template-columns: 1rem }\
+         #mm { font-size: 20px; grid-template-columns: minmax(0, 2em) }\
+         #calc { font-size: 20px; grid-template-columns: calc(10px + 1em) }\
+         #rep { grid-template-columns: repeat(2, 1em) }\
+         #up { font-size: 20px; grid-template-columns: 1EM }\
+         #vw { grid-template-columns: 10vw }\
+         #vh { grid-template-columns: 10vh }\
+         #used { display: grid; width: 200px; font-size: 20px; grid-template-columns: 1em 1fr }\
+         </style></head><body>\
+         <div id='em'></div><div id='rem'></div><div id='mm'></div>\
+         <div id='calc'></div><div id='rep'></div><div id='up'></div>\
+         <div id='vw'></div><div id='vh'></div><div id='used'></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"JSON.stringify((() => {
+              __diting_setViewport(1000, 500, false, undefined);
+              const g = (id) => getComputedStyle(document.getElementById(id)).grid;
+              return {
+                em: g('em'), rem: g('rem'), mm: g('mm'), calc: g('calc'),
+                rep: g('rep'), up: g('up'), vw: g('vw'), vh: g('vh'), used: g('used')
+              };
+            })())"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(
+        v["em"],
+        serde_json::json!("none / 30px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["rem"],
+        serde_json::json!("none / 16px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["mm"],
+        serde_json::json!("none / minmax(0px, 40px) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["calc"],
+        serde_json::json!("none / 30px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["rep"],
+        serde_json::json!("none / repeat(2, 16px) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["up"],
+        serde_json::json!("none / 20px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["vw"],
+        serde_json::json!("none / 100px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["vh"],
+        serde_json::json!("none / 50px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["used"],
+        serde_json::json!("none / 20px 180px / none / row / auto / auto")
+    );
+}
+
+#[test]
 fn text_decoration_shorthand_matches_chrome() {
     // Chrome 157 omits solid, currentcolor, and auto thickness. An explicit
     // color or a non-solid style stays. Line keywords come out as
