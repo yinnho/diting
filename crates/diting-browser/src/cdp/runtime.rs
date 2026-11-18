@@ -30,6 +30,7 @@ pub(crate) async fn on_runtime(
         "Input.insertText" => insert_text(page, &params),
         "Input.dispatchKeyEvent" => key_event(page, &params),
         "DOM.getContentQuads" => content_quads(page, &params).await,
+        "DOM.scrollIntoViewIfNeeded" => scroll_into_view(page, &params).await,
         other => Err(format!("'{other}' wasn't found")),
     };
     // Take the queues here, on the session thread, before the actor's
@@ -261,6 +262,41 @@ fn insert_text_js(literal: &str) -> String {
             if (el.isContentEditable) document.execCommand('insertText', false, text);\
         }})()"
     )
+}
+
+async fn scroll_into_view(page: &mut Page, params: &Value) -> Result<Value, String> {
+    let object_id = params.get("objectId").and_then(|v| v.as_str());
+    let rect = params.get("rect").cloned().unwrap_or(Value::Null);
+    let rect_js = serde_json::to_string(&rect).unwrap_or_else(|_| "null".to_string());
+    // `nearest` is a no-op when the box already intersects the viewport, so
+    // an on-screen click does not move scroll. A sub-rect (a position click
+    // inside a box taller than the viewport) is nudged in afterwards.
+    let declaration = format!(
+        "function() {{\
+            if (!this || typeof this.scrollIntoView !== 'function') return;\
+            this.scrollIntoView({{block:'nearest', inline:'nearest'}});\
+            var rect = {rect_js};\
+            if (!rect || typeof rect !== 'object' || !this.getBoundingClientRect) return;\
+            var box = this.getBoundingClientRect();\
+            var x = box.x + (+rect.x || 0);\
+            var y = box.y + (+rect.y || 0);\
+            var w = rect.width == null ? box.width : +rect.width;\
+            var h = rect.height == null ? box.height : +rect.height;\
+            var vw = window.innerWidth || 0, vh = window.innerHeight || 0;\
+            var dx = x < 0 ? x : (x + w > vw ? x + w - vw : 0);\
+            var dy = y < 0 ? y : (y + h > vh ? y + h - vh : 0);\
+            if (!dx && !dy) return;\
+            var root = document.scrollingElement || document.documentElement;\
+            if (!root) return;\
+            if (dx) root.scrollLeft = (root.scrollLeft || 0) + dx;\
+            if (dy) root.scrollTop = (root.scrollTop || 0) + dy;\
+        }}"
+    );
+    let js = page.inner.js.as_mut().ok_or("page has no JS runtime")?;
+    let _ = js
+        .call_function_on_remote_outcome(&declaration, object_id, &[], true, false, None)
+        .await?;
+    Ok(json!({}))
 }
 
 async fn content_quads(page: &mut Page, params: &Value) -> Result<Value, String> {

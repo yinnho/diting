@@ -334,13 +334,8 @@ async fn page_method(
         | "Input.dispatchMouseEvent"
         | "Input.dispatchKeyEvent"
         | "Input.insertText"
-        | "DOM.getContentQuads" => runtime_forward(id, session, method, params).await,
-        // Answer here, not on the session thread. A session command drops
-        // the layout, and Playwright's next visibility check then says the
-        // element is gone.
-        "DOM.scrollIntoViewIfNeeded" => {
-            Ok(Out::from_frames(vec![ok(id, Some(session), json!({}))]))
-        }
+        | "DOM.getContentQuads"
+        | "DOM.scrollIntoViewIfNeeded" => runtime_forward(id, session, method, params).await,
         "Emulation.setDeviceMetricsOverride" => set_metrics(id, session, params).await,
         "Target.setAutoAttach" | "Target.detachFromTarget" => {
             Ok(Out::from_frames(vec![ok(id, Some(session), json!({}))]))
