@@ -9,8 +9,9 @@ use crate::computed::ComputedStyle;
 use crate::content::{parse_content_value, parse_counter_modifiers, parse_quotes};
 use crate::geom::{FontCtx, Length};
 use crate::len_parse::{
-    css_box_offset, css_len, expand_sides, parse_aspect_ratio, parse_grid_template_areas,
-    parse_grid_tracks, parse_num_f32, parse_px_f32, split_sides, CssF32,
+    css_box_offset, css_len, expand_sides, grid_areas_css, parse_aspect_ratio,
+    parse_grid_areas_template, parse_grid_template_areas, parse_grid_tracks, parse_num_f32,
+    parse_px_f32, split_sides, CssF32, GridAreasTemplate,
 };
 use crate::shadow_parse::{
     parse_backdrop_blur, parse_box_shadow, parse_mix_blend_mode, parse_text_shadow,
@@ -759,6 +760,20 @@ fn parse_grid_shorthand(v: &str) -> Option<ParsedGridShorthand> {
     })
 }
 
+fn assign_grid_areas(style: &mut ComputedStyle, t: GridAreasTemplate, reset_auto: bool) {
+    style.grid_template_rows = Some(t.rows);
+    style.grid_template_columns = t.cols;
+    style.grid_template_areas = Some(t.areas);
+    style.grid_rows_specified = Some(t.rows_css);
+    style.grid_cols_specified = t.cols_css;
+    style.grid_areas_specified = Some(t.areas_css);
+    if reset_auto {
+        style.grid_auto_flow_specified = None;
+        style.grid_auto_rows_specified = None;
+        style.grid_auto_cols_specified = None;
+    }
+}
+
 /// One value copies to both axes. Two values are align then justify.
 fn place_pair(v: &str) -> Option<(String, String)> {
     let toks = split_sides(v);
@@ -1126,38 +1141,55 @@ pub(crate) fn apply_flex_grid(
             } else {
                 match parse_grid_template_areas(v) {
                     Some(areas) => {
+                        style.grid_areas_specified = Some(grid_areas_css(&areas));
                         style.grid_template_areas = Some(areas);
-                        style.grid_areas_specified = Some(v.trim().to_string());
                         true
                     }
                     None => false,
                 }
             }
         }
-        // `grid` shorthand. Areas-with-strings (`'a b' / 1fr`) stay
-        // unsupported. fr tracks stay specified; a grid container's used
-        // px is a later batch.
-        "grid" => match parse_grid_shorthand(v) {
-            Some(g) => {
-                style.grid_template_rows = g.rows;
-                style.grid_template_columns = g.cols;
-                style.grid_template_areas = None;
-                style.grid_rows_specified = g.rows_css;
-                style.grid_cols_specified = g.cols_css;
-                style.grid_areas_specified = None;
-                style.grid_auto_flow_specified = g.flow;
-                style.grid_auto_rows_specified = g.auto_rows;
-                style.grid_auto_cols_specified = g.auto_cols;
-                true
+        // `grid` shorthand. The areas form (`'a a' / 1fr 1fr`) sets rows,
+        // columns and areas, and resets the auto-* longhands. A grid
+        // container's used px still comes from layout.
+        "grid" => {
+            if v.contains('\'') || v.contains('"') {
+                match parse_grid_areas_template(v) {
+                    Some(t) => {
+                        assign_grid_areas(style, t, true);
+                        true
+                    }
+                    None => false,
+                }
+            } else {
+                match parse_grid_shorthand(v) {
+                    Some(g) => {
+                        style.grid_template_rows = g.rows;
+                        style.grid_template_columns = g.cols;
+                        style.grid_template_areas = None;
+                        style.grid_rows_specified = g.rows_css;
+                        style.grid_cols_specified = g.cols_css;
+                        style.grid_areas_specified = None;
+                        style.grid_auto_flow_specified = g.flow;
+                        style.grid_auto_rows_specified = g.auto_rows;
+                        style.grid_auto_cols_specified = g.auto_cols;
+                        true
+                    }
+                    None => false,
+                }
             }
-            None => false,
-        },
-        // Shorthand `rows / columns`. The string-literal-areas form
-        // (`grid-template: 'a b' 1fr / 2rem`) is not supported — both halves
-        // fall through to None rather than half-parse.
+        }
+        // Shorthand `rows / columns`, or the areas form. Unlike `grid`,
+        // this does not reset grid-auto-flow / grid-auto-rows / columns.
         "grid-template" => {
             if v.contains('\'') || v.contains('"') {
-                false
+                match parse_grid_areas_template(v) {
+                    Some(t) => {
+                        assign_grid_areas(style, t, false);
+                        true
+                    }
+                    None => false,
+                }
             } else if let Some((rows, cols)) = split_one_slash(v) {
                 set_grid_tracks(
                     rows,
