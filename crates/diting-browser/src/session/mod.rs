@@ -25,6 +25,9 @@ mod state;
 mod tests;
 
 pub use commands::{ScrollDirection, SessionCommand};
+pub(crate) use interact::{
+    mouse_button_code, mouse_button_mask, mouse_down_js, mouse_move_js, mouse_up_js, INPUT_HELPERS,
+};
 pub(crate) use manager::{send_command, send_command_readonly, send_screenshot};
 pub use manager::{SessionManager, SESSIONS};
 pub use record::replay_bash;

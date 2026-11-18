@@ -99,7 +99,7 @@ curl http://127.0.0.1:8089/health
 | Text → image (cover/card/title) | `BASE/render` → `BASE/screenshot` | `kind`,`title`,`body`(card rows),`theme`; pipe `{html,width,height}` + `full_page:false` into `/screenshot` |
 | HTML/CSS animation → video | `BASE/video` | `html` (CSS keyframes or `__timelines`), `fps`, `hold_tail_secs` — same frame every seek, no wall clock |
 | Firecrawl-compatible clients | `BASE/v1/scrape` | `actions` runs a single-page session flow |
-| Existing Playwright / Puppeteer script | CDP `connectOverCDP(BASE)` | `page.goto`, `page.evaluate`, `page.screenshot({path})`. `/json/version` reports `diting`. One client; disconnect closes its pages |
+| Existing Playwright / Puppeteer script | CDP `connectOverCDP(BASE)` | `page.goto`, `page.evaluate`, `locator.click`, `locator.fill`, `page.screenshot({path})`. `/json/version` reports `diting`. One client; disconnect closes its pages. Off-screen targets are not scrolled into view |
 
 ## Flows (record once, replay free)
 

@@ -62,7 +62,7 @@ await page.screenshot({ path: "page.png" });
 await browser.close();
 ```
 
-This first slice is that path: connect, open a page, read text, take a viewport PNG. Closing the connection closes the pages it opened. One CDP client at a time.
+This slice is that path, plus `locator.click()` and `locator.fill()`. Closing the connection closes the pages it opened. One CDP client at a time. Off-screen elements are not scrolled into view yet.
 
 ## Where it sits
 

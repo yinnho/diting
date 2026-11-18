@@ -75,7 +75,7 @@ await page.screenshot({ path: "page.png" });
 await browser.close();
 ```
 
-第一版就是这条路径：连上、开页、读正文、截一张视口 PNG。连接断开时，这次打开的页面会关掉。一次接一个 CDP 客户端。
+这条路径再加上 `locator.click()` 和 `locator.fill()`。连接断开时，这次打开的页面会关掉。一次接一个 CDP 客户端。屏幕外的元素还不会滚进视口。
 
 ## 它的位置
 
