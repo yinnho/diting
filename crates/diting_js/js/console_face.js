@@ -69,6 +69,9 @@ globalThis.console = {
   },
 };
 
+// Chrome's console sits on a prototype whose constructor is not a function,
+// then Object. Methods stay own on the instance.
+Object.setPrototypeOf(globalThis.console, Object.create(Object.prototype));
 _markNative(console.log); _markNative(console.warn); _markNative(console.error);
 _markNative(console.info); _markNative(console.debug);
 _markNative(console.dir); _markNative(console.assert);

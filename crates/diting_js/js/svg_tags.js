@@ -18,13 +18,37 @@
   }
 })();
 
+// MathML <math> wears MathMLElement. Its constructor is illegal, so the
+// wrapper builds the node through Element and hides the style slot.
+(() => {
+  let W = null;
+  const fn = () => {
+    if (W) return W;
+    const M = globalThis.MathMLElement;
+    const El = globalThis.Element;
+    if (typeof M !== "function" || typeof El !== "function") return El;
+    W = function (nid) {
+      const el = Reflect.construct(El, [nid], W);
+      try { Object.defineProperty(el, "_style", { enumerable: false }); } catch (e) {}
+      return el;
+    };
+    W.prototype = M.prototype;
+    return W;
+  };
+  try {
+    Object.defineProperty(globalThis, "__diting_mathElementClass", { value: fn, writable: true, enumerable: false, configurable: true });
+    const hide = globalThis.__diting_hide_list || (globalThis.__diting_hide_list = []);
+    hide.push("__diting_mathElementClass");
+  } catch (e) {}
+})();
+
 // (刀77) The HTML half: 15 legacy/rare tags the engine wrapped as a bare HTMLElement. Same factory trick through
 // HTMLElement's node-id gate. Names from Chrome 145 (k79-tags: createElement(tag).constructor.name).
 (() => {
   const map = globalThis.__diting_htmlTagMap;
   const HTMLEl = globalThis.HTMLElement;
   if (!map || typeof HTMLEl !== 'function') return;
-  const TAGS = {"applet":"HTMLUnknownElement","bgsound":"HTMLUnknownElement","blink":"HTMLUnknownElement","data":"HTMLDataElement","frameset":"HTMLFrameSetElement","image":"HTMLUnknownElement","isindex":"HTMLUnknownElement","keygen":"HTMLUnknownElement","listing":"HTMLPreElement","menuitem":"HTMLUnknownElement","multicol":"HTMLUnknownElement","nextid":"HTMLUnknownElement","picture":"HTMLPictureElement","spacer":"HTMLUnknownElement","xmp":"HTMLPreElement"};
+  const TAGS = {"applet":"HTMLUnknownElement","bgsound":"HTMLUnknownElement","blink":"HTMLUnknownElement","data":"HTMLDataElement","frameset":"HTMLFrameSetElement","image":"HTMLUnknownElement","isindex":"HTMLUnknownElement","keygen":"HTMLUnknownElement","listing":"HTMLPreElement","menuitem":"HTMLUnknownElement","multicol":"HTMLUnknownElement","nextid":"HTMLUnknownElement","picture":"HTMLPictureElement","spacer":"HTMLUnknownElement","svg":"HTMLUnknownElement","xmp":"HTMLPreElement"};
   for (const tag of Object.keys(TAGS)) {
     const C = globalThis[TAGS[tag]];
     if (typeof C !== 'function' || !C.prototype) continue;

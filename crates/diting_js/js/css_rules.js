@@ -82,6 +82,18 @@
     Object.defineProperty(rules, 'item', { value(i) { return rules[i] || null; }, configurable: true, writable: true });
     return rules;
   };
+  // The stored child list stays a real array (insertRule splices it). The
+  // face Chrome enumerates is a CSSRuleList: indexed own keys, length on
+  // the side, prototype CSSRuleList → Object.
+  const _asRuleList = (rules) => {
+    const proto = globalThis.CSSRuleList && globalThis.CSSRuleList.prototype;
+    if (!proto || !rules) return rules;
+    const o = Object.create(proto);
+    for (let i = 0; i < rules.length; i++) o[i] = rules[i];
+    Object.defineProperty(o, 'length', { get() { return rules.length; }, enumerable: false, configurable: true });
+    Object.defineProperty(o, 'item', { value(i) { const k = i >>> 0; return k < rules.length ? rules[k] : null; }, writable: true, enumerable: false, configurable: true });
+    return o;
+  };
 
   const build = (item, parent, sheet) => {
     const head = item.head;
@@ -190,7 +202,7 @@
   const G = globalThis.CSSGroupingRule || globalThis.CSSRule;
   const grouping = [globalThis.CSSGroupingRule, globalThis.CSSStyleRule, globalThis.CSSKeyframesRule].filter(Boolean);
   for (const C of grouping) {
-    acc(C, 'cssRules', function () { return rec(this).children; });
+    acc(C, 'cssRules', function () { return _asRuleList(rec(this).children); });
   }
   const mutate = (owner, fn) => { fn(rec(owner).children); const sh = rec(owner).sheet; if (sh && sh._cssomChanged) sh._cssomChanged(); };
   const insert = (owner, text, index) => {
@@ -346,7 +358,6 @@
     sheet._rules.length = 0;
     for (const r of rules) { D.get(r).parent = null; D.get(r).sheet = sheet; sheet._rules.push(r); }
     list(sheet._rules);
-    sheet.cssRules = sheet._rules;
   };
   Object.defineProperty(CS, '_cssomChanged', {
     value() {
@@ -374,7 +385,6 @@
       throw new DOMException("Failed to execute 'insertRule' on 'CSSStyleSheet': Failed to insert the rule.", 'HierarchyRequestError');
     }
     this._rules.splice(idx, 0, r);
-    this.cssRules = this._rules;
     this._cssomChanged();
     return idx;
   });
@@ -397,6 +407,7 @@
     this.replaceSync(text);
     return Promise.resolve(this);
   });
-  Object.defineProperty(CS, 'rules', { get() { return this._rules; }, configurable: true, enumerable: true });
+  Object.defineProperty(CS, 'cssRules', { get() { return _asRuleList(this._rules || []); }, enumerable: true, configurable: true });
+  Object.defineProperty(CS, 'rules', { get() { return this.cssRules; }, configurable: true, enumerable: true });
   globalThis.__cssSetRules = setRules;
 })();

@@ -3817,14 +3817,13 @@ Object.defineProperty(globalThis, '__diting_svgTagMap', { value: _svgTagInterfac
 function _elementClassFor(nid) {
   const tag = _domParse("tag_name", nid);
   if (tag === "FORM" && globalThis.__diting_domNative && globalThis.__diting_domNative.HTMLFormElement) return globalThis.__diting_domNative.HTMLFormElement;
-  // Rust reports HTML tags uppercase and XML-namespace tags in source case
-  // (tag_name's convention), so a lowercase first letter means a non-HTML
-  // namespace: confirm SVG (MathML falls to the default), then route through
-  // the SVG table. The HTML hot path pays nothing extra.
+  // Lowercase tag_name means a non-HTML namespace.
   if (typeof tag === "string" && tag && tag[0] === tag[0].toLowerCase()) {
-    if (_domParse("namespace_uri", nid) === "http://www.w3.org/2000/svg") {
+    const ns = _domParse("namespace_uri", nid);
+    if (ns === "http://www.w3.org/2000/svg") {
       return _svgTagInterfaces.get(tag) || (globalThis.__diting_domNative && globalThis.__diting_domNative.SVGElement) || Element;
     }
+    if (ns === "http://www.w3.org/1998/Math/MathML" && globalThis.__diting_mathElementClass) return globalThis.__diting_mathElementClass();
     return (globalThis.__diting_domNative && globalThis.__diting_domNative.HTMLElement) || Element;
   }
   const C = typeof tag === "string" ? _tagInterfaces.get(tag.toLowerCase()) : null;

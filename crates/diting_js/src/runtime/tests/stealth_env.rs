@@ -1205,6 +1205,19 @@ async fn own_enumerable_keys_match_chrome_truth() {
             "#chains.newdoc:\n   engine {got_chain}\n   chrome {want_chain}"
         ));
     }
+    if let (Some(want_chains), Some(got_chains)) =
+        (truth["#chains"].as_object(), engine["#chains"].as_object())
+    {
+        for (k, want) in want_chains {
+            if SKIP.contains(&k.as_str()) {
+                continue;
+            }
+            let got = &got_chains[k];
+            if got != want {
+                bad.push(format!("#chains.{k}:\n   engine {got}\n   chrome {want}"));
+            }
+        }
+    }
     assert!(
         bad.is_empty(),
         "{} object(s) off:\n{}",
