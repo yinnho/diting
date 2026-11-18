@@ -724,6 +724,73 @@ fn test_hover_pseudo_styles_react_to_hover_state() {
     );
 }
 
+/// `:target` follows location.hash, and an in-page anchor click does too.
+/// The rule re-styles before the hashchange listener would read it.
+#[cfg(feature = "screenshot")]
+#[test]
+fn test_target_pseudo_follows_location_hash_and_anchor_click() {
+    let mut rt = setup_runtime(
+        "<!DOCTYPE html><html><head><style>\
+             .panel { display: none; }\
+             .panel:target { display: block; }\
+             </style></head><body>\
+             <a id=\"lnk\" href=\"#sec\">go</a>\
+             <div id=\"sec\" class=\"panel\">COUPON</div>\
+             </body></html>",
+    );
+    let result = rt
+        .evaluate(
+            r#"
+            const p = document.getElementById('sec');
+            const before = getComputedStyle(p).display;
+            const beforeMatch = p.matches(':target');
+            let seen = '';
+            addEventListener('hashchange', () => { if (!seen) seen = getComputedStyle(p).display; });
+            location.hash = 'sec';
+            const after = getComputedStyle(p).display;
+            const afterMatch = p.matches(':target');
+            location.hash = 'other';
+            const cleared = getComputedStyle(p).display;
+            document.getElementById('lnk').click();
+            return [before, beforeMatch, after, afterMatch, seen, cleared,
+                    getComputedStyle(p).display, location.hash];
+            "#,
+        )
+        .unwrap();
+    let parts = result.as_array().expect("array result");
+    assert_eq!(
+        parts[0].as_str(),
+        Some("none"),
+        "no fragment, panel stays hidden"
+    );
+    assert_eq!(parts[1], false, "nothing is :target before a fragment");
+    assert_eq!(
+        parts[2].as_str(),
+        Some("block"),
+        "location.hash reveals :target"
+    );
+    assert_eq!(
+        parts[3], true,
+        "matches(':target') agrees with computed style"
+    );
+    assert_eq!(
+        parts[4].as_str(),
+        Some("block"),
+        "hashchange sees the restyle, not the previous display"
+    );
+    assert_eq!(
+        parts[5].as_str(),
+        Some("none"),
+        "a different fragment hides it again"
+    );
+    assert_eq!(
+        parts[6].as_str(),
+        Some("block"),
+        "clicking an in-page anchor sets the fragment"
+    );
+    assert_eq!(parts[7].as_str(), Some("#sec"));
+}
+
 /// :active window (#152): the press/release mirrors flip the state
 /// around the dispatch window exactly like Chrome's gCS showed —
 /// set before pointerdown, cleared before pointerup.

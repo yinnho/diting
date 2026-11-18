@@ -264,6 +264,9 @@ pub(crate) struct DomTreeInner {
     /// The element mid-press (mousedown → mouseup window) — see
     /// [`DomTree::active_node`] (#152).
     active_node: Option<NodeId>,
+    /// Decoded URL fragment that `:target` matches. Empty means the
+    /// document has no fragment, so nothing is the target.
+    css_target: String,
     /// Text selection in a text-entry control as (node, start, end) — see
     /// [`DomTree::selection`].
     selection: Option<(NodeId, usize, usize)>,
@@ -333,6 +336,7 @@ impl DomTree {
                 focused_node: None,
                 hovered_node: None,
                 active_node: None,
+                css_target: String::new(),
                 selection: None,
                 scroll_offsets: HashMap::new(),
                 scroll_gen: 0,

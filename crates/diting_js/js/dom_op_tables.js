@@ -33,6 +33,8 @@ const _DOM_MUTATION_COMMANDS = new Set([
   // or a press/release flips :hover/:active resolution.
   "set_hover",
   "set_active",
+  // Hash changes flip :target the same way a hover move flips :hover.
+  "set_css_target",
 ]);
   // #225: tree-edge memo. The only op_dom commands that change
   // parent/child/sibling links are these — textContent and the children
@@ -56,6 +58,7 @@ const _domStrA1 = new Set([
   "document_node_id", "document_title", "set_document_title", "document_referrer", "document_url", "document_base_url", "document_encoding", "document_content_type", "document_referrer_policy", "history_pos", "history_total",
   "document_element", "document_doctype",
   "document_write", "document_write_reset",
+  "set_css_target",
   "add_css_transition",
 ]);
 const _domNumA2 = new Set(["append_child", "insert_before", "compare_order"]);

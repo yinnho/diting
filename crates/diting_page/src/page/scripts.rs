@@ -622,6 +622,13 @@ impl Page {
                 "<named-boot>",
                 "globalThis._namedBoot&&globalThis._namedBoot();",
             );
+            // The document URL (including its fragment) is stamped after the
+            // JS snapshot boots, so :target is still empty until this runs.
+            // Page scripts and the load listener both read it.
+            let _ = js.execute_script(
+                "<css-target>",
+                "if (typeof __diting_syncCssTarget === 'function') __diting_syncCssTarget();",
+            );
             // Parser-built stylesheets never pass through the JS insertion
             // hooks (js/bootstrap.js), so their load events only fire if we
             // enumerate them here — before the script loop, so inline scripts

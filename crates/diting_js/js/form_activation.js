@@ -115,7 +115,10 @@ function _postClickActivation(el) {
   const link = tag === 'A' ? el : (el.closest ? el.closest('a[href]') : null);
   if (link) {
     const href = link.getAttribute('href');
-    if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
+    // A fragment href stays in this document: location.assign routes it
+    // through the hash path (pushState + hashchange + :target). javascript:
+    // is not a navigation.
+    if (href && !href.startsWith('javascript:')) {
       location.assign(href);
       return 'link';
     }

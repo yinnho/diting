@@ -81,9 +81,22 @@
     const entry = stack[idx];
     globalThis.__virtualUrl = entry.url ?? null;
   };
+  // :target reads the fragment off the tree, not off location. Stamp it
+  // before hashchange so a listener's getComputedStyle already matches.
+  const syncCssTarget = (href) => {
+    try {
+      const hash = new URL(href).hash;
+      _dom("set_css_target", hash.charAt(0) === "#" ? hash.slice(1) : hash, "");
+    } catch {}
+  };
+  Object.defineProperty(globalThis, "__diting_syncCssTarget", {
+    value: () => { try { syncCssTarget(__currentUrl()); } catch {} },
+    writable: true, configurable: true,
+  });
   const fireHashChangeIfNeeded = (prevUrl) => {
     try {
       const next = __currentUrl();
+      if (next) syncCssTarget(next);
       if (!prevUrl || !next) return;
       const a = new URL(prevUrl), b = new URL(next);
       if (a.origin === b.origin && a.pathname === b.pathname && a.search === b.search && a.hash !== b.hash) {

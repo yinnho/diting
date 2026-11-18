@@ -1228,6 +1228,29 @@ mod tree_tests {
             assert_eq!(tree.query_selector_all(":active").unwrap().len(), 0);
         }
 
+        /// `:target` is the element whose id is the decoded fragment, not
+        /// its ancestors. An empty fragment matches nothing.
+        #[test]
+        fn target_pseudo_class_matches_the_fragment_element() {
+            let tree = parse_html(
+                r#"<!DOCTYPE html><div id="outer"><div id="sec">x</div><div id="a b">y</div></div>"#,
+            );
+            assert_eq!(tree.query_selector_all(":target").unwrap().len(), 0);
+            tree.set_css_target("sec");
+            assert_eq!(tree.query_selector_all(":target").unwrap().len(), 1);
+            assert_eq!(tree.query_selector_all("#sec:target").unwrap().len(), 1);
+            assert_eq!(
+                tree.query_selector_all("#outer:target").unwrap().len(),
+                0,
+                ":target does not climb to ancestors"
+            );
+            tree.set_css_target("a%20b");
+            assert_eq!(tree.query_selector_all(":target").unwrap().len(), 1);
+            assert_eq!(tree.css_target(), "a b");
+            tree.set_css_target("");
+            assert_eq!(tree.query_selector_all(":target").unwrap().len(), 0);
+        }
+
         #[test]
         fn link_pseudo_class_matches_anchor_with_href() {
             let tree = parse_html(

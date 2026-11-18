@@ -3646,14 +3646,14 @@ fn computed_style_pseudo_element_face() {
         ),
         r#""P""#
     );
-    // attr() keeps its functional shape on the computed face (#19, Chrome
-    // parity) — the host attribute substitutes only into the rendered box.
+    // Chrome 157 substitutes a bare attr() and quotes the attribute value.
+    // counter() stays functional; that face is a different test.
     assert_eq!(
         read(
             &mut rt,
             "getComputedStyle(document.getElementById('a'),'::after').getPropertyValue('content')"
         ),
-        "attr(k)"
+        "\"v1\""
     );
     // Pseudo with no matching rule (and unmodeled `::name` forms) answers
     // the initial-value table.

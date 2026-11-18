@@ -477,6 +477,12 @@ pub(crate) fn dom_cmd_attr_state(
             }
             "true".into()
         }
+        // Fragment for :target. arg1 is location.hash without the leading
+        // '#', still percent-encoded; the tree decodes it. Empty clears.
+        "set_css_target" => {
+            dom.set_css_target(&arg1);
+            "true".into()
+        }
         // Selection mirror (caret batch): the bootstrap's selection APIs
         // keep (start, end) in WeakMaps for JS reads; this op mirrors the
         // same record into the tree so paint can resolve the caret at
