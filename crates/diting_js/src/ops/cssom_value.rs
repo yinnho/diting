@@ -663,10 +663,9 @@ fn computed_color_spacing(
         "padding-block-end" => Some(side_css_used(&s.padding.bottom, cb_inline)),
         "padding-inline-start" => Some(side_css_used(&s.padding.left, cb_inline)),
         "padding-inline-end" => Some(side_css_used(&s.padding.right, cb_inline)),
-        // #244: transform-origin in Chrome's computed form — keywords stay
-        // normalized percentages and the z component pins 0px, so the
-        // initial value reads "50% 50% 0px" (the issue's Chrome ground
-        // truth); declared px survives verbatim.
+        // No border box (display:none, mock layout): Chrome keeps the
+        // specified form and omits a zero z, so the initial is "50% 50%".
+        // A laid-out box overwrites this with used px in `used_geometry`.
         "transform-origin" => Some({
             let spell = |l: &Length| match l {
                 Length::Px(v) => format!("{}px", format_number(*v)),
@@ -676,7 +675,7 @@ fn computed_color_spacing(
             let (x, y) = s
                 .transform_origin
                 .unwrap_or((Length::Percent(50.0), Length::Percent(50.0)));
-            format!("{} {} 0px", spell(&x), spell(&y))
+            format!("{} {}", spell(&x), spell(&y))
         }),
         _ => return None,
     })
@@ -1160,6 +1159,233 @@ pub(super) fn content_inline_for(
         _ => 0.0,
     };
     Some(w - border_lr - side(&st.padding.left) - side(&st.padding.right))
+}
+
+/// Laid-out border box plus the containing block's padding box, both in
+/// the same coordinate space. Absolute and fixed insets are the distance
+/// between those edges.
+#[cfg(feature = "screenshot")]
+pub(crate) struct PlacedBox {
+    pub border: [f32; 4],
+    pub cb: [f32; 4],
+}
+
+/// Used `transform-origin` and the four insets, for the snapshot keys the
+/// percentage spelling cannot answer. `transform_origin` is `Some` only
+/// when the element has a border box — Chrome resolves percentages against
+/// that box and drops a zero z (`50px 20px`, not `50px 20px 0px`).
+#[cfg(feature = "screenshot")]
+pub(crate) struct UsedGeometry {
+    pub transform_origin: Option<String>,
+    pub left: String,
+    pub top: String,
+    pub right: String,
+    pub bottom: String,
+}
+
+#[cfg(feature = "screenshot")]
+pub(crate) fn used_geometry(
+    s: &diting_css::ComputedStyle,
+    cb_inline: Option<f32>,
+    origin_box: Option<(f32, f32)>,
+    placed: Option<&PlacedBox>,
+) -> UsedGeometry {
+    use diting_css::Length;
+    let transform_origin = origin_box.map(|(w, h)| {
+        let (x, y) = s
+            .transform_origin
+            .unwrap_or((Length::Percent(50.0), Length::Percent(50.0)));
+        let px = |l: &Length, basis: f32| match l {
+            Length::Px(v) => *v,
+            Length::Percent(p) => p / 100.0 * basis,
+            Length::Calc { percent, px } => percent / 100.0 * basis + px,
+            _ => basis / 2.0,
+        };
+        format!(
+            "{}px {}px",
+            format_number(px(&x, w)),
+            format_number(px(&y, h))
+        )
+    });
+    let (left, top, right, bottom) = inset_sides(s, cb_inline, placed);
+    UsedGeometry {
+        transform_origin,
+        left,
+        top,
+        right,
+        bottom,
+    }
+}
+
+#[cfg(feature = "screenshot")]
+fn len_against(l: &diting_css::Length, basis: f32) -> f32 {
+    use diting_css::Length;
+    match l {
+        Length::Px(v) => *v,
+        Length::Percent(p) => p / 100.0 * basis,
+        Length::Calc { percent, px } => percent / 100.0 * basis + px,
+        _ => 0.0,
+    }
+}
+
+#[cfg(feature = "screenshot")]
+fn px_spell(v: f32) -> String {
+    format!("{}px", format_number(v))
+}
+
+/// Static (and the no-geometry fallback): the specified value. A percentage
+/// stays a percentage — it does not resolve against a box. Unset is `auto`.
+#[cfg(feature = "screenshot")]
+fn spell_specified(l: &Option<diting_css::Length>) -> String {
+    use diting_css::Length;
+    match l {
+        None | Some(Length::Auto) => "auto".to_string(),
+        Some(Length::Px(v)) => px_spell(*v),
+        Some(Length::Percent(p)) => format!("{}%", format_number(*p)),
+        Some(Length::Calc { percent, px }) => format!(
+            "calc({}% + {}px)",
+            format_number(*percent),
+            format_number(*px)
+        ),
+        Some(Length::MinContent | Length::MaxContent | Length::FitContent) => "auto".to_string(),
+    }
+}
+
+/// One axis of a relative element. Both auto → 0px. One auto → the negation
+/// of the other side's used px. Both specified → each used px (Chrome keeps
+/// both; it does not drop the overconstrained side).
+#[cfg(feature = "screenshot")]
+fn relative_axis(
+    start: &Option<diting_css::Length>,
+    end: &Option<diting_css::Length>,
+    basis: f32,
+) -> (String, String) {
+    let used = |l: &diting_css::Length| len_against(l, basis);
+    match (start, end) {
+        (None, None) => (px_spell(0.0), px_spell(0.0)),
+        (Some(a), None) => {
+            let u = used(a);
+            (px_spell(u), px_spell(-u))
+        }
+        (None, Some(b)) => {
+            let u = used(b);
+            (px_spell(-u), px_spell(u))
+        }
+        (Some(a), Some(b)) => (px_spell(used(a)), px_spell(used(b))),
+    }
+}
+
+#[cfg(feature = "screenshot")]
+fn inset_sides(
+    s: &diting_css::ComputedStyle,
+    cb_inline: Option<f32>,
+    placed: Option<&PlacedBox>,
+) -> (String, String, String, String) {
+    use diting_css::PositionMode;
+    match s.position {
+        None | Some(PositionMode::Static) => (
+            spell_specified(&s.left),
+            spell_specified(&s.top),
+            spell_specified(&s.right),
+            spell_specified(&s.bottom),
+        ),
+        Some(PositionMode::Sticky) => {
+            let basis = cb_inline.unwrap_or(0.0);
+            let one = |l: &Option<diting_css::Length>| match l {
+                None => "auto".to_string(),
+                Some(v) => px_spell(len_against(v, basis)),
+            };
+            (one(&s.left), one(&s.top), one(&s.right), one(&s.bottom))
+        }
+        Some(PositionMode::Relative) => {
+            // Horizontal percentages resolve against the CB inline size.
+            // Vertical percentages need the CB block size, which this layer
+            // does not have; a px inset does not use the basis.
+            let (left, right) = relative_axis(&s.left, &s.right, cb_inline.unwrap_or(0.0));
+            let (top, bottom) = relative_axis(&s.top, &s.bottom, 0.0);
+            (left, top, right, bottom)
+        }
+        Some(PositionMode::Absolute | PositionMode::Fixed) => {
+            let Some(p) = placed else {
+                return (
+                    spell_specified(&s.left),
+                    spell_specified(&s.top),
+                    spell_specified(&s.right),
+                    spell_specified(&s.bottom),
+                );
+            };
+            let cb_w = p.cb[2];
+            let margin = |l: &Option<diting_css::Length>| {
+                l.as_ref().map(|v| len_against(v, cb_w)).unwrap_or(0.0)
+            };
+            let left = p.border[0] - margin(&s.margin.left) - p.cb[0];
+            let top = p.border[1] - margin(&s.margin.top) - p.cb[1];
+            let right = p.cb[0] + p.cb[2] - (p.border[0] + p.border[2]) - margin(&s.margin.right);
+            let bottom = p.cb[1] + p.cb[3] - (p.border[1] + p.border[3]) - margin(&s.margin.bottom);
+            (
+                px_spell(left),
+                px_spell(top),
+                px_spell(right),
+                px_spell(bottom),
+            )
+        }
+    }
+}
+
+/// Padding box of the containing block for an absolute or fixed element.
+/// `None` for every other position (those insets do not use the box).
+#[cfg(feature = "screenshot")]
+pub(crate) fn cb_pad_box(
+    dom: &DomTree,
+    rects: &std::collections::HashMap<NodeId, [f32; 4]>,
+    styles: &std::collections::HashMap<NodeId, diting_css::ComputedStyle>,
+    nid: NodeId,
+    viewport: (f32, f32),
+) -> Option<[f32; 4]> {
+    use diting_css::PositionMode;
+    // The initial containing block is the viewport, not the html content
+    // box — html's height shrinks to its content, and Chrome's abs/fixed
+    // bottom is measured against the viewport.
+    let icb = [0.0, 0.0, viewport.0, viewport.1];
+    let own = styles.get(&nid)?;
+    match own.position {
+        Some(PositionMode::Fixed) => Some(icb),
+        Some(PositionMode::Absolute) => {
+            let mut cur = dom.with_node(nid, |n| n.parent).flatten();
+            while let Some(p) = cur {
+                if let Some(st) = styles.get(&p) {
+                    if matches!(
+                        st.position,
+                        Some(PositionMode::Relative)
+                            | Some(PositionMode::Absolute)
+                            | Some(PositionMode::Fixed)
+                            | Some(PositionMode::Sticky)
+                    ) {
+                        let rect = rects.get(&p)?;
+                        let (bl, br, bt, bb) = if st.border_style.is_some() {
+                            (
+                                used_px(&st.border_width.left),
+                                used_px(&st.border_width.right),
+                                used_px(&st.border_width.top),
+                                used_px(&st.border_width.bottom),
+                            )
+                        } else {
+                            (0.0, 0.0, 0.0, 0.0)
+                        };
+                        return Some([
+                            rect[0] + bl,
+                            rect[1] + bt,
+                            rect[2] - bl - br,
+                            rect[3] - bt - bb,
+                        ]);
+                    }
+                }
+                cur = dom.with_node(p, |n| n.parent).flatten();
+            }
+            Some(icb)
+        }
+        _ => None,
+    }
 }
 
 /// Px value of a border side (borders cannot be percentages; keywords are

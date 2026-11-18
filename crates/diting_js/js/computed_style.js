@@ -781,6 +781,24 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
       const w = lookup('outline-width');
       if (c && s && w) return c + ' ' + s + ' ' + w;
     }
+    // Unset perspective-origin resolves against the border box. No box
+    // (display:none) keeps the specified "50% 50%". An authored value
+    // already returned from the inline echo above.
+    if (kebab === 'perspective-origin' && el && el._nid != null) {
+      try {
+        const raw = _domRaw('local_geom', String(el._nid | 0), '');
+        if (raw && raw !== 'null') {
+          const p = JSON.parse(raw);
+          if (Array.isArray(p) && p.length >= 4) {
+            const fmt = (n) => {
+              const r = Math.round(n * 100) / 100;
+              return Math.abs(r - Math.round(r)) < 1e-6 ? String(Math.round(r)) : String(r);
+            };
+            return fmt(p[2] / 2) + 'px ' + fmt(p[3] / 2) + 'px';
+          }
+        }
+      } catch (e) {}
+    }
     if (defaultsKebab[rawProp]) return defaultsKebab[rawProp];
     if (defaultsKebab[kebab]) return defaultsKebab[kebab];
     return globalThis.__customPropInitial?.(kebab) ?? '';
