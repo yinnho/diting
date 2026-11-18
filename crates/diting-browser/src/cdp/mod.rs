@@ -6,6 +6,8 @@
 //! stays the Chrome 157 pin. This is not the 1,740-task driver matrix — a
 //! method outside the slice returns a protocol error naming itself.
 //!
+//! Each browser socket owns the pages it opens. A second connection does
+//! not see those pages, and disconnecting one does not close the other's.
 //! The hub lock is never held across a session await. The session thread
 //! does not know about the hub, but an HTTP handler can hold `SESSIONS`
 //! while another task wants the hub.
@@ -38,15 +40,22 @@ static HUB: std::sync::LazyLock<tokio::sync::Mutex<Hub>> =
 
 #[derive(Default)]
 struct Hub {
-    auto_attach: bool,
-    wait_debugger: bool,
-    discover: bool,
+    next_client: u64,
+    clients: HashMap<u64, ClientSlot>,
     pages: HashMap<String, PageSlot>,
     /// CDP session id → target id.
     sessions: HashMap<String, String>,
 }
 
+#[derive(Clone, Default)]
+struct ClientSlot {
+    auto_attach: bool,
+    wait_debugger: bool,
+    discover: bool,
+}
+
 struct PageSlot {
+    owner: u64,
     target_id: String,
     session_id: String,
     cdp_session: String,
@@ -176,6 +185,17 @@ async fn page_ws(ws: WebSocketUpgrade, Path(id): Path<String>) -> Response {
 }
 
 async fn run_socket(mut socket: WebSocket, force_session: Option<String>) {
+    // A page socket is not a browser client. It drives one session and
+    // does not own targets.
+    let client = if force_session.is_none() {
+        let mut hub = HUB.lock().await;
+        hub.next_client += 1;
+        let id = hub.next_client;
+        hub.clients.insert(id, ClientSlot::default());
+        id
+    } else {
+        0
+    };
     let mut mine: Vec<String> = Vec::new();
     loop {
         let msg = match socket.recv().await {
@@ -195,7 +215,7 @@ async fn run_socket(mut socket: WebSocket, force_session: Option<String>) {
             .as_deref()
             .map(|session| inject_session(&text, session))
             .unwrap_or(text);
-        let out = dispatch(&text).await;
+        let out = dispatch(client, &text).await;
         mine.extend(out.created);
         mine.retain(|id| !out.closed.contains(id));
         let mut failed = false;
@@ -209,7 +229,27 @@ async fn run_socket(mut socket: WebSocket, force_session: Option<String>) {
             break;
         }
     }
-    for id in mine {
+    let mut sessions = Vec::new();
+    {
+        let mut hub = HUB.lock().await;
+        if client != 0 {
+            hub.clients.remove(&client);
+        }
+        for id in mine {
+            let target = hub
+                .pages
+                .iter()
+                .find(|(_, page)| page.session_id == id)
+                .map(|(target, _)| target.clone());
+            if let Some(target) = target {
+                if let Some(page) = hub.pages.remove(&target) {
+                    hub.sessions.remove(&page.cdp_session);
+                }
+            }
+            sessions.push(id);
+        }
+    }
+    for id in sessions {
         let mut mgr = SESSIONS.lock().await;
         mgr.close_and_wait(&id).await;
     }
@@ -226,7 +266,7 @@ fn inject_session(text: &str, session: &str) -> String {
     msg.to_string()
 }
 
-async fn dispatch(text: &str) -> Out {
+async fn dispatch(client: u64, text: &str) -> Out {
     let msg: Value = match serde_json::from_str(text) {
         Ok(v) => v,
         Err(_) => return Out::from_frames(Vec::new()),
@@ -241,25 +281,31 @@ async fn dispatch(text: &str) -> Out {
     if method.is_empty() {
         return Out::from_frames(Vec::new());
     }
-    match dispatch_method(&id, session.as_deref(), method, &params).await {
+    match dispatch_method(client, &id, session.as_deref(), method, &params).await {
         Ok(out) => out,
         Err(message) => Out::from_frames(vec![fail(&id, session.as_deref(), message)]),
     }
 }
 
 async fn dispatch_method(
+    client: u64,
     id: &Value,
     session: Option<&str>,
     method: &str,
     params: &Value,
 ) -> Result<Out, String> {
     if session.is_none() {
-        return browser_method(id, method, params).await;
+        return browser_method(client, id, method, params).await;
     }
     page_method(id, session.unwrap(), method, params).await
 }
 
-async fn browser_method(id: &Value, method: &str, params: &Value) -> Result<Out, String> {
+async fn browser_method(
+    client: u64,
+    id: &Value,
+    method: &str,
+    params: &Value,
+) -> Result<Out, String> {
     match method {
         "Browser.getVersion" => Ok(Out::from_frames(vec![ok(
             id,
@@ -273,19 +319,23 @@ async fn browser_method(id: &Value, method: &str, params: &Value) -> Result<Out,
             }),
         )])),
         "Browser.setDownloadBehavior" => Ok(Out::from_frames(vec![ok(id, None, json!({}))])),
-        "Browser.close" => close_browser(id).await,
-        "Target.setAutoAttach" => set_auto_attach(id, params).await,
-        "Target.setDiscoverTargets" => set_discover(id, params).await,
+        "Browser.close" => close_browser(client, id).await,
+        "Target.setAutoAttach" => set_auto_attach(client, id, params).await,
+        "Target.setDiscoverTargets" => set_discover(client, id, params).await,
         "Target.getTargetInfo" => Ok(Out::from_frames(vec![ok(
             id,
             None,
-            target_info_result(params).await,
+            target_info_result(client, params).await,
         )])),
-        "Target.getTargets" => Ok(Out::from_frames(vec![ok(id, None, all_targets().await)])),
-        "Target.createTarget" => create_target(id, params).await,
-        "Target.attachToTarget" => attach_target(id, params).await,
+        "Target.getTargets" => Ok(Out::from_frames(vec![ok(
+            id,
+            None,
+            all_targets(client).await,
+        )])),
+        "Target.createTarget" => create_target(client, id, params).await,
+        "Target.attachToTarget" => attach_target(client, id, params).await,
         "Target.detachFromTarget" => Ok(Out::from_frames(vec![ok(id, None, json!({}))])),
-        "Target.closeTarget" => close_target(id, None, params).await,
+        "Target.closeTarget" => close_target(client, id, None, params).await,
         _ if ack_only(method) => Ok(Out::from_frames(vec![ok(id, None, json!({}))])),
         _ => Err(format!("'{method}' wasn't found")),
     }
@@ -313,7 +363,7 @@ async fn page_method(
             let Some(target) = target else {
                 return Err("no such session".to_string());
             };
-            close_target(id, Some(session), &json!({ "targetId": target })).await
+            close_target(0, id, Some(session), &json!({ "targetId": target })).await
         }
         "Page.getLayoutMetrics" => Ok(Out::from_frames(vec![ok(
             id,
@@ -376,20 +426,22 @@ fn page_ack(method: &str) -> bool {
     )
 }
 
-async fn set_auto_attach(id: &Value, params: &Value) -> Result<Out, String> {
+async fn set_auto_attach(client: u64, id: &Value, params: &Value) -> Result<Out, String> {
     let mut hub = HUB.lock().await;
-    hub.auto_attach = params
+    let auto_attach = params
         .get("autoAttach")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
-    hub.wait_debugger = params
+    let waiting = params
         .get("waitForDebuggerOnStart")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
+    let slot = hub.clients.entry(client).or_default();
+    slot.auto_attach = auto_attach;
+    slot.wait_debugger = waiting;
     let mut frames = Vec::new();
-    if hub.auto_attach {
-        let waiting = hub.wait_debugger;
-        for page in hub.pages.values_mut() {
+    if auto_attach {
+        for page in hub.pages.values_mut().filter(|page| page.owner == client) {
             if page.attached {
                 continue;
             }
@@ -401,15 +453,16 @@ async fn set_auto_attach(id: &Value, params: &Value) -> Result<Out, String> {
     Ok(Out::from_frames(frames))
 }
 
-async fn set_discover(id: &Value, params: &Value) -> Result<Out, String> {
+async fn set_discover(client: u64, id: &Value, params: &Value) -> Result<Out, String> {
     let mut hub = HUB.lock().await;
-    hub.discover = params
+    let discover = params
         .get("discover")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
+    hub.clients.entry(client).or_default().discover = discover;
     let mut frames = Vec::new();
-    if hub.discover {
-        for page in hub.pages.values() {
+    if discover {
+        for page in hub.pages.values().filter(|page| page.owner == client) {
             frames.push(event(
                 None,
                 "Target.targetCreated",
@@ -421,11 +474,13 @@ async fn set_discover(id: &Value, params: &Value) -> Result<Out, String> {
     Ok(Out::from_frames(frames))
 }
 
-async fn target_info_result(params: &Value) -> Value {
+async fn target_info_result(client: u64, params: &Value) -> Value {
     let hub = HUB.lock().await;
     if let Some(target) = params.get("targetId").and_then(|v| v.as_str()) {
         if let Some(page) = hub.pages.get(target) {
-            return json!({ "targetInfo": info_of(page, page.attached) });
+            if page.owner == client {
+                return json!({ "targetInfo": info_of(page, page.attached) });
+            }
         }
     }
     json!({
@@ -440,7 +495,7 @@ async fn target_info_result(params: &Value) -> Value {
     })
 }
 
-async fn all_targets() -> Value {
+async fn all_targets(client: u64) -> Value {
     let hub = HUB.lock().await;
     let mut infos = vec![json!({
         "targetId": browser_id(),
@@ -450,13 +505,37 @@ async fn all_targets() -> Value {
         "attached": true,
         "canAccessOpener": false,
     })];
-    for page in hub.pages.values() {
+    for page in hub.pages.values().filter(|page| page.owner == client) {
         infos.push(info_of(page, page.attached));
     }
     json!({ "targetInfos": infos })
 }
 
-async fn create_target(id: &Value, params: &Value) -> Result<Out, String> {
+fn client_flags(hub: &Hub, client: u64) -> (bool, bool, bool) {
+    match hub.clients.get(&client) {
+        Some(slot) => (slot.discover, slot.auto_attach, slot.wait_debugger),
+        None => (false, false, false),
+    }
+}
+
+fn take_owned(hub: &mut Hub, client: u64) -> Vec<PageSlot> {
+    let ids: Vec<String> = hub
+        .pages
+        .iter()
+        .filter(|(_, page)| page.owner == client)
+        .map(|(id, _)| id.clone())
+        .collect();
+    let mut pages = Vec::new();
+    for id in ids {
+        if let Some(page) = hub.pages.remove(&id) {
+            hub.sessions.remove(&page.cdp_session);
+            pages.push(page);
+        }
+    }
+    pages
+}
+
+async fn create_target(client: u64, id: &Value, params: &Value) -> Result<Out, String> {
     let url = params
         .get("url")
         .and_then(|v| v.as_str())
@@ -493,6 +572,7 @@ async fn create_target(id: &Value, params: &Value) -> Result<Out, String> {
     let target_id = uuid::Uuid::new_v4().simple().to_string();
     let cdp_session = uuid::Uuid::new_v4().simple().to_string();
     let mut page = PageSlot {
+        owner: client,
         target_id: target_id.clone(),
         session_id: session_id.clone(),
         cdp_session: cdp_session.clone(),
@@ -509,16 +589,17 @@ async fn create_target(id: &Value, params: &Value) -> Result<Out, String> {
     let mut frames = Vec::new();
     {
         let mut hub = HUB.lock().await;
-        if hub.discover {
+        let (discover, auto_attach, waiting) = client_flags(&hub, client);
+        if discover {
             frames.push(event(
                 None,
                 "Target.targetCreated",
                 json!({ "targetInfo": info_of(&page, false) }),
             ));
         }
-        if hub.auto_attach {
+        if auto_attach {
             page.attached = true;
-            frames.push(attached_event(&page, hub.wait_debugger));
+            frames.push(attached_event(&page, waiting));
         }
         hub.sessions.insert(cdp_session, target_id.clone());
         hub.pages.insert(target_id.clone(), page);
@@ -532,16 +613,17 @@ async fn create_target(id: &Value, params: &Value) -> Result<Out, String> {
     })
 }
 
-async fn attach_target(id: &Value, params: &Value) -> Result<Out, String> {
+async fn attach_target(client: u64, id: &Value, params: &Value) -> Result<Out, String> {
     let target = params
         .get("targetId")
         .and_then(|v| v.as_str())
         .ok_or("Target.attachToTarget: missing targetId")?;
     let mut hub = HUB.lock().await;
-    let waiting = hub.wait_debugger;
+    let waiting = client_flags(&hub, client).2;
     let page = hub
         .pages
         .get_mut(target)
+        .filter(|page| page.owner == client)
         .ok_or_else(|| format!("no such target {target}"))?;
     let session = page.cdp_session.clone();
     let mut frames = Vec::new();
@@ -553,7 +635,12 @@ async fn attach_target(id: &Value, params: &Value) -> Result<Out, String> {
     Ok(Out::from_frames(frames))
 }
 
-async fn close_target(id: &Value, session: Option<&str>, params: &Value) -> Result<Out, String> {
+async fn close_target(
+    client: u64,
+    id: &Value,
+    session: Option<&str>,
+    params: &Value,
+) -> Result<Out, String> {
     let target = params
         .get("targetId")
         .and_then(|v| v.as_str())
@@ -561,11 +648,19 @@ async fn close_target(id: &Value, session: Option<&str>, params: &Value) -> Resu
         .to_string();
     let removed = {
         let mut hub = HUB.lock().await;
-        let page = hub.pages.remove(&target);
-        if let Some(page) = page.as_ref() {
-            hub.sessions.remove(&page.cdp_session);
+        let owned = hub
+            .pages
+            .get(&target)
+            .is_some_and(|page| client == 0 || page.owner == client);
+        if !owned {
+            None
+        } else {
+            let page = hub.pages.remove(&target);
+            if let Some(page) = page.as_ref() {
+                hub.sessions.remove(&page.cdp_session);
+            }
+            page
         }
-        page
     };
     let Some(page) = removed else {
         return Ok(Out::from_frames(vec![ok(
@@ -599,11 +694,10 @@ async fn close_target(id: &Value, session: Option<&str>, params: &Value) -> Resu
     })
 }
 
-async fn close_browser(id: &Value) -> Result<Out, String> {
+async fn close_browser(client: u64, id: &Value) -> Result<Out, String> {
     let pages: Vec<PageSlot> = {
         let mut hub = HUB.lock().await;
-        hub.sessions.clear();
-        hub.pages.drain().map(|(_, page)| page).collect()
+        take_owned(&mut hub, client)
     };
     let mut frames = Vec::new();
     let mut closed = Vec::new();
