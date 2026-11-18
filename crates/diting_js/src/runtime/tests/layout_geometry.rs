@@ -831,6 +831,41 @@ async fn test_sticky_pins_inside_element_scroller() {
 
 #[tokio::test(flavor = "current_thread")]
 #[cfg(feature = "screenshot")]
+async fn test_sticky_percent_pins_to_scrollport_content_box() {
+    // Chrome 157 pins to the scroller's content edge, not its padding
+    // edge. height 200, padding 20, border 10: top 0 would sit at 30,
+    // top 10px at 40, top 10% (20px of the content height) at 50.
+    let mut rt = setup_runtime(
+        r#"<html><body style="margin:0">\
+<div id="pct" style="width:200px;height:200px;overflow:auto;padding:20px;border:10px solid #000">\
+<div id="hp" style="position:sticky;top:10%;height:20px">P</div><div style="height:800px"></div></div>\
+<div id="px" style="width:200px;height:200px;overflow:auto;padding:20px;border:10px solid #000">\
+<div id="hx" style="position:sticky;top:10px;height:20px">X</div><div style="height:800px"></div></div>\
+</body></html>"#,
+    );
+    let script = r#"async () => {
+            const pin = (sid, hid) => {
+                const sc = document.getElementById(sid);
+                const h = document.getElementById(hid);
+                sc.scrollTop = 80;
+                return h.getBoundingClientRect().top - sc.getBoundingClientRect().top;
+            };
+            return [pin('pct', 'hp'), pin('px', 'hx'),
+                    getComputedStyle(document.getElementById('hp')).top];
+        }"#;
+    let result = rt
+        .call_function_on_remote(script, None, &[], true, true)
+        .await
+        .unwrap();
+    assert_eq!(
+        result.value.unwrap(),
+        serde_json::json!([50, 40, "20px"]),
+        "sticky inset is measured from the content edge"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+#[cfg(feature = "screenshot")]
 async fn test_sticky_table_row_pins_under_root_scroll() {
     // blitz#887 收官口子：boxless 表格行 sticky。我们的行 wrapper 在
     // node_map 里就键在 tr 的 DOM id 上（批57 表格引擎），rects 天然
