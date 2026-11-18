@@ -1516,6 +1516,89 @@ fn grid_line_names_match_chrome() {
 }
 
 #[test]
+fn grid_template_reset_matches_chrome() {
+    // `grid-template: none` clears rows, columns and areas. A slash form
+    // does the same to areas, then sets the two track lists. auto-flow and
+    // auto-rows stay. On a 200px grid, `50px / 1fr 1fr` is `50px / 100px 100px`.
+    let mut rt = setup_runtime(
+        "<html><head><style>body { margin: 0 }</style></head><body>\
+         <div id='a' style=\"grid: 'a a' / 1fr 1fr; grid-template: none\"></div>\
+         <div id='b' style='grid: auto-flow dense / 100px; grid-template: none'></div>\
+         <div id='c' style='grid: auto-flow dense / 100px; grid-auto-rows: 10px; grid-template: none'></div>\
+         <div id='d' style=\"grid: 'a a' / 1fr 1fr; grid-template: 20px / 30px\"></div>\
+         <div id='e' style='grid-template: none / 1fr'></div>\
+         <div id='f' style='grid-template: 1fr / none'></div>\
+         <div id='g' style='grid-template: 100px'></div>\
+         <div id='h' style='grid-template: 20px / 30px; grid-template: 10px / bogus'></div>\
+         <div id='i' style=\"display:grid;width:200px;grid: 'a a' / 1fr 1fr; grid-template: 50px / 1fr 1fr\"></div>\
+         <div id='j' style=\"grid: auto-flow dense / 100px; grid-template: 'b b' / 1fr\"></div>\
+         <div id='k' style='grid-template: [s] 10px [e] / [c] 1fr [d]'></div>\
+         <div id='l' style='display:grid;width:200px;grid-template: none'></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"JSON.stringify((() => {
+              const g = (id) => getComputedStyle(document.getElementById(id)).grid;
+              const ids = 'abcdefghijkl'.split('');
+              const o = {};
+              for (const id of ids) o[id] = g(id);
+              return o;
+            })())"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(
+        v["a"],
+        serde_json::json!("none / none / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["b"],
+        serde_json::json!("none / none / none / dense / auto / auto")
+    );
+    assert_eq!(
+        v["c"],
+        serde_json::json!("none / none / none / dense / 10px / auto")
+    );
+    assert_eq!(
+        v["d"],
+        serde_json::json!("20px / 30px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["e"],
+        serde_json::json!("none / 1fr / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["f"],
+        serde_json::json!("1fr / none / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["g"],
+        serde_json::json!("none / none / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["h"],
+        serde_json::json!("20px / 30px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["i"],
+        serde_json::json!("50px / 100px 100px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["j"],
+        serde_json::json!("auto / 1fr / \"b b\" / dense / auto / auto")
+    );
+    assert_eq!(
+        v["k"],
+        serde_json::json!("[s] 10px [e] / [c] 1fr [d] / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["l"],
+        serde_json::json!("none / none / none / row / auto / auto")
+    );
+}
+
+#[test]
 fn text_decoration_shorthand_matches_chrome() {
     // Chrome 157 omits solid, currentcolor, and auto thickness. An explicit
     // color or a non-solid style stays. Line keywords come out as
