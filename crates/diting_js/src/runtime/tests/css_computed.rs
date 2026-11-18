@@ -32,6 +32,39 @@ fn margin_shorthand_collapses_like_chrome() {
     assert_eq!(v["quad"], serde_json::json!("1px 2px 3px 4px"));
 }
 
+#[test]
+fn border_and_outline_shorthands_match_chrome() {
+    let mut rt = setup_runtime(
+        "<html><body>\
+             <div id='z'></div>\
+             <div id='t' style='border-top:2px solid red'></div>\
+             <div id='o' style='outline:2px dashed blue'></div>\
+             </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"JSON.stringify({
+              border: getComputedStyle(document.getElementById('z')).border,
+              top: getComputedStyle(document.getElementById('z')).borderTop,
+              outline: getComputedStyle(document.getElementById('z')).outline,
+              uneven: getComputedStyle(document.getElementById('t')).border,
+              unevenTop: getComputedStyle(document.getElementById('t')).borderTop,
+              painted: getComputedStyle(document.getElementById('o')).outline
+            })"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["border"], serde_json::json!("0px none rgb(0, 0, 0)"));
+    assert_eq!(v["top"], serde_json::json!("0px none rgb(0, 0, 0)"));
+    assert_eq!(v["outline"], serde_json::json!("rgb(0, 0, 0) none 3px"));
+    assert_eq!(v["uneven"], serde_json::json!(""));
+    assert_eq!(
+        v["unevenTop"],
+        serde_json::json!("2px solid rgb(255, 0, 0)")
+    );
+    assert_eq!(v["painted"], serde_json::json!("rgb(0, 0, 255) dashed 2px"));
+}
+
 /// #214 (blitz#998): `text-align-last` on the computed face — declared
 /// keywords round-trip verbatim, undeclared reports the css-text-3
 /// initial `auto`, and inheritance rides the cascade (a child sees the
