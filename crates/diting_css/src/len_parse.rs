@@ -225,27 +225,149 @@ pub(super) fn parse_track_size(tok: &str) -> Option<TrackSize> {
 
 /// `'a b' 'c d'` → `[[a, b], [c, d]]`. Every string row must have the same
 /// cell count (CSS §7.3) or the whole declaration is invalid → None.
+/// Single and double quotes both work. A run of `.` is one null cell.
 pub(crate) fn parse_grid_template_areas(v: &str) -> Option<Vec<Vec<String>>> {
+    let mut rest = v.trim();
+    if rest.is_empty() {
+        return None;
+    }
     let mut rows = Vec::new();
-    for raw in v.split('\'') {
-        let row = raw.trim();
-        if row.is_empty() {
-            continue;
-        }
-        let cells: Vec<String> = row.split_whitespace().map(str::to_string).collect();
-        if cells.is_empty() {
+    while !rest.is_empty() {
+        if !rest.starts_with('\'') && !rest.starts_with('"') {
             return None;
         }
-        rows.push(cells);
+        let (content, after) = take_css_string(rest)?;
+        rows.push(area_cells(&content)?);
+        rest = after.trim_start();
     }
-    if rows.is_empty() {
+    same_width(rows)
+}
+
+/// `grid` / `grid-template` areas form: `'a a' 20px / 1fr 1fr`.
+/// Omitted row sizes are `auto`. No slash leaves columns at `none`.
+/// Line names (`[s]`) are not represented, so a bracket rejects the value.
+pub(crate) struct GridAreasTemplate {
+    pub rows: Vec<GridTrack>,
+    pub rows_css: String,
+    pub cols: Option<Vec<GridTrack>>,
+    pub cols_css: Option<String>,
+    pub areas: Vec<Vec<String>>,
+    pub areas_css: String,
+}
+
+pub(crate) fn parse_grid_areas_template(v: &str) -> Option<GridAreasTemplate> {
+    let mut rest = v.trim();
+    if rest.is_empty() || rest.starts_with('[') {
         return None;
     }
-    let width = rows[0].len();
-    if rows.iter().any(|r| r.len() != width) {
+    let mut areas = Vec::new();
+    let mut rows = Vec::new();
+    let mut rows_css = Vec::new();
+    while !rest.is_empty() && !rest.starts_with('/') {
+        if rest.starts_with('[') || (!rest.starts_with('\'') && !rest.starts_with('"')) {
+            return None;
+        }
+        let (content, after) = take_css_string(rest)?;
+        areas.push(area_cells(&content)?);
+        rest = after.trim_start();
+        if rest.is_empty()
+            || rest.starts_with('/')
+            || rest.starts_with('\'')
+            || rest.starts_with('"')
+        {
+            rows.push(GridTrack::Auto);
+            rows_css.push("auto".to_string());
+        } else if rest.starts_with('[') {
+            return None;
+        } else {
+            let (tok, tail) = next_track_token(rest)?;
+            rows.push(parse_grid_track_token(tok)?);
+            rows_css.push(tok.trim().to_string());
+            rest = tail.trim_start();
+        }
+    }
+    let areas = same_width(areas)?;
+    let (cols, cols_css) = if let Some(after) = rest.strip_prefix('/') {
+        let cols = after.trim();
+        if cols.is_empty() || cols.eq_ignore_ascii_case("none") {
+            return None;
+        }
+        (Some(parse_grid_tracks(cols)?), Some(cols.to_string()))
+    } else if rest.is_empty() {
+        (None, None)
+    } else {
+        return None;
+    };
+    Some(GridAreasTemplate {
+        rows,
+        rows_css: rows_css.join(" "),
+        cols,
+        cols_css,
+        areas_css: grid_areas_css(&areas),
+        areas,
+    })
+}
+
+/// Chrome's computed `grid-template-areas`: double quotes, one space
+/// between cells and between rows. `"a a" "b b"`.
+pub(crate) fn grid_areas_css(areas: &[Vec<String>]) -> String {
+    areas
+        .iter()
+        .map(|row| format!("\"{}\"", row.join(" ")))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn same_width(rows: Vec<Vec<String>>) -> Option<Vec<Vec<String>>> {
+    let width = rows.first()?.len();
+    if width == 0 || rows.iter().any(|r| r.len() != width) {
+        None
+    } else {
+        Some(rows)
+    }
+}
+
+fn area_cells(content: &str) -> Option<Vec<String>> {
+    let cells: Vec<String> = content
+        .split_whitespace()
+        .map(|tok| {
+            if tok.chars().all(|c| c == '.') {
+                ".".to_string()
+            } else {
+                tok.to_string()
+            }
+        })
+        .collect();
+    if cells.is_empty() {
+        None
+    } else {
+        Some(cells)
+    }
+}
+
+/// One CSS string, quote included at `v`. The returned tail starts after
+/// the closing quote. A raw newline ends the string and is invalid.
+fn take_css_string(v: &str) -> Option<(String, &str)> {
+    let mut chars = v.char_indices();
+    let quote = chars.next()?.1;
+    if quote != '\'' && quote != '"' {
         return None;
     }
-    Some(rows)
+    let mut out = String::new();
+    while let Some((i, c)) = chars.next() {
+        if c == '\\' {
+            out.push(chars.next()?.1);
+            continue;
+        }
+        if c == quote {
+            return Some((out, &v[i + c.len_utf8()..]));
+        }
+        if c == '\n' || c == '\r' {
+            return None;
+        }
+        out.push(c);
+    }
+    None
 }
 
 pub(crate) fn set_side(sides: &mut Sides, name: &str, value: Option<Length>) {

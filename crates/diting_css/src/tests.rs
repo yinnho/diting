@@ -180,6 +180,49 @@ fn grid_areas_minmax_and_shorthand_parse() {
 }
 
 #[test]
+fn grid_areas_shorthand_sets_rows_and_quotes() {
+    // Chrome spells the areas with double quotes. An omitted row size is
+    // `auto`. The `grid` shorthand resets auto-flow; `grid-template` does not.
+    let mut s = ComputedStyle::default();
+    apply_declarations(&mut s, "grid: 'a a' / 1fr 1fr");
+    assert_eq!(s.grid_areas_specified.as_deref(), Some("\"a a\""));
+    assert_eq!(s.grid_rows_specified.as_deref(), Some("auto"));
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("1fr 1fr"));
+    assert_eq!(s.grid_template_rows, Some(vec![GridTrack::Auto]));
+    assert_eq!(s.grid_auto_flow_specified, None);
+
+    let mut s = ComputedStyle::default();
+    apply_declarations(
+        &mut s,
+        "grid: auto-flow dense / 100px; grid-template: 'a a' 20px / 1fr 1fr",
+    );
+    assert_eq!(s.grid_areas_specified.as_deref(), Some("\"a a\""));
+    assert_eq!(s.grid_rows_specified.as_deref(), Some("20px"));
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("1fr 1fr"));
+    assert_eq!(s.grid_auto_flow_specified.as_deref(), Some("dense"));
+
+    let mut s = ComputedStyle::default();
+    apply_declarations(
+        &mut s,
+        "grid: auto-flow dense / 100px; grid: 'a a' / 1fr 1fr",
+    );
+    assert_eq!(s.grid_auto_flow_specified, None);
+
+    let mut s = ComputedStyle::default();
+    apply_declarations(&mut s, "grid-template-areas: 'a   a'");
+    assert_eq!(s.grid_areas_specified.as_deref(), Some("\"a a\""));
+    assert_eq!(s.grid_template_rows, None);
+    apply_declarations(&mut s, "grid-template-areas: 'a ... b'");
+    assert_eq!(s.grid_areas_specified.as_deref(), Some("\"a . b\""));
+
+    let mut s = ComputedStyle::default();
+    apply_declarations(&mut s, "grid: 'a a' 'b'");
+    assert_eq!(s.grid_areas_specified, None);
+    apply_declarations(&mut s, "grid: 'a a' / none");
+    assert_eq!(s.grid_areas_specified, None);
+}
+
+#[test]
 fn grid_repeat_expands_inline() {
     // The landing-page idiom: repeat(4, 1fr). Before this batch the
     // token failed to parse, the whole declaration dropped, and the
