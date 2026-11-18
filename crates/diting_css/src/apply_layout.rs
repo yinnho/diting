@@ -566,6 +566,199 @@ pub(crate) fn apply_logical_motion(
     })
 }
 
+struct ParsedGridShorthand {
+    rows: Option<Vec<crate::style_kw::GridTrack>>,
+    cols: Option<Vec<crate::style_kw::GridTrack>>,
+    rows_css: Option<String>,
+    cols_css: Option<String>,
+    /// `None` is the initial `row`. `dense` is the row-axis dense form.
+    flow: Option<String>,
+    auto_rows: Option<String>,
+    auto_cols: Option<String>,
+}
+
+fn set_grid_tracks(
+    v: &str,
+    tracks: &mut Option<Vec<crate::style_kw::GridTrack>>,
+    specified: &mut Option<String>,
+) -> bool {
+    if v.eq_ignore_ascii_case("none") {
+        *tracks = None;
+        *specified = None;
+        return true;
+    }
+    match parse_grid_tracks(v) {
+        Some(parsed) => {
+            *tracks = Some(parsed);
+            *specified = Some(v.trim().to_string());
+            true
+        }
+        None => false,
+    }
+}
+
+fn split_one_slash(v: &str) -> Option<(&str, &str)> {
+    let mut depth = 0i32;
+    let mut at = None;
+    for (i, c) in v.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => depth -= 1,
+            '/' if depth == 0 => {
+                if at.is_some() {
+                    return None;
+                }
+                at = Some(i);
+            }
+            _ => {}
+        }
+    }
+    let i = at?;
+    Some((v[..i].trim(), v[i + 1..].trim()))
+}
+
+fn paren_tokens(v: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut depth = 0i32;
+    let mut start = None;
+    for (i, c) in v.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => depth -= 1,
+            ch if ch.is_whitespace() && depth == 0 => {
+                if let Some(s) = start.take() {
+                    out.push(&v[s..i]);
+                }
+            }
+            _ => {
+                if start.is_none() {
+                    start = Some(i);
+                }
+            }
+        }
+    }
+    if let Some(s) = start {
+        out.push(&v[s..]);
+    }
+    out
+}
+
+fn side_has_auto_flow(side: &str) -> bool {
+    paren_tokens(side)
+        .iter()
+        .any(|t| t.eq_ignore_ascii_case("auto-flow"))
+}
+
+/// `(dense, optional auto-track spelling)`.
+fn parse_auto_flow_side(side: &str) -> Option<(bool, Option<String>)> {
+    let mut dense = false;
+    let mut saw = false;
+    let mut rest = String::new();
+    for tok in paren_tokens(side) {
+        if tok.eq_ignore_ascii_case("auto-flow") {
+            if saw {
+                return None;
+            }
+            saw = true;
+        } else if tok.eq_ignore_ascii_case("dense") {
+            if dense {
+                return None;
+            }
+            dense = true;
+        } else {
+            if !rest.is_empty() {
+                rest.push(' ');
+            }
+            rest.push_str(tok);
+        }
+    }
+    if !saw {
+        return None;
+    }
+    if rest.is_empty() {
+        return Some((dense, None));
+    }
+    parse_grid_tracks(&rest)?;
+    Some((dense, Some(rest)))
+}
+
+fn parse_track_side(
+    side: &str,
+) -> Option<(Option<Vec<crate::style_kw::GridTrack>>, Option<String>)> {
+    let t = side.trim();
+    if t.is_empty() {
+        return None;
+    }
+    if t.eq_ignore_ascii_case("none") {
+        return Some((None, None));
+    }
+    Some((Some(parse_grid_tracks(t)?), Some(t.to_string())))
+}
+
+fn parse_grid_shorthand(v: &str) -> Option<ParsedGridShorthand> {
+    let v = v.trim();
+    if v.contains('\'') || v.contains('"') {
+        return None;
+    }
+    if !v.contains('/') {
+        if v.eq_ignore_ascii_case("none") {
+            return Some(ParsedGridShorthand {
+                rows: None,
+                cols: None,
+                rows_css: None,
+                cols_css: None,
+                flow: None,
+                auto_rows: None,
+                auto_cols: None,
+            });
+        }
+        return None;
+    }
+    let (left, right) = split_one_slash(v)?;
+    let left_flow = side_has_auto_flow(left);
+    let right_flow = side_has_auto_flow(right);
+    if left_flow && right_flow {
+        return None;
+    }
+    if left_flow {
+        let (dense, auto_rows) = parse_auto_flow_side(left)?;
+        let (cols, cols_css) = parse_track_side(right)?;
+        return Some(ParsedGridShorthand {
+            rows: None,
+            cols,
+            rows_css: None,
+            cols_css,
+            flow: dense.then(|| "dense".to_string()),
+            auto_rows,
+            auto_cols: None,
+        });
+    }
+    if right_flow {
+        let (rows, rows_css) = parse_track_side(left)?;
+        let (dense, auto_cols) = parse_auto_flow_side(right)?;
+        return Some(ParsedGridShorthand {
+            rows,
+            cols: None,
+            rows_css,
+            cols_css: None,
+            flow: Some(if dense { "column dense" } else { "column" }.to_string()),
+            auto_rows: None,
+            auto_cols,
+        });
+    }
+    let (rows, rows_css) = parse_track_side(left)?;
+    let (cols, cols_css) = parse_track_side(right)?;
+    Some(ParsedGridShorthand {
+        rows,
+        cols,
+        rows_css,
+        cols_css,
+        flow: None,
+        auto_rows: None,
+        auto_cols: None,
+    })
+}
+
 /// One value copies to both axes. Two values are align then justify.
 fn place_pair(v: &str) -> Option<(String, String)> {
     let toks = split_sides(v);
@@ -915,29 +1108,69 @@ pub(crate) fn apply_flex_grid(
             style.row_gap = len(v);
             style.row_gap.is_some()
         }
-        "grid-template-columns" => {
-            style.grid_template_columns = parse_grid_tracks(v);
-            style.grid_template_columns.is_some()
-        }
-        "grid-template-rows" => {
-            style.grid_template_rows = parse_grid_tracks(v);
-            style.grid_template_rows.is_some()
-        }
+        "grid-template-columns" => set_grid_tracks(
+            v,
+            &mut style.grid_template_columns,
+            &mut style.grid_cols_specified,
+        ),
+        "grid-template-rows" => set_grid_tracks(
+            v,
+            &mut style.grid_template_rows,
+            &mut style.grid_rows_specified,
+        ),
         "grid-template-areas" => {
-            style.grid_template_areas = parse_grid_template_areas(v);
-            style.grid_template_areas.is_some()
+            if v.eq_ignore_ascii_case("none") {
+                style.grid_template_areas = None;
+                style.grid_areas_specified = None;
+                true
+            } else {
+                match parse_grid_template_areas(v) {
+                    Some(areas) => {
+                        style.grid_template_areas = Some(areas);
+                        style.grid_areas_specified = Some(v.trim().to_string());
+                        true
+                    }
+                    None => false,
+                }
+            }
         }
+        // `grid` shorthand. Areas-with-strings (`'a b' / 1fr`) stay
+        // unsupported. fr tracks stay specified; a grid container's used
+        // px is a later batch.
+        "grid" => match parse_grid_shorthand(v) {
+            Some(g) => {
+                style.grid_template_rows = g.rows;
+                style.grid_template_columns = g.cols;
+                style.grid_template_areas = None;
+                style.grid_rows_specified = g.rows_css;
+                style.grid_cols_specified = g.cols_css;
+                style.grid_areas_specified = None;
+                style.grid_auto_flow_specified = g.flow;
+                style.grid_auto_rows_specified = g.auto_rows;
+                style.grid_auto_cols_specified = g.auto_cols;
+                true
+            }
+            None => false,
+        },
         // Shorthand `rows / columns`. The string-literal-areas form
         // (`grid-template: 'a b' 1fr / 2rem`) is not supported — both halves
         // fall through to None rather than half-parse.
         "grid-template" => {
-            if let Some((rows, cols)) = v.split_once('/') {
-                if !v.contains('\'') {
-                    style.grid_template_rows = parse_grid_tracks(rows);
-                    style.grid_template_columns = parse_grid_tracks(cols);
-                }
+            if v.contains('\'') || v.contains('"') {
+                false
+            } else if let Some((rows, cols)) = split_one_slash(v) {
+                set_grid_tracks(
+                    rows,
+                    &mut style.grid_template_rows,
+                    &mut style.grid_rows_specified,
+                ) && set_grid_tracks(
+                    cols,
+                    &mut style.grid_template_columns,
+                    &mut style.grid_cols_specified,
+                )
+            } else {
+                false
             }
-            true
         }
         // Single-ident named form only (`grid-area: main`); the 4-value
         // numeric form is a later batch.

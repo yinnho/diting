@@ -737,6 +737,71 @@ fn place_shorthands_match_chrome() {
 }
 
 #[test]
+fn grid_shorthand_expands_like_chrome() {
+    // Chrome 157 spells `grid` as the six longhands. Lengths stay lengths.
+    // A bare track list with no slash is invalid. auto-flow before the
+    // slash is the row axis (`dense` alone); after the slash it is column.
+    // fr on a grid container becomes used px; that resolution is not here.
+    let mut rt = setup_runtime(
+        "<html><head><style>\
+         #a { grid: 100px / 200px }\
+         #b { grid: none }\
+         #c { grid: auto-flow 40px / 100px }\
+         #d { grid: 100px / auto-flow dense 30px }\
+         #e { grid: auto-flow dense / 100px }\
+         #f { grid: 100px / 200px; grid-template-columns: 50px }\
+         #g { grid: 1fr }\
+         #h { grid-template-columns: repeat(4, 1fr) }\
+         </style></head><body>\
+         <div id='a'></div><div id='b'></div><div id='c'></div><div id='d'></div>\
+         <div id='e'></div><div id='f'></div><div id='g'></div><div id='h'></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"JSON.stringify((() => {
+              const g = (id) => getComputedStyle(document.getElementById(id)).grid;
+              return { a: g('a'), b: g('b'), c: g('c'), d: g('d'),
+                       e: g('e'), f: g('f'), g: g('g'), h: g('h') };
+            })())"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(
+        v["a"],
+        serde_json::json!("100px / 200px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["b"],
+        serde_json::json!("none / none / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["c"],
+        serde_json::json!("none / 100px / none / row / 40px / auto")
+    );
+    assert_eq!(
+        v["d"],
+        serde_json::json!("100px / none / none / column dense / auto / 30px")
+    );
+    assert_eq!(
+        v["e"],
+        serde_json::json!("none / 100px / none / dense / auto / auto")
+    );
+    assert_eq!(
+        v["f"],
+        serde_json::json!("100px / 50px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["g"],
+        serde_json::json!("none / none / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["h"],
+        serde_json::json!("none / repeat(4, 1fr) / none / row / auto / auto")
+    );
+}
+
+#[test]
 fn text_decoration_shorthand_matches_chrome() {
     // Chrome 157 omits solid, currentcolor, and auto thickness. An explicit
     // color or a non-solid style stays. Line keywords come out as

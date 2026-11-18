@@ -227,6 +227,15 @@ pub struct ComputedStyle {
     /// Track list (px / rem / fr / auto / minmax). `None` = not declared.
     pub grid_template_columns: Option<Vec<GridTrack>>,
     pub grid_template_rows: Option<Vec<GridTrack>>,
+    /// Specified spellings for getComputedStyle. `None` is the initial
+    /// (`none`, `row`, or `auto`). Tracks above stay the layout form;
+    /// `repeat()` is kept here so the computed value can round-trip.
+    pub grid_rows_specified: Option<String>,
+    pub grid_cols_specified: Option<String>,
+    pub grid_areas_specified: Option<String>,
+    pub grid_auto_flow_specified: Option<String>,
+    pub grid_auto_rows_specified: Option<String>,
+    pub grid_auto_cols_specified: Option<String>,
     /// `grid-template-areas` cell matrix, rows of names (`.` = null cell).
     /// Non-rectangular declarations are dropped — the spec makes them
     /// invalid — so the layout side can trust the shape.

@@ -175,6 +175,15 @@ macro_rules! css_wide_longhands {
                     "color" => style.color_modern = src.color_modern,
                     "background-color" => style.background_color_modern = src.background_color_modern,
                     "border-color" => style.border_color_modern = src.border_color_modern,
+                    "grid-template-rows" => {
+                        style.grid_rows_specified = src.grid_rows_specified.clone()
+                    }
+                    "grid-template-columns" => {
+                        style.grid_cols_specified = src.grid_cols_specified.clone()
+                    }
+                    "grid-template-areas" => {
+                        style.grid_areas_specified = src.grid_areas_specified.clone()
+                    }
                     _ => {}
                 }
             }
@@ -291,6 +300,12 @@ css_wide_longhands! {
     "row-gap" => row_gap, false;
     "column-width" => column_width, false;
     "column-count" => column_count, false;
+    "grid-template-rows" => grid_template_rows, false;
+    "grid-template-columns" => grid_template_columns, false;
+    "grid-template-areas" => grid_template_areas, false;
+    "grid-auto-flow" => grid_auto_flow_specified, false;
+    "grid-auto-rows" => grid_auto_rows_specified, false;
+    "grid-auto-columns" => grid_auto_cols_specified, false;
     "margin-top" => margin.top, false;
     "margin-right" => margin.right, false;
     "margin-bottom" => margin.bottom, false;
@@ -349,6 +364,14 @@ fn css_wide_expand(name: &str) -> Option<&'static [&'static str]> {
         ],
         "outline" => &["outline-style", "outline-color", "outline-width"],
         "columns" => &["column-width", "column-count"],
+        "grid" => &[
+            "grid-template-rows",
+            "grid-template-columns",
+            "grid-template-areas",
+            "grid-auto-flow",
+            "grid-auto-rows",
+            "grid-auto-columns",
+        ],
         "place-content" => &["align-content", "justify-content"],
         "place-items" => &["align-items", "justify-items"],
         "place-self" => &["align-self", "justify-self"],
