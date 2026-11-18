@@ -1186,6 +1186,95 @@ fn grid_track_em_matches_chrome() {
 }
 
 #[test]
+fn grid_track_percent_calc_matches_chrome() {
+    // A percent+px calc stays symbolic off a grid and resolves against the
+    // content box on one. The percent term is written first. A grid of
+    // width 200px turns calc(50% + 10px) into 110px, and the 1fr beside it
+    // takes the remaining 90px.
+    let mut rt = setup_runtime(
+        "<html><head><style>body { margin: 0 }</style></head><body>\
+         <div id='a' style='grid-template-columns:calc(10px + 50%)'></div>\
+         <div id='b' style='grid-template-columns:calc(50% - 10px)'></div>\
+         <div id='c' style='grid-template-columns:calc(50% + 0px)'></div>\
+         <div id='d' style='grid-template-columns:calc(0% + 10px)'></div>\
+         <div id='e' style='font-size:20px;grid-template-columns:calc(1em + 50%)'></div>\
+         <div id='f' style='grid-template-columns:minmax(0, calc(50% + 10px))'></div>\
+         <div id='g' style='grid-template-columns:repeat(2, calc(50% + 10px))'></div>\
+         <div id='h' style='display:none;grid-template-columns:calc(50% + 10px)'></div>\
+         <div id='i' style='display:grid;width:200px;grid-template-columns:calc(50% + 10px)'></div>\
+         <div id='j' style='display:grid;width:200px;grid-template-columns:calc(100% - 20px)'></div>\
+         <div id='k' style='display:grid;width:200px;grid-template-columns:calc(50% + 10px) 1fr'></div>\
+         <div id='l' style='display:grid;width:200px;grid-template-columns:repeat(2, calc(50% + 10px))'></div>\
+         <div id='m' style='grid-template-columns:calc(50%+10px)'></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"JSON.stringify((() => {
+              const g = (id) => getComputedStyle(document.getElementById(id)).grid;
+              const ids = 'abcdefghijklm'.split('');
+              const o = {};
+              for (const id of ids) o[id] = g(id);
+              return o;
+            })())"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(
+        v["a"],
+        serde_json::json!("none / calc(50% + 10px) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["b"],
+        serde_json::json!("none / calc(50% - 10px) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["c"],
+        serde_json::json!("none / 50% / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["d"],
+        serde_json::json!("none / calc(0% + 10px) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["e"],
+        serde_json::json!("none / calc(50% + 20px) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["f"],
+        serde_json::json!("none / minmax(0px, calc(50% + 10px)) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["g"],
+        serde_json::json!("none / repeat(2, calc(50% + 10px)) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["h"],
+        serde_json::json!("none / calc(50% + 10px) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["i"],
+        serde_json::json!("none / 110px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["j"],
+        serde_json::json!("none / 180px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["k"],
+        serde_json::json!("none / 110px 90px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["l"],
+        serde_json::json!("none / 110px 110px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["m"],
+        serde_json::json!("none / none / none / row / auto / auto")
+    );
+}
+
+#[test]
 fn text_decoration_shorthand_matches_chrome() {
     // Chrome 157 omits solid, currentcolor, and auto thickness. An explicit
     // color or a non-solid style stays. Line keywords come out as

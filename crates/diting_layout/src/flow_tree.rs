@@ -777,8 +777,14 @@ where
             None => self.n_mut(id).unrounded = *layout,
         }
     }
-    fn resolve_calc_value(&self, _val: *const (), _basis: f32) -> f32 {
-        0.0
+    fn resolve_calc_value(&self, val: *const (), basis: f32) -> f32 {
+        if val.is_null() {
+            return 0.0;
+        }
+        // Grid tracks pack `calc(P% + px)` into the handle. Other callers
+        // never set a calc pointer.
+        let (percent, px) = crate::style_map::unpack_track_calc(val);
+        basis * percent / 100.0 + px
     }
     fn compute_child_layout(&mut self, id: NodeId, inputs: LayoutInput) -> LayoutOutput {
         self.compute(id, inputs, None)
