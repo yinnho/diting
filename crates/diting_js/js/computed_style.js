@@ -216,6 +216,34 @@ function _cssComputedColor(raw) {
 function _isComputedColorProp(kebab) {
   return kebab === "color" || kebab.endsWith("-color");
 }
+// Keywords whose computed spelling is not the specified one. null means
+// "leave the inline text alone".
+function _cssComputedKeyword(kebab, raw) {
+  const v = String(raw).trim().toLowerCase();
+  if (kebab === 'column-rule-width' || kebab === 'row-rule-width') {
+    if (v === 'thin') return '1px';
+    if (v === 'medium') return '3px';
+    if (v === 'thick') return '5px';
+  }
+  if ((kebab === 'column-rule-break' || kebab === 'row-rule-break') && v === 'auto') return 'normal';
+  if (kebab.startsWith('corner-') && kebab.endsWith('-shape')) {
+    const shape = { round: 'superellipse(1)', bevel: 'superellipse(0)', scoop: 'superellipse(-1)', notch: 'superellipse(-infinity)', squircle: 'superellipse(2)' };
+    if (shape[v]) return shape[v];
+  }
+  if (kebab === 'offset-rotate') {
+    if (v === 'auto') return 'auto 0deg';
+    if (v === 'reverse') return 'auto 180deg';
+  }
+  if (kebab === 'text-emphasis-position') {
+    const parts = v.split(/\s+/);
+    const block = parts.find((p) => p === 'over' || p === 'under');
+    const side = parts.find((p) => p === 'left' || p === 'right');
+    if (block && side === 'right') return block;
+    if (block && side === 'left') return block + ' left';
+    if (block && !side) return block;
+  }
+  return null;
+}
 // Comma-separated longhands repeat the shorter side (CSS list alignment).
 function _cssLayers(vals) {
   const lists = vals.map((v) => String(v).split(',').map((s) => s.trim()).filter((s) => s.length));
@@ -359,8 +387,8 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
     'white-space-collapse': 'collapse',
     'mask-clip': 'border-box', 'mask-origin': 'border-box', 'mask-repeat': 'repeat',
     'mask-mode': 'match-source', 'mask-composite': 'add',
-    'offset-path': 'none', 'offset-distance': '0px', 'offset-rotate': 'auto',
-    'column-fill': 'balance', 'column-rule-width': 'medium',
+    'offset-path': 'none', 'offset-distance': '0px', 'offset-rotate': 'auto 0deg',
+    'column-fill': 'balance', 'column-rule-width': '3px',
     'border-block-start-style': 'none', 'border-block-end-style': 'none',
     'border-inline-start-style': 'none', 'border-inline-end-style': 'none',
     'border-block-start-width': '0px', 'border-block-end-width': '0px',
@@ -418,8 +446,8 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
     'scrollbar-color': 'auto', 'print-color-adjust': 'economy',
     'ruby-position': 'over', 'ruby-align': 'space-around',
     'shape-margin': '0px', 'shape-image-threshold': '0', 'shape-rendering': 'auto',
-    'position-anchor': 'auto', 'position-area': 'none',
-    'position-try-fallbacks': 'none', 'position-try-order': 'normal', 'position-visibility': 'always',
+    'position-anchor': 'normal', 'position-area': 'none',
+    'position-try-fallbacks': 'none', 'position-try-order': 'normal', 'position-visibility': 'anchor-visible',
     'text-combine-upright': 'none', 'hyphenate-character': 'auto',
     'scroll-snap-stop': 'normal', overlay: 'none',
     'color-rendering': 'auto', 'color-interpolation-filters': 'linearrgb',
@@ -429,7 +457,7 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
     cx: '0px', cy: '0px', r: '0px', rx: 'auto', ry: 'auto', x: '0px', y: '0px',
     'caret-shape': 'auto', 'text-box-trim': 'none', 'interpolate-size': 'numeric-only',
     'font-palette': 'normal', 'font-language-override': 'normal',
-    'mask-size': 'auto', 'mask-position': '50% 50%', 'mask-type': 'luminance',
+    'mask-size': 'auto', 'mask-position': '0% 0%', 'mask-type': 'luminance',
     'border-start-start-radius': '0px', 'border-start-end-radius': '0px',
     'border-end-start-radius': '0px', 'border-end-end-radius': '0px',
     'margin-trim': 'none',
@@ -443,10 +471,10 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
     interactivity: 'auto', 'interest-delay-start': 'normal', 'interest-delay-end': 'normal',
     'text-decoration-inset': '0px', 'text-spacing-trim': 'normal', 'text-autospace': 'no-autospace',
     'anchor-name': 'none', 'anchor-scope': 'none', 'app-region': 'none',
-    'corner-top-left-shape': 'round', 'corner-top-right-shape': 'round',
-    'corner-bottom-right-shape': 'round', 'corner-bottom-left-shape': 'round',
-    'corner-start-start-shape': 'round', 'corner-start-end-shape': 'round',
-    'corner-end-start-shape': 'round', 'corner-end-end-shape': 'round',
+    'corner-top-left-shape': 'superellipse(1)', 'corner-top-right-shape': 'superellipse(1)',
+    'corner-bottom-right-shape': 'superellipse(1)', 'corner-bottom-left-shape': 'superellipse(1)',
+    'corner-start-start-shape': 'superellipse(1)', 'corner-start-end-shape': 'superellipse(1)',
+    'corner-end-start-shape': 'superellipse(1)', 'corner-end-end-shape': 'superellipse(1)',
     'font-variant-emoji': 'normal', 'font-variation-settings': 'normal',
     'hyphenate-limit-chars': 'auto', 'initial-letter': 'normal',
     'max-block-size': 'none', 'max-inline-size': 'none',
@@ -454,33 +482,46 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
     'object-view-box': 'none', 'offset-position': 'normal',
     'overflow-block': 'visible', 'overflow-inline': 'visible',
     'overscroll-behavior-block': 'auto', 'overscroll-behavior-inline': 'auto',
-    'row-rule-style': 'none', 'row-rule-width': 'medium',
+    'row-rule-style': 'none', 'row-rule-width': '3px',
     'scroll-target-group': 'none', speak: 'normal',
     'text-box-edge': 'auto', 'text-wrap-style': 'auto',
     'timeline-scope': 'none',
     'view-transition-class': 'none', 'view-transition-scope': 'none',
     '-webkit-box-reflect': 'none', '-webkit-text-decorations-in-effect': 'none',
     '-webkit-mask-position-x': '0%', '-webkit-mask-position-y': '0%',
-    '-webkit-mask-box-image-source': 'none', '-webkit-mask-box-image-slice': '0',
+    '-webkit-mask-box-image-source': 'none', '-webkit-mask-box-image-slice': '0 fill',
     '-webkit-mask-box-image-width': 'auto', '-webkit-mask-box-image-outset': '0',
     '-webkit-mask-box-image-repeat': 'stretch',
     'baseline-source': 'auto', 'caret-animation': 'auto',
-    'column-wrap': 'auto', 'column-rule-break': 'auto', 'row-rule-break': 'auto',
+    'column-wrap': 'auto', 'column-rule-break': 'normal', 'row-rule-break': 'normal',
     'border-shape': 'none', 'dynamic-range-limit': 'no-limit',
     'ruby-overhang': 'auto', 'scroll-marker-group': 'none', 'text-fit': 'none',
     'timeline-trigger-name': 'none', 'trigger-scope': 'none',
+    'animation-trigger': 'none', 'buffered-rendering': 'auto', 'column-height': 'auto',
+    'column-rule-inset-cap-end': '0px', 'column-rule-inset-cap-start': '0px',
+    'column-rule-inset-junction-end': '0px', 'column-rule-inset-junction-start': '0px',
+    'column-rule-visibility-items': 'normal', 'flex-line-count': '1', 'frame-sizing': 'auto',
+    'row-rule-inset-cap-end': '0px', 'row-rule-inset-cap-start': '0px',
+    'row-rule-inset-junction-end': '0px', 'row-rule-inset-junction-start': '0px',
+    'row-rule-visibility-items': 'normal', 'rule-overlap': 'row-over-column',
+    'scroll-axis-lock': 'auto',
+    'timeline-trigger-activation-range-end': 'normal',
+    'timeline-trigger-activation-range-start': 'normal',
+    'timeline-trigger-active-range-end': 'auto', 'timeline-trigger-active-range-start': 'auto',
+    'timeline-trigger-source': 'auto', 'window-drag': 'none',
+    '-webkit-border-image': 'none', '-webkit-mask-box-image': 'none',
     '-webkit-tap-highlight-color': 'rgba(0, 0, 0, 0.18)',
     'z-index': 'auto', 'pointer-events': 'auto',
     'box-sizing': 'content-box', cursor: 'auto',
     'white-space': 'normal', 'text-align': 'start', 'text-align-last': 'auto', 'text-transform': 'none',
     'vertical-align': 'baseline',
     'line-clamp': 'none', '-webkit-line-clamp': 'none',
-    'accent-color': 'auto', 'caret-color': 'auto',
+    'accent-color': 'auto',
     'column-count': 'auto', 'column-gap': 'normal', 'row-gap': 'normal',
     'column-rule-style': 'none',
     'outline-style': 'none', 'outline-offset': '0px',
     'text-decoration-style': 'solid', 'text-decoration-thickness': 'auto',
-    'text-emphasis-style': 'none', 'text-emphasis-position': 'over right',
+    'text-emphasis-style': 'none', 'text-emphasis-position': 'over',
     'letter-spacing': 'normal', 'word-break': 'normal', 'overflow-wrap': 'normal',
     hyphens: 'manual', 'tab-size': '8', 'line-break': 'auto',
     'text-justify': 'auto', 'text-underline-offset': 'auto', 'text-decoration-skip-ink': 'auto',
@@ -585,7 +626,13 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
             const painted = _cssComputedColor(inlineVal);
             if (painted) return painted;
           }
-          return inlineVal;
+          const folded = _cssComputedKeyword(kebab, inlineVal);
+          if (folded != null) return folded;
+          // caret-color:auto is currentcolor. Fall through to the alias
+          // below instead of echoing the keyword.
+          const caretAuto = kebab === 'caret-color'
+            && /^(auto|currentcolor)$/i.test(inlineVal.trim());
+          if (!caretAuto) return inlineVal;
         }
       }
     }
@@ -606,12 +653,13 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
         || kebab === 'column-rule-color'
         || kebab === 'border-block-start-color' || kebab === 'border-block-end-color'
         || kebab === 'border-inline-start-color' || kebab === 'border-inline-end-color'
-        || kebab === 'row-rule-color') {
+        || kebab === 'row-rule-color' || kebab === 'caret-color') {
       if (!pseudoName && target.getPropertyValue) {
         const specified = target.getPropertyValue(kebab);
-        if (specified && !_CSS_WIDE_KW.test(specified) && specified.toLowerCase() !== 'currentcolor') {
-          return _cssComputedColor(specified) || specified;
-        }
+        const low = specified.trim().toLowerCase();
+        const follows = !specified || _CSS_WIDE_KW.test(specified) || low === 'currentcolor'
+          || (kebab === 'caret-color' && low === 'auto');
+        if (!follows) return _cssComputedColor(specified) || specified;
       }
       return lookup('color');
     }
