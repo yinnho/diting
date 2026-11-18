@@ -3163,8 +3163,8 @@ fn flex_basis_and_gap_length_percentage() {
     assert_eq!(s.column_gap, Some(Length::Px(20.0)));
     let mut s = ComputedStyle::default();
     assert!(apply_declarations(&mut s, "gap: 50% 8px"));
-    assert_eq!(s.column_gap, Some(Length::Percent(50.0)));
-    assert_eq!(s.row_gap, Some(Length::Px(8.0)));
+    assert_eq!(s.row_gap, Some(Length::Percent(50.0)));
+    assert_eq!(s.column_gap, Some(Length::Px(8.0)));
     let mut s = ComputedStyle::default();
     // Gap grammar has no auto: the whole declaration drops, no partial
     // application.

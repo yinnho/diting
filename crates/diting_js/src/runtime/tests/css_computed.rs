@@ -373,6 +373,67 @@ fn emphasis_wrap_columns_stroke_shorthands_match_chrome() {
 }
 
 #[test]
+fn gap_grid_place_and_marker_shorthands_match_chrome() {
+    // Chrome 157: gap is row then column, collapsed when equal. grid is
+    // rows / columns / areas / auto-flow / auto-rows / auto-columns.
+    // place-* is the two longhands, one value when they match. border-image
+    // and marker are "none" until a side differs.
+    let mut rt = setup_runtime(
+        "<html><body>\
+         <div id='z'></div>\
+         <div id='g' style='gap: 10px 4px'></div>\
+         <div id='gr' style='row-gap: 10px'></div>\
+         <div id='gs' style='row-gap: 8px; column-gap: 8px'></div>\
+         <div id='gc' style='grid-template-columns: 1fr 1fr'></div>\
+         <div id='ac' style='align-content: center'></div>\
+         <div id='jc' style='justify-content: center'></div>\
+         <div id='ai' style='align-items: center'></div>\
+         <div id='as' style='align-self: center'></div>\
+         <div id='mk' style='marker-start: url(a)'></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"const g = (id) => getComputedStyle(document.getElementById(id));
+            const z = g('z');
+            JSON.stringify({
+              gap: z.gap, grid: z.grid, pc: z.placeContent, pi: z.placeItems,
+              ps: z.placeSelf, bi: z.borderImage, mk: z.marker,
+              g: g('g').gap, gr: g('gr').gap, gs: g('gs').gap,
+              row: g('g').rowGap, col: g('g').columnGap,
+              gc: g('gc').grid, ac: g('ac').placeContent, jc: g('jc').placeContent,
+              ai: g('ai').placeItems, aself: g('as').placeSelf, mkk: g('mk').marker
+            })"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["gap"], serde_json::json!("normal"));
+    assert_eq!(
+        v["grid"],
+        serde_json::json!("none / none / none / row / auto / auto")
+    );
+    assert_eq!(v["pc"], serde_json::json!("normal"));
+    assert_eq!(v["pi"], serde_json::json!("normal"));
+    assert_eq!(v["ps"], serde_json::json!("auto"));
+    assert_eq!(v["bi"], serde_json::json!("none"));
+    assert_eq!(v["mk"], serde_json::json!("none"));
+    assert_eq!(v["g"], serde_json::json!("10px 4px"));
+    assert_eq!(v["row"], serde_json::json!("10px"));
+    assert_eq!(v["col"], serde_json::json!("4px"));
+    assert_eq!(v["gr"], serde_json::json!("10px normal"));
+    assert_eq!(v["gs"], serde_json::json!("8px"));
+    assert_eq!(
+        v["gc"],
+        serde_json::json!("none / 1fr 1fr / none / row / auto / auto")
+    );
+    assert_eq!(v["ac"], serde_json::json!("center normal"));
+    assert_eq!(v["jc"], serde_json::json!("normal center"));
+    assert_eq!(v["ai"], serde_json::json!("center normal"));
+    assert_eq!(v["aself"], serde_json::json!("center auto"));
+    assert_eq!(v["mkk"], serde_json::json!(""));
+}
+
+#[test]
 fn computed_keywords_and_new_initials_match_chrome() {
     // Chrome 157 (local 157.0.8103.52): medium/thin/thick rule widths are
     // px, corner-shape keywords are superellipse(), offset-rotate:auto is
