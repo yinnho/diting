@@ -566,6 +566,102 @@ pub(crate) fn apply_logical_motion(
     })
 }
 
+/// One value copies to both axes. Two values are align then justify.
+fn place_pair(v: &str) -> Option<(String, String)> {
+    let toks = split_sides(v);
+    let low: Vec<String> = toks.iter().map(|t| t.to_ascii_lowercase()).collect();
+    match low.as_slice() {
+        [one] => Some((one.clone(), one.clone())),
+        [a, j] => Some((a.clone(), j.clone())),
+        _ => None,
+    }
+}
+
+enum AxisKw<T> {
+    Initial,
+    Set(T),
+}
+
+fn justify_kw(t: &str) -> Option<AxisKw<JustifyMode>> {
+    Some(match t {
+        "normal" | "auto" => AxisKw::Initial,
+        "flex-start" => AxisKw::Set(JustifyMode::FlexStart),
+        "start" => AxisKw::Set(JustifyMode::Start),
+        "flex-end" => AxisKw::Set(JustifyMode::FlexEnd),
+        "end" => AxisKw::Set(JustifyMode::End),
+        "center" => AxisKw::Set(JustifyMode::Center),
+        "space-between" => AxisKw::Set(JustifyMode::SpaceBetween),
+        "space-around" => AxisKw::Set(JustifyMode::SpaceAround),
+        "space-evenly" => AxisKw::Set(JustifyMode::SpaceEvenly),
+        _ => return None,
+    })
+}
+
+fn align_content_kw(t: &str) -> Option<AxisKw<AlignContentMode>> {
+    Some(match t {
+        "normal" | "auto" => AxisKw::Initial,
+        "flex-start" => AxisKw::Set(AlignContentMode::FlexStart),
+        "start" => AxisKw::Set(AlignContentMode::Start),
+        "flex-end" => AxisKw::Set(AlignContentMode::FlexEnd),
+        "end" => AxisKw::Set(AlignContentMode::End),
+        "center" => AxisKw::Set(AlignContentMode::Center),
+        "stretch" => AxisKw::Set(AlignContentMode::Stretch),
+        "space-between" => AxisKw::Set(AlignContentMode::SpaceBetween),
+        "space-around" => AxisKw::Set(AlignContentMode::SpaceAround),
+        "space-evenly" => AxisKw::Set(AlignContentMode::SpaceEvenly),
+        _ => return None,
+    })
+}
+
+fn align_kw(t: &str) -> Option<AxisKw<AlignMode>> {
+    Some(match t {
+        "normal" => AxisKw::Initial,
+        "stretch" => AxisKw::Set(AlignMode::Stretch),
+        "flex-start" => AxisKw::Set(AlignMode::FlexStart),
+        "start" => AxisKw::Set(AlignMode::Start),
+        "center" => AxisKw::Set(AlignMode::Center),
+        "flex-end" => AxisKw::Set(AlignMode::FlexEnd),
+        "end" => AxisKw::Set(AlignMode::End),
+        _ => return None,
+    })
+}
+
+fn align_self_kw(t: &str) -> Option<AxisKw<AlignMode>> {
+    Some(match t {
+        "auto" | "normal" => AxisKw::Initial,
+        "stretch" => AxisKw::Set(AlignMode::Stretch),
+        "flex-start" => AxisKw::Set(AlignMode::FlexStart),
+        "start" => AxisKw::Set(AlignMode::Start),
+        "center" => AxisKw::Set(AlignMode::Center),
+        "flex-end" => AxisKw::Set(AlignMode::FlexEnd),
+        "end" => AxisKw::Set(AlignMode::End),
+        _ => return None,
+    })
+}
+
+/// `justify-items` / `justify-self`, including the legacy keyword forms.
+fn justify_item_kw(t: &str) -> Option<AxisKw<JustifyMode>> {
+    Some(match t {
+        "auto" | "normal" | "legacy" => AxisKw::Initial,
+        "flex-start" => AxisKw::Set(JustifyMode::FlexStart),
+        "start" | "self-start" => AxisKw::Set(JustifyMode::Start),
+        "left" | "legacy left" => AxisKw::Set(JustifyMode::FlexStart),
+        "stretch" => AxisKw::Set(JustifyMode::Stretch),
+        "center" | "legacy center" => AxisKw::Set(JustifyMode::Center),
+        "flex-end" => AxisKw::Set(JustifyMode::FlexEnd),
+        "end" | "self-end" => AxisKw::Set(JustifyMode::End),
+        "right" | "legacy right" => AxisKw::Set(JustifyMode::FlexEnd),
+        _ => return None,
+    })
+}
+
+fn axis_slot<T>(kw: AxisKw<T>) -> Option<T> {
+    match kw {
+        AxisKw::Initial => None,
+        AxisKw::Set(v) => Some(v),
+    }
+}
+
 /// One parenthesis-aware token. A second token rejects the longhand.
 fn one_col_token(v: &str) -> Option<String> {
     let toks = split_sides(v);
@@ -605,28 +701,20 @@ pub(crate) fn apply_flex_grid(
             };
             true
         }
-        "justify-content" => {
-            style.justify_content = match v {
-                "flex-start" | "start" => Some(JustifyMode::FlexStart),
-                "center" => Some(JustifyMode::Center),
-                "flex-end" | "end" => Some(JustifyMode::FlexEnd),
-                "space-between" => Some(JustifyMode::SpaceBetween),
-                "space-around" => Some(JustifyMode::SpaceAround),
-                "space-evenly" => Some(JustifyMode::SpaceEvenly),
-                _ => return Some(false),
-            };
-            true
-        }
-        "align-items" => {
-            style.align_items = match v {
-                "stretch" => Some(AlignMode::Stretch),
-                "flex-start" | "start" => Some(AlignMode::FlexStart),
-                "center" => Some(AlignMode::Center),
-                "flex-end" | "end" => Some(AlignMode::FlexEnd),
-                _ => return Some(false),
-            };
-            true
-        }
+        "justify-content" => match justify_kw(v) {
+            Some(mode) => {
+                style.justify_content = axis_slot(mode);
+                true
+            }
+            None => false,
+        },
+        "align-items" => match align_kw(v) {
+            Some(mode) => {
+                style.align_items = axis_slot(mode);
+                true
+            }
+            None => false,
+        },
         // Cross-axis line/track distribution (blitz#1059). `normal`/`auto`
         // = the initial value, kept unset like the computed-value face
         // answers "normal"; `safe `/`unsafe ` prefixes drop like
@@ -637,16 +725,9 @@ pub(crate) fn apply_flex_grid(
                 .strip_prefix("safe ")
                 .or_else(|| v.trim().strip_prefix("unsafe "))
                 .unwrap_or(v.trim());
-            style.align_content = match v {
-                "flex-start" | "start" => Some(AlignContentMode::FlexStart),
-                "center" => Some(AlignContentMode::Center),
-                "flex-end" | "end" => Some(AlignContentMode::FlexEnd),
-                "space-between" => Some(AlignContentMode::SpaceBetween),
-                "space-around" => Some(AlignContentMode::SpaceAround),
-                "space-evenly" => Some(AlignContentMode::SpaceEvenly),
-                "stretch" => Some(AlignContentMode::Stretch),
-                "normal" | "auto" => None,
-                _ => return Some(false),
+            style.align_content = match align_content_kw(v) {
+                Some(mode) => axis_slot(mode),
+                None => return Some(false),
             };
             true
         }
@@ -664,29 +745,25 @@ pub(crate) fn apply_flex_grid(
             style.align_self = match v {
                 "auto" | "normal" => None,
                 "stretch" => Some(AlignMode::Stretch),
-                "flex-start" | "start" | "self-start" | "baseline" | "first baseline" => {
+                "flex-start" | "self-start" | "baseline" | "first baseline" => {
                     Some(AlignMode::FlexStart)
                 }
+                "start" => Some(AlignMode::Start),
                 "center" => Some(AlignMode::Center),
-                "flex-end" | "end" | "self-end" | "last baseline" => Some(AlignMode::FlexEnd),
+                "flex-end" | "self-end" | "last baseline" => Some(AlignMode::FlexEnd),
+                "end" => Some(AlignMode::End),
                 _ => return Some(false),
             };
             true
         }
-        // JustifyMode has no Stretch variant: with auto insets and a
-        // definite size the box doesn't stretch anyway (CSS2 §10.3.7), so
-        // `stretch` behaving as start is the documented approximation.
         "justify-self" => {
             let v = v
                 .strip_prefix("safe ")
                 .or_else(|| v.strip_prefix("unsafe "))
                 .unwrap_or(v);
-            style.justify_self = match v {
-                "auto" | "normal" => None,
-                "start" | "left" | "self-start" | "stretch" => Some(JustifyMode::FlexStart),
-                "center" => Some(JustifyMode::Center),
-                "end" | "right" | "self-end" => Some(JustifyMode::FlexEnd),
-                _ => return Some(false),
+            style.justify_self = match justify_item_kw(v) {
+                Some(mode) => axis_slot(mode),
+                None => return Some(false),
             };
             true
         }
@@ -695,15 +772,45 @@ pub(crate) fn apply_flex_grid(
                 .strip_prefix("safe ")
                 .or_else(|| v.strip_prefix("unsafe "))
                 .unwrap_or(v);
-            style.justify_items = match v {
-                "auto" | "normal" | "legacy" => None,
-                "start" | "left" | "stretch" | "legacy left" => Some(JustifyMode::FlexStart),
-                "center" | "legacy center" => Some(JustifyMode::Center),
-                "end" | "right" | "legacy right" => Some(JustifyMode::FlexEnd),
-                _ => return Some(false),
+            style.justify_items = match justify_item_kw(v) {
+                Some(mode) => axis_slot(mode),
+                None => return Some(false),
             };
             true
         }
+        "place-content" => match place_pair(v) {
+            Some((a, j)) => match (align_content_kw(&a), justify_kw(&j)) {
+                (Some(ac), Some(jc)) => {
+                    style.align_content = axis_slot(ac);
+                    style.justify_content = axis_slot(jc);
+                    true
+                }
+                _ => false,
+            },
+            None => false,
+        },
+        "place-items" => match place_pair(v) {
+            Some((a, j)) => match (align_kw(&a), justify_item_kw(&j)) {
+                (Some(ai), Some(ji)) => {
+                    style.align_items = axis_slot(ai);
+                    style.justify_items = axis_slot(ji);
+                    true
+                }
+                _ => false,
+            },
+            None => false,
+        },
+        "place-self" => match place_pair(v) {
+            Some((a, j)) => match (align_self_kw(&a), justify_item_kw(&j)) {
+                (Some(aself), Some(jself)) => {
+                    style.align_self = axis_slot(aself);
+                    style.justify_self = axis_slot(jself);
+                    true
+                }
+                _ => false,
+            },
+            None => false,
+        },
         "flex-grow" => {
             style.flex_grow = parse_num_f32(v);
             style.flex_grow.is_some()

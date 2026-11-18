@@ -163,7 +163,11 @@ pub(crate) const COMPUTED_STYLE_PROPS: &[&str] = &[
     "column-width",
     "column-count",
     "justify-content",
+    "justify-items",
+    "justify-self",
+    "align-content",
     "align-items",
+    "align-self",
     "opacity",
     "zoom",
     "transform",
@@ -885,45 +889,14 @@ fn computed_flex_grid(
                 _ => "normal".into(),
             })
         }
-        "justify-content" => Some(
-            match s.justify_content {
-                Some(JustifyMode::FlexStart) => "flex-start",
-                Some(JustifyMode::Center) => "center",
-                Some(JustifyMode::FlexEnd) => "flex-end",
-                Some(JustifyMode::SpaceBetween) => "space-between",
-                Some(JustifyMode::SpaceAround) => "space-around",
-                Some(JustifyMode::SpaceEvenly) => "space-evenly",
-                // Unset computes to `normal` in Chrome; only an author
-                // declaration yields a keyword (obscura #771 wrong-value rows).
-                None => "normal",
-            }
-            .into(),
-        ),
-        "align-items" => Some(
-            match s.align_items {
-                Some(AlignMode::Stretch) => "stretch",
-                Some(AlignMode::FlexStart) => "flex-start",
-                Some(AlignMode::Center) => "center",
-                Some(AlignMode::FlexEnd) => "flex-end",
-                None => "normal",
-            }
-            .into(),
-        ),
-        // Cross-axis line/track distribution (blitz#1059): same unset→
-        // "normal" face the neighbors answer.
-        "align-content" => Some(
-            match s.align_content {
-                Some(AlignContentMode::FlexStart) => "flex-start",
-                Some(AlignContentMode::Center) => "center",
-                Some(AlignContentMode::FlexEnd) => "flex-end",
-                Some(AlignContentMode::SpaceBetween) => "space-between",
-                Some(AlignContentMode::SpaceAround) => "space-around",
-                Some(AlignContentMode::SpaceEvenly) => "space-evenly",
-                Some(AlignContentMode::Stretch) => "stretch",
-                None => "normal",
-            }
-            .into(),
-        ),
+        // Unset justify/align-content and items are `normal`. Self longhands
+        // unset to `auto`. `start`/`end` stay those keywords.
+        "justify-content" => Some(diting_css::justify_mode_css(s.justify_content, "normal")),
+        "justify-items" => Some(diting_css::justify_mode_css(s.justify_items, "normal")),
+        "justify-self" => Some(diting_css::justify_mode_css(s.justify_self, "auto")),
+        "align-items" => Some(diting_css::align_mode_css(s.align_items, "normal")),
+        "align-self" => Some(diting_css::align_mode_css(s.align_self, "auto")),
+        "align-content" => Some(diting_css::align_content_css(s.align_content).into()),
         // Animation batch A: opacity is non-inherited with initial 1; Chrome
         // spells the computed number bare ("1", "0.5781"). Undeclared still
         // answers here — "1" IS the initial value, so no caller chain can
