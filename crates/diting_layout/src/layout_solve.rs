@@ -546,6 +546,18 @@ impl SolvedGeometry {
             .collect()
     }
 
+    /// Chrome's resolved `grid-template-rows` / `grid-template-columns` for
+    /// one DOM node. `None` when that node was not laid out as a grid
+    /// container (a block, `display: none`, or a boxless descendant).
+    pub fn used_grid_templates(&self, dom_id: NodeId) -> Option<(String, String)> {
+        let tid = self
+            .node_map
+            .iter()
+            .find(|(_, dom)| **dom == dom_id)
+            .map(|(tid, _)| *tid)?;
+        self.taffy_tree.used_grid_templates(tid)
+    }
+
     /// The empty solve the early-return paths hand back: nothing walked,
     /// nothing collected.
     fn aborted() -> Self {

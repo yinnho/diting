@@ -371,6 +371,19 @@ impl<C> FlowTree<C> {
         Ok(&self.get(node)?.style)
     }
 
+    /// Resolved `grid-template-rows` and `grid-template-columns` for a node
+    /// that was laid out as a grid. `None` for every other node. Track sizes
+    /// are the used px list Chrome's getComputedStyle reports.
+    pub fn used_grid_templates(&self, id: NodeId) -> Option<(String, String)> {
+        let DetailedLayoutInfo::Grid(info) = &self.get(id).ok()?.detailed else {
+            return None;
+        };
+        Some((
+            info.grid_template_rows(1.0),
+            info.grid_template_columns(1.0),
+        ))
+    }
+
     /// Layout relative to the parent (rounded when rounding is on).
     pub fn layout(&self, node: NodeId) -> Res<&Layout> {
         let rounding = self.rounding;
@@ -662,7 +675,10 @@ where
                 (Display::Block, true) => compute_block_layout(view, id, inputs, block_ctx),
                 (Display::FlowRoot, true) => compute_block_layout(view, id, inputs, None),
                 (Display::Flex, true) => compute_flexbox_layout(view, id, inputs),
-                (Display::Grid, true) => compute_grid_layout(view, id, inputs),
+                // An empty grid still has tracks. Chrome resolves `1fr` on a
+                // childless container, and `grid-template-rows: 100px` gives
+                // that container a 100px height.
+                (Display::Grid, _) => compute_grid_layout(view, id, inputs),
                 (_, false) => {
                     let View { tree, measure } = view;
                     let n = tree

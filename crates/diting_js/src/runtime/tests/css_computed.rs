@@ -802,6 +802,108 @@ fn grid_shorthand_expands_like_chrome() {
 }
 
 #[test]
+fn grid_used_tracks_match_chrome() {
+    // Chrome 157 resolves template tracks to used px only on a grid
+    // container. `1fr`, `repeat()`, `%`, and `minmax()` become the laid-out
+    // sizes. A block and `display: none` keep the specified spelling.
+    // An empty explicit `1fr` row with `height: auto` is `0px`.
+    let mut rt = setup_runtime(
+        "<html><head><style>body { margin: 0 }</style></head><body>\
+         <div id='a' style='display:grid;width:200px;grid-template-columns:1fr 1fr'></div>\
+         <div id='b' style='display:grid;width:200px;height:100px;grid:1fr / 1fr'></div>\
+         <div id='c' style='display:grid;width:200px;grid-template-columns:repeat(4, 1fr)'></div>\
+         <div id='d' style='width:200px;grid-template-columns:repeat(4, 1fr)'></div>\
+         <div id='e' style='display:grid;width:400px;grid-template-columns:25% 1fr'></div>\
+         <div id='f' style='display:grid;width:200px;column-gap:20px;grid-template-columns:1fr 1fr'></div>\
+         <div id='g' style='display:grid;width:200px;padding:10px;grid-template-columns:1fr 1fr'></div>\
+         <div id='h' style='display:grid;box-sizing:border-box;width:200px;padding:10px;grid-template-columns:1fr 1fr'></div>\
+         <div id='i' style='display:grid;width:200px;grid-template-columns:minmax(0, 1fr) 50px'></div>\
+         <div id='j' style='display:grid;width:200px;height:100px;grid-template-rows:1fr'></div>\
+         <div id='k' style='display:grid;width:200px;grid-template-rows:1fr'></div>\
+         <div id='l' style='display:none;width:200px;grid-template-columns:1fr 1fr'></div>\
+         <div id='m' style='display:inline-grid;width:200px;grid-template-columns:1fr 1fr'></div>\
+         <div id='n' style='display:grid;width:201px;grid-template-columns:1fr 1fr'></div>\
+         <div id='o' style='display:grid;width:200px;grid-template-columns:100px 100px'>\
+           <div style='height:20px'></div><div style='height:20px'></div><div style='height:20px'></div>\
+         </div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"JSON.stringify((() => {
+              const g = (id) => getComputedStyle(document.getElementById(id)).grid;
+              return {
+                a: g('a'), b: g('b'), c: g('c'), d: g('d'), e: g('e'),
+                f: g('f'), g: g('g'), h: g('h'), i: g('i'), j: g('j'),
+                k: g('k'), l: g('l'), m: g('m'), n: g('n'), o: g('o')
+              };
+            })())"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(
+        v["a"],
+        serde_json::json!("none / 100px 100px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["b"],
+        serde_json::json!("100px / 200px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["c"],
+        serde_json::json!("none / 50px 50px 50px 50px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["d"],
+        serde_json::json!("none / repeat(4, 1fr) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["e"],
+        serde_json::json!("none / 100px 300px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["f"],
+        serde_json::json!("none / 90px 90px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["g"],
+        serde_json::json!("none / 100px 100px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["h"],
+        serde_json::json!("none / 90px 90px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["i"],
+        serde_json::json!("none / 150px 50px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["j"],
+        serde_json::json!("100px / none / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["k"],
+        serde_json::json!("0px / none / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["l"],
+        serde_json::json!("none / 1fr 1fr / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["m"],
+        serde_json::json!("none / 100px 100px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["n"],
+        serde_json::json!("none / 100.5px 100.5px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["o"],
+        serde_json::json!("20px 20px / 100px 100px / none / row / auto / auto")
+    );
+}
+
+#[test]
 fn text_decoration_shorthand_matches_chrome() {
     // Chrome 157 omits solid, currentcolor, and auto thickness. An explicit
     // color or a non-solid style stays. Line keywords come out as
