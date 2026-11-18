@@ -312,6 +312,67 @@ fn logical_box_and_rule_shorthands_match_chrome() {
 }
 
 #[test]
+fn emphasis_wrap_columns_stroke_shorthands_match_chrome() {
+    // Chrome 157: text-emphasis keeps the color and drops the initial
+    // "filled". text-wrap shows the style when it isn't auto, otherwise
+    // the mode. columns is "width count", omitting auto. font-synthesis
+    // lists the axes that are still on. A zero text-stroke width stays.
+    let mut rt = setup_runtime(
+        "<html><body>\
+         <div id='z'></div>\
+         <div id='e' style='text-emphasis: open circle blue'></div>\
+         <div id='es' style='text-emphasis-style: triangle'></div>\
+         <div id='w' style='text-wrap: nowrap'></div>\
+         <div id='wb' style='text-wrap-style: stable'></div>\
+         <div id='c' style='columns: 200px 3'></div>\
+         <div id='cw' style='column-width: 200px'></div>\
+         <div id='f' style='font-synthesis: weight style'></div>\
+         <div id='fw' style='font-synthesis-weight: none'></div>\
+         <div id='s' style='-webkit-text-stroke: 2px blue'></div>\
+         <div id='sw' style='-webkit-text-stroke-width: 3px'></div>\
+         <div id='o' style='offset-distance: 10px'></div>\
+         <div id='or' style='offset-rotate: 45deg'></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"const g = (id) => getComputedStyle(document.getElementById(id));
+            const z = g('z');
+            JSON.stringify({
+              te: z.textEmphasis, tw: z.textWrap, col: z.columns,
+              fs: z.fontSynthesis, stk: z.webkitTextStroke, off: z.offset, mask: z.mask,
+              e: g('e').textEmphasis, es: g('es').textEmphasis,
+              w: g('w').textWrap, wb: g('wb').textWrap,
+              c: g('c').columns, cw: g('cw').columns,
+              f: g('f').fontSynthesis, fw: g('fw').fontSynthesis,
+              s: g('s').webkitTextStroke, sw: g('sw').webkitTextStroke,
+              o: g('o').offset, orot: g('or').offset
+            })"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["te"], serde_json::json!("none rgb(0, 0, 0)"));
+    assert_eq!(v["tw"], serde_json::json!("wrap"));
+    assert_eq!(v["col"], serde_json::json!("auto"));
+    assert_eq!(v["fs"], serde_json::json!("weight style small-caps"));
+    assert_eq!(v["stk"], serde_json::json!("0px rgb(0, 0, 0)"));
+    assert_eq!(v["off"], serde_json::json!("none 0px auto 0deg"));
+    assert_eq!(v["mask"], serde_json::json!("none"));
+    assert_eq!(v["e"], serde_json::json!("open circle rgb(0, 0, 255)"));
+    assert_eq!(v["es"], serde_json::json!("triangle rgb(0, 0, 0)"));
+    assert_eq!(v["w"], serde_json::json!("nowrap"));
+    assert_eq!(v["wb"], serde_json::json!("stable"));
+    assert_eq!(v["c"], serde_json::json!("200px 3"));
+    assert_eq!(v["cw"], serde_json::json!("200px"));
+    assert_eq!(v["f"], serde_json::json!("weight style"));
+    assert_eq!(v["fw"], serde_json::json!("style small-caps"));
+    assert_eq!(v["s"], serde_json::json!("2px rgb(0, 0, 255)"));
+    assert_eq!(v["sw"], serde_json::json!("3px rgb(0, 0, 0)"));
+    assert_eq!(v["o"], serde_json::json!("none 10px auto 0deg"));
+    assert_eq!(v["orot"], serde_json::json!("none 0px 45deg"));
+}
+
+#[test]
 fn computed_keywords_and_new_initials_match_chrome() {
     // Chrome 157 (local 157.0.8103.52): medium/thin/thick rule widths are
     // px, corner-shape keywords are superellipse(), offset-rotate:auto is
