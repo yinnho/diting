@@ -444,6 +444,50 @@ fn grid_line_names_keep_chrome_spelling() {
 }
 
 #[test]
+fn grid_template_none_and_slash_clear_areas() {
+    // `grid-template` owns rows, columns and areas. `none` clears all
+    // three. A slash form replaces rows and columns and clears areas.
+    // auto-flow and auto-rows stay. A value with no slash is invalid.
+    let mut s = ComputedStyle::default();
+    apply_declarations(&mut s, "grid: 'a a' / 1fr 1fr; grid-template: none");
+    assert_eq!(s.grid_rows_specified, None);
+    assert_eq!(s.grid_cols_specified, None);
+    assert_eq!(s.grid_areas_specified, None);
+    assert_eq!(s.grid_template_areas, None);
+    apply_declarations(
+        &mut s,
+        "grid: auto-flow dense / 100px; grid-auto-rows: 10px; grid-template: none",
+    );
+    assert_eq!(s.grid_auto_flow_specified.as_deref(), Some("dense"));
+    assert_eq!(s.grid_auto_rows_specified.as_deref(), Some("10px"));
+    assert_eq!(s.grid_cols_specified, None);
+    apply_declarations(&mut s, "grid: 'a a' / 1fr 1fr; grid-template: 20px / 30px");
+    assert_eq!(s.grid_rows_specified.as_deref(), Some("20px"));
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("30px"));
+    assert_eq!(s.grid_areas_specified, None);
+    assert_eq!(s.grid_template_areas, None);
+    apply_declarations(&mut s, "grid-template: none / 1fr");
+    assert_eq!(s.grid_rows_specified, None);
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("1fr"));
+    assert_eq!(s.grid_areas_specified, None);
+    apply_declarations(&mut s, "grid-template: 1fr / none");
+    assert_eq!(s.grid_rows_specified.as_deref(), Some("1fr"));
+    assert_eq!(s.grid_cols_specified, None);
+    apply_declarations(
+        &mut s,
+        "grid-template: 20px / 30px; grid-template: 10px / bogus",
+    );
+    assert_eq!(s.grid_rows_specified.as_deref(), Some("20px"));
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("30px"));
+    apply_declarations(&mut s, "grid-template: 100px");
+    assert_eq!(s.grid_rows_specified.as_deref(), Some("20px"));
+    apply_declarations(&mut s, "grid-template: [s] 10px [e] / [c] 1fr [d]");
+    assert_eq!(s.grid_rows_specified.as_deref(), Some("[s] 10px [e]"));
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("[c] 1fr [d]"));
+    assert_eq!(s.grid_areas_specified, None);
+}
+
+#[test]
 fn grid_repeat_expands_inline() {
     // The landing-page idiom: repeat(4, 1fr). Before this batch the
     // token failed to parse, the whole declaration dropped, and the

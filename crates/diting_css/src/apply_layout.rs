@@ -1201,10 +1201,21 @@ pub(crate) fn apply_flex_grid(
                 }
             }
         }
-        // Shorthand `rows / columns`, or the areas form. Unlike `grid`,
-        // this does not reset grid-auto-flow / grid-auto-rows / columns.
+        // Shorthand `none`, `rows / columns`, or the areas form. All three
+        // set rows, columns and areas together. Unlike `grid`, this does
+        // not reset grid-auto-flow / grid-auto-rows / columns. A value with
+        // no slash and no area strings is invalid, so the previous template
+        // stays.
         "grid-template" => {
-            if v.contains('\'') || v.contains('"') {
+            if v.eq_ignore_ascii_case("none") {
+                style.grid_template_rows = None;
+                style.grid_template_columns = None;
+                style.grid_template_areas = None;
+                style.grid_rows_specified = None;
+                style.grid_cols_specified = None;
+                style.grid_areas_specified = None;
+                true
+            } else if v.contains('\'') || v.contains('"') {
                 match parse_grid_areas_template(v, fonts) {
                     Some(t) => {
                         assign_grid_areas(style, t, false);
@@ -1213,17 +1224,20 @@ pub(crate) fn apply_flex_grid(
                     None => false,
                 }
             } else if let Some((rows, cols)) = split_one_slash(v) {
-                set_grid_tracks(
-                    rows,
-                    &mut style.grid_template_rows,
-                    &mut style.grid_rows_specified,
-                    fonts,
-                ) && set_grid_tracks(
-                    cols,
-                    &mut style.grid_template_columns,
-                    &mut style.grid_cols_specified,
-                    fonts,
-                )
+                // Parse both sides before writing. One invalid side drops
+                // the whole declaration.
+                match (parse_track_side(rows, fonts), parse_track_side(cols, fonts)) {
+                    (Some((rows, rows_css)), Some((cols, cols_css))) => {
+                        style.grid_template_rows = rows;
+                        style.grid_template_columns = cols;
+                        style.grid_rows_specified = rows_css;
+                        style.grid_cols_specified = cols_css;
+                        style.grid_template_areas = None;
+                        style.grid_areas_specified = None;
+                        true
+                    }
+                    _ => false,
+                }
             } else {
                 false
             }
