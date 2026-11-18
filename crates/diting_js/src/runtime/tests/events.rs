@@ -791,6 +791,23 @@ fn test_target_pseudo_follows_location_hash_and_anchor_click() {
     assert_eq!(parts[7].as_str(), Some("#sec"));
 }
 
+/// Blob/File structured clone keeps the bytes and the type. IndexedDB
+/// stores that clone; a plain-object copy used to drop `_bytes`.
+#[test]
+fn test_structured_clone_blob_keeps_bytes_and_type() {
+    let mut rt = setup_runtime("<!DOCTYPE html><html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"
+            const b = structuredClone(new Blob(['HELLO_IDB'], { type: 'text/plain' }));
+            const f = structuredClone(new File(['ab'], 'n.txt', { type: 'text/plain' }));
+            return (b instanceof Blob) + ':' + b.size + ':' + b.type + '|' + (f instanceof File) + ':' + f.size + ':' + f.name;
+            "#,
+        )
+        .unwrap();
+    assert_eq!(v, "true:9:text/plain|true:2:n.txt");
+}
+
 /// :active window (#152): the press/release mirrors flip the state
 /// around the dispatch window exactly like Chrome's gCS showed —
 /// set before pointerdown, cleared before pointerup.

@@ -1302,6 +1302,35 @@ async fn test_adopted_stylesheets_join_the_cascade() {
     );
 }
 
+/// A shadow-adopted `:host` custom property is readable on the host.
+/// Chrome 157: `getComputedStyle(host).getPropertyValue('--reading')` is the
+/// declared value, quotes included.
+#[tokio::test(flavor = "current_thread")]
+async fn test_shadow_adopted_host_custom_property() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r#"(() => {
+              class G extends HTMLElement {
+                connectedCallback() {
+                  const shadow = this.attachShadow({ mode: 'open' });
+                  const sheet = new CSSStyleSheet();
+                  sheet.replaceSync(":host{--reading:'72%';--status:'运行中'}");
+                  shadow.adoptedStyleSheets = [sheet];
+                  shadow.innerHTML = '<div class="val"></div>';
+                }
+              }
+              customElements.define('g-host', G);
+              const el = document.createElement('g-host');
+              document.body.appendChild(el);
+              const cs = getComputedStyle(el);
+              return cs.getPropertyValue('--reading').trim() + '|' + cs.getPropertyValue('--status').trim();
+            })()"#,
+        )
+        .unwrap();
+    assert_eq!(v, "'72%'|'运行中'");
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn test_cssom_rule_tree_and_style_sheet_writes_reach_the_cascade() {
     // Chrome truth (headless Chrome, 2026-10-22): rule classes/types,

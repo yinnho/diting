@@ -8,12 +8,27 @@
 (() => {
   const owners = new Set();
   const ownerSheets = (o) => o._adoptedStyleSheets || [];
+  // The cascade has one sheet pool and does not match :host. A shadow
+  // root's adopted `:host` rules are rewritten onto a private attribute of
+  // that host, so the declarations land on the host and not on every element.
+  let hostSeq = 0;
+  const hostScope = (host) => {
+    let token = host._ditingCssHost;
+    if (!token) {
+      token = 'h' + (++hostSeq);
+      try { host._ditingCssHost = token; } catch (e) {}
+      try { host.setAttribute('data-diting-css-host', token); } catch (e) {}
+    }
+    return '[data-diting-css-host="' + token + '"]';
+  };
+  const scopeHost = (css, scope) => scope ? css.replace(/:host(?![\w(-])/g, scope) : css;
   const sync = () => {
     let text = '';
     for (const o of owners) {
+      const scope = (o && o.host && o.host.nodeType === 1) ? hostScope(o.host) : '';
       for (const sheet of ownerSheets(o)) {
         if (!sheet || sheet.disabled) continue;
-        for (const r of sheet._rules || []) text += r.cssText + '\n';
+        for (const r of sheet._rules || []) text += scopeHost(r.cssText, scope) + '\n';
       }
     }
     try { _domRaw('ext_sheet_put', '\u0000adopted', text); } catch (e) {}
