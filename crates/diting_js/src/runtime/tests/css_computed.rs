@@ -434,6 +434,50 @@ fn gap_grid_place_and_marker_shorthands_match_chrome() {
 }
 
 #[test]
+fn text_decoration_shorthand_matches_chrome() {
+    // Chrome 157 omits solid, currentcolor, and auto thickness. An explicit
+    // color or a non-solid style stays. Line keywords come out as
+    // underline, overline, line-through. Color on the element does not
+    // leak into the shorthand unless the decoration names its own color.
+    let mut rt = setup_runtime(
+        "<html><body>\
+         <div id='z'></div>\
+         <div id='a' style='text-decoration: underline'></div>\
+         <div id='b' style='text-decoration: underline red'></div>\
+         <div id='c' style='text-decoration: underline dotted'></div>\
+         <div id='d' style='text-decoration: underline wavy blue'></div>\
+         <div id='e' style='text-decoration: line-through overline'></div>\
+         <div id='f' style='text-decoration-color: red'></div>\
+         <div id='g' style='text-decoration-style: dotted'></div>\
+         <div id='k' style='text-decoration-thickness: 2px'></div>\
+         <div id='l' style='color: blue; text-decoration: underline'></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"const g = (id) => getComputedStyle(document.getElementById(id)).textDecoration;
+            JSON.stringify({
+              z: g('z'), a: g('a'), b: g('b'), c: g('c'), d: g('d'),
+              e: g('e'), f: g('f'), s: g('g'), k: g('k'), l: g('l'),
+              lc: getComputedStyle(document.getElementById('l')).textDecorationColor
+            })"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["z"], serde_json::json!("none"));
+    assert_eq!(v["a"], serde_json::json!("underline"));
+    assert_eq!(v["b"], serde_json::json!("underline rgb(255, 0, 0)"));
+    assert_eq!(v["c"], serde_json::json!("underline dotted"));
+    assert_eq!(v["d"], serde_json::json!("underline wavy rgb(0, 0, 255)"));
+    assert_eq!(v["e"], serde_json::json!("overline line-through"));
+    assert_eq!(v["f"], serde_json::json!("rgb(255, 0, 0)"));
+    assert_eq!(v["s"], serde_json::json!("dotted"));
+    assert_eq!(v["k"], serde_json::json!("2px"));
+    assert_eq!(v["l"], serde_json::json!("underline"));
+    assert_eq!(v["lc"], serde_json::json!("rgb(0, 0, 255)"));
+}
+
+#[test]
 fn computed_keywords_and_new_initials_match_chrome() {
     // Chrome 157 (local 157.0.8103.52): medium/thin/thick rule widths are
     // px, corner-shape keywords are superellipse(), offset-rotate:auto is

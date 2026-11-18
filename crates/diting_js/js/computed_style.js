@@ -339,6 +339,29 @@ function _emphasisStyle(style) {
   if (!style) return '';
   return style.toLowerCase().startsWith('filled ') ? style.slice(7) : style;
 }
+// text-decoration shorthand pieces. Line order is underline, overline,
+// line-through. `none` clears lines. Color stays empty when absent so the
+// caller can tell currentcolor from an explicit color.
+function _parseTextDecoration(raw) {
+  const lineKw = { underline: 1, overline: 1, 'line-through': 1, blink: 1, none: 1 };
+  const styleKw = { solid: 1, double: 1, dotted: 1, dashed: 1, wavy: 1 };
+  const order = ['underline', 'overline', 'line-through', 'blink'];
+  const lines = [];
+  let style = '', color = '', thick = '', none = false;
+  for (const p of String(raw).trim().split(/\s+/)) {
+    if (!p) continue;
+    const low = p.toLowerCase();
+    if (lineKw[low]) {
+      if (low === 'none') { none = true; lines.length = 0; }
+      else if (!lines.includes(low)) lines.push(low);
+    } else if (styleKw[low]) style = low;
+    else if (low === 'auto' || low === 'from-font' || /^(?:0|-?[\d.]+)(?:px|em|rem|%)$/.test(low)) {
+      thick = low === '0' ? '0px' : p;
+    } else color = _cssComputedColor(p) || p;
+  }
+  const line = none && !lines.length ? 'none' : order.filter((k) => lines.includes(k)).join(' ');
+  return { line, style, color, thick };
+}
 function _parseBorderEdge(raw) {
   const styles = { none: 1, hidden: 1, dotted: 1, dashed: 1, solid: 1, double: 1, groove: 1, ridge: 1, inset: 1, outset: 1 };
   const widths = { thin: '1px', medium: '3px', thick: '5px' };
@@ -693,7 +716,7 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
           || kebab === 'scroll-margin' || kebab === 'scroll-padding'
           || kebab === 'text-emphasis' || kebab === 'text-wrap' || kebab === 'columns'
           || kebab === 'font-synthesis' || kebab === '-webkit-text-stroke'
-          || kebab === 'gap';
+          || kebab === 'gap' || kebab === 'text-decoration';
         if (!rebuilt) {
           if (_isComputedColorProp(kebab)) {
             const painted = _cssComputedColor(inlineVal);
@@ -966,6 +989,38 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
       const img = lookup(kebab === 'mask' ? 'mask-image' : '-webkit-mask-image');
       if (!img || img === 'none') return 'none';
       return img;
+    }
+    if (kebab === 'text-decoration') {
+      // solid, currentcolor, and auto thickness are omitted. An explicit
+      // color is kept even when the line is none ("rgb(255, 0, 0)").
+      // currentcolor follows the used color on the longhand but stays out
+      // of the shorthand, including when `color` itself is not black.
+      let style = '', color = '', thick = '';
+      const specified = !pseudoName && target.getPropertyValue ? target.getPropertyValue('text-decoration') : '';
+      if (specified && !_CSS_WIDE_KW.test(specified)) {
+        const parsed = _parseTextDecoration(specified);
+        style = parsed.style;
+        color = parsed.color;
+        thick = parsed.thick;
+      }
+      const readLong = (name) => {
+        if (pseudoName || !target.getPropertyValue) return '';
+        const v = target.getPropertyValue(name);
+        return v && !_CSS_WIDE_KW.test(v) ? v : '';
+      };
+      if (!style) style = readLong('text-decoration-style').toLowerCase();
+      if (!color) {
+        const c = readLong('text-decoration-color');
+        if (c && c.toLowerCase() !== 'currentcolor') color = _cssComputedColor(c) || c;
+      }
+      if (!thick) thick = readLong('text-decoration-thickness');
+      const line = lookup('text-decoration-line');
+      const bits = [];
+      if (line && line !== 'none') bits.push(line);
+      if (style && style !== 'solid') bits.push(style);
+      if (color) bits.push(color);
+      if (thick && thick.toLowerCase() !== 'auto') bits.push(thick === '0' ? '0px' : thick);
+      return bits.length ? bits.join(' ') : 'none';
     }
     if (kebab === 'gap') {
       const row = lookup('row-gap'), col = lookup('column-gap');

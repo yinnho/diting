@@ -86,7 +86,6 @@ pub(crate) const COMPUTED_STYLE_PROPS: &[&str] = &[
     "border-collapse",
     "table-layout",
     "vertical-align",
-    "text-decoration",
     "text-decoration-line",
     "font-size",
     "font-weight",
@@ -294,7 +293,9 @@ fn computed_box(
         }),
         // Not inherited (the paint-time propagation to inline descendants is
         // a layout concern): an element reports its OWN declared/UA set.
-        "text-decoration-line" | "text-decoration" => Some(match s.text_decoration_line {
+        // The shorthand is rebuilt in JS so an explicit color or style is
+        // not dropped. This arm is only the line longhand.
+        "text-decoration-line" => Some(match s.text_decoration_line {
             Some(d) if !d.is_empty() => [
                 if d.underline { "underline" } else { "" },
                 if d.overline { "overline" } else { "" },
