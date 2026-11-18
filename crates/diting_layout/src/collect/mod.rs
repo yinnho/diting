@@ -373,7 +373,8 @@ fn element_box(
             _ => 0.0,
         };
         let (ox, oy) = match styles.get(dom_id).and_then(|s| s.transform_origin) {
-            Some((lx, ly)) => (origin(lx, rect.width), origin(ly, rect.height)),
+            // z only matters for a 3D transform. This pivot is 2D.
+            Some((lx, ly, _)) => (origin(lx, rect.width), origin(ly, rect.height)),
             None => (rect.width / 2.0, rect.height / 2.0),
         };
         let (rcx, rcy) = (rect.x + ox, rect.y + oy);

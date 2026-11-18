@@ -2220,6 +2220,80 @@ fn outline_grammar_matches_chrome() {
 }
 
 #[test]
+fn transform_origin_z_matches_chrome() {
+    let f = FontCtx::default();
+    let mut s = ComputedStyle::default();
+    assert!(apply_one(&mut s, "transform-origin", "10px 20px 5px", &f));
+    assert_eq!(
+        s.transform_origin,
+        Some((Length::Px(10.0), Length::Px(20.0), Length::Px(5.0)))
+    );
+    assert!(apply_one(&mut s, "transform-origin", "10px 20px 0", &f));
+    assert_eq!(
+        s.transform_origin,
+        Some((Length::Px(10.0), Length::Px(20.0), Length::Px(0.0)))
+    );
+    // A percent z, a fourth token, or a y-keyword before a length drops.
+    assert!(!apply_one(&mut s, "transform-origin", "10px 20px 5%", &f));
+    assert!(!apply_one(
+        &mut s,
+        "transform-origin",
+        "10px 20px 5px 1px",
+        &f
+    ));
+    assert!(!apply_one(&mut s, "transform-origin", "top 10px", &f));
+    assert!(!apply_one(
+        &mut s,
+        "transform-origin",
+        "left top center",
+        &f
+    ));
+    assert_eq!(
+        s.transform_origin,
+        Some((Length::Px(10.0), Length::Px(20.0), Length::Px(0.0)))
+    );
+    assert!(apply_one(&mut s, "transform-origin", "10px top", &f));
+    assert_eq!(
+        s.transform_origin,
+        Some((Length::Px(10.0), Length::Percent(0.0), Length::Px(0.0)))
+    );
+    assert!(apply_one(&mut s, "transform-origin", "center left", &f));
+    assert_eq!(
+        s.transform_origin,
+        Some((Length::Percent(0.0), Length::Percent(50.0), Length::Px(0.0)))
+    );
+    assert!(apply_one(&mut s, "transform-origin", "left top 5px", &f));
+    assert_eq!(
+        s.transform_origin,
+        Some((Length::Percent(0.0), Length::Percent(0.0), Length::Px(5.0)))
+    );
+    let wide = FontCtx {
+        own: 20.0,
+        ..FontCtx::default()
+    };
+    assert!(apply_one(
+        &mut s,
+        "transform-origin",
+        "1em 2em 0.5em",
+        &wide
+    ));
+    assert_eq!(
+        s.transform_origin,
+        Some((Length::Px(20.0), Length::Px(40.0), Length::Px(10.0)))
+    );
+    assert!(apply_one(
+        &mut s,
+        "transform-origin",
+        "10px 20px calc(4px + 1px)",
+        &f
+    ));
+    assert_eq!(
+        s.transform_origin,
+        Some((Length::Px(10.0), Length::Px(20.0), Length::Px(5.0)))
+    );
+}
+
+#[test]
 fn columns_grammar_matches_chrome() {
     let f = FontCtx::default();
     let mut s = ComputedStyle::default();

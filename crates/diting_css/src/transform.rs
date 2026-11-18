@@ -5,15 +5,16 @@
 
 use crate::calc::eval_math_call;
 use crate::geom::{parse_css_length, resolve_len, FontCtx, Length, Transform2D, DEFAULT_VIEWPORT};
-use crate::len_parse::CssF32;
+use crate::len_parse::{split_sides, CssF32};
 use crate::transition::{add_len, mul_len, parse_angle_deg};
 
-/// Parse `transform-origin` (#244): `[ <length-percentage> | left | center |
-/// right ] || [ <length-percentage> | top | center | bottom ]`, keywords
-/// normalizing to percentages (left/top → 0%, center → 50%, right/bottom →
-/// 100%). A bare x component defaults y to center. More than two components
-/// (the 3D z form) invalidates the declaration.
-pub(crate) fn parse_transform_origin(v: &str, fonts: &FontCtx) -> Option<(Length, Length)> {
+/// Parse `transform-origin`. Keywords become percentages (left/top 0%,
+/// center 50%, right/bottom 100%). One value is x, except a lone `top` or
+/// `bottom` which is y and x stays center. Two values are x then y, or a
+/// horizontal keyword and a vertical keyword in either order (`center left`,
+/// `top center`). A length after a y-keyword (`top 10px`) is invalid. An
+/// optional third value is a z length (not a percent); omitted z is 0.
+pub(crate) fn parse_transform_origin(v: &str, fonts: &FontCtx) -> Option<(Length, Length, Length)> {
     let len = |val: &str| -> Option<Length> {
         let t = val.trim();
         if let Some(l) = eval_math_call(t, fonts) {
@@ -22,34 +23,58 @@ pub(crate) fn parse_transform_origin(v: &str, fonts: &FontCtx) -> Option<(Length
         parse_css_length(t).map(|l| resolve_len(l, fonts))
     };
     let one = |tok: &str| -> Option<Length> {
-        match tok.trim().to_ascii_lowercase().as_str() {
+        match tok {
             "left" | "top" => Some(Length::Percent(0.0)),
             "center" => Some(Length::Percent(50.0)),
             "right" | "bottom" => Some(Length::Percent(100.0)),
             _ => len(tok),
         }
     };
-    let toks: Vec<&str> = v.split_whitespace().collect();
-    if toks.is_empty() || toks.len() > 2 {
+    let is_h = |t: &str| matches!(t, "left" | "center" | "right");
+    let is_v = |t: &str| matches!(t, "top" | "center" | "bottom");
+    let is_x = |t: &str| is_h(t) || len(t).is_some();
+    let is_y = |t: &str| is_v(t) || len(t).is_some();
+    let toks = split_sides(v);
+    if toks.is_empty() || toks.len() > 3 {
         return None;
     }
-    let is_y_kw = |t: &str| matches!(t, "top" | "bottom");
-    match toks.as_slice() {
-        [a] => {
-            // A lone y-keyword ("top") means x=center; anything else is x
-            // with y defaulting to center.
-            if is_y_kw(&a.to_ascii_lowercase()) {
-                Some((Length::Percent(50.0), one(a)?))
+    let low: Vec<String> = toks.iter().map(|t| t.to_ascii_lowercase()).collect();
+    let z = if low.len() == 3 {
+        // z is a length. A percent or a keyword drops the declaration.
+        if matches!(
+            low[2].as_str(),
+            "left" | "right" | "top" | "bottom" | "center"
+        ) {
+            return None;
+        }
+        match len(&low[2])? {
+            Length::Px(px) if px.is_finite() => Length::Px(px),
+            _ => return None,
+        }
+    } else {
+        Length::Px(0.0)
+    };
+    let (x, y) = match low.len() {
+        1 => {
+            if matches!(low[0].as_str(), "top" | "bottom") {
+                (Length::Percent(50.0), one(&low[0])?)
             } else {
-                Some((one(a)?, Length::Percent(50.0)))
+                (one(&low[0])?, Length::Percent(50.0))
             }
         }
-        // Two components: a y-keyword fixes its own axis wherever it sits
-        // ("top 10px" is x=10px y=0%); otherwise positional x-then-y.
-        [a, b] if is_y_kw(&a.to_ascii_lowercase()) => Some((one(b)?, one(a)?)),
-        [a, b] => Some((one(a)?, one(b)?)),
-        _ => None,
-    }
+        _ => {
+            let (a, b) = (low[0].as_str(), low[1].as_str());
+            if is_x(a) && is_y(b) {
+                (one(a)?, one(b)?)
+            } else if is_h(b) && is_v(a) {
+                // `top left` / `center left`: the horizontal keyword is not first.
+                (one(b)?, one(a)?)
+            } else {
+                return None;
+            }
+        }
+    };
+    Some((x, y, z))
 }
 
 /// Parse a `transform` declaration into one 2D affine [`Transform2D`]

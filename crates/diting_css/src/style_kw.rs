@@ -811,6 +811,21 @@ pub fn column_width_css(width: Option<Length>) -> String {
     }
 }
 
+/// Chrome omits a zero `transform-origin` z.
+pub fn append_origin_z(xy: String, z: &Length) -> String {
+    match z {
+        Length::Px(v) if v.abs() >= f32::EPSILON => {
+            let n = if (v - v.round()).abs() < f32::EPSILON {
+                (v.round() as i64).to_string()
+            } else {
+                format!("{v}")
+            };
+            format!("{xy} {n}px")
+        }
+        _ => xy,
+    }
+}
+
 pub fn column_count_css(count: Option<u32>) -> String {
     match count {
         Some(n) => n.to_string(),

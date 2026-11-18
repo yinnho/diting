@@ -298,13 +298,11 @@ pub struct ComputedStyle {
     pub rotate_prop: Option<f32>,
     /// Individual `scale` property (#140): (x, y); `scale: 2` is (2, 2).
     pub scale_prop: Option<(f32, f32)>,
-    /// `transform-origin` (#244): (x, y), keywords normalized to percentages
-    /// at parse (left/top → 0%, center → 50%, right/bottom → 100%), a bare x
-    /// defaults y to center. Percentages resolve against the element's own
-    /// border box at collect time; the pivot default is the box center
-    /// (50% 50% — the pre-#244 hardcoded behavior). The z component stays
-    /// unparsed — same 2D posture as the transform list.
-    pub transform_origin: Option<(Length, Length)>,
+    /// `transform-origin` (#244): (x, y, z). Keywords normalize to
+    /// percentages at parse. x/y percentages resolve against the border box
+    /// at collect time; z is an absolute length (0 when omitted). The 2D
+    /// pivot uses x/y only.
+    pub transform_origin: Option<(Length, Length, Length)>,
     /// Parsed `animation` shorthand (CSS animations batch). The cascade
     /// only stores it; `sample_css_animation` resolves it against the
     /// stylesheet's `@keyframes` table at a time the caller supplies, then
