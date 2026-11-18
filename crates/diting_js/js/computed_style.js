@@ -290,6 +290,40 @@ function _cssTransitionShorthand(prop, dur, ease, delay, behavior) {
     return bits.length ? bits.join(' ') : 'all';
   }).join(', ');
 }
+// Physical four-value collapse (margin, inset, scroll-margin): one value
+// when all match, two when top==bottom and left==right, three when only
+// the inline sides match.
+function _cssCollapse4(t, r, b, l) {
+  if (!t || !r || !b || !l) return '';
+  if (t === r && r === b && b === l) return t;
+  if (t === b && r === l) return t + ' ' + r;
+  if (r === l) return t + ' ' + r + ' ' + b;
+  return t + ' ' + r + ' ' + b + ' ' + l;
+}
+function _cssPair(a, b) {
+  if (!a || !b) return '';
+  return a === b ? a : a + ' ' + b;
+}
+function _cssExpand4(raw) {
+  const p = String(raw).trim().split(/\s+/).filter(Boolean);
+  if (!p.length || p.length > 4) return null;
+  const t = p[0], r = p[1] || t, b = p[2] || t, l = p[3] || r;
+  return [t, r, b, l];
+}
+// One border edge in Chrome's computed order: width, style, color.
+function _parseBorderEdge(raw) {
+  const styles = { none: 1, hidden: 1, dotted: 1, dashed: 1, solid: 1, double: 1, groove: 1, ridge: 1, inset: 1, outset: 1 };
+  const widths = { thin: '1px', medium: '3px', thick: '5px' };
+  let width = '', style = '', color = '';
+  for (const p of String(raw).trim().split(/\s+/)) {
+    const low = p.toLowerCase();
+    if (styles[low]) style = low;
+    else if (widths[low]) width = widths[low];
+    else if (/^(?:0|-?[\d.]+)(?:px|em|rem|%)$/.test(low)) width = low === '0' ? '0px' : p;
+    else color = _cssComputedColor(p) || p;
+  }
+  return { width, style, color };
+}
 globalThis.getComputedStyle = (el, pseudoElt) => {
   const pseudoName = _normalizePseudoElt(pseudoElt);
   if (!el) el = document.body || {};
@@ -620,7 +654,15 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
           || kebab === 'border-bottom' || kebab === 'border-left'
           || kebab === 'font' || kebab === 'flex' || kebab === 'flex-flow'
           || kebab === 'list-style' || kebab === 'background'
-          || kebab === 'animation' || kebab === 'transition';
+          || kebab === 'animation' || kebab === 'transition'
+          || kebab === 'margin-block' || kebab === 'margin-inline'
+          || kebab === 'padding-block' || kebab === 'padding-inline'
+          || kebab === 'inset' || kebab === 'inset-block' || kebab === 'inset-inline'
+          || kebab === 'border-block' || kebab === 'border-inline'
+          || kebab === 'border-block-start' || kebab === 'border-block-end'
+          || kebab === 'border-inline-start' || kebab === 'border-inline-end'
+          || kebab === 'column-rule' || kebab === 'row-rule'
+          || kebab === 'scroll-margin' || kebab === 'scroll-padding';
         if (!rebuilt) {
           if (_isComputedColorProp(kebab)) {
             const painted = _cssComputedColor(inlineVal);
@@ -754,6 +796,68 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
       if (prop && dur && ease && delay && behavior) {
         return _cssTransitionShorthand(prop, dur, ease, delay, behavior);
       }
+    }
+    if (kebab === 'margin-block' || kebab === 'margin-inline'
+        || kebab === 'padding-block' || kebab === 'padding-inline') {
+      const axis = kebab.endsWith('block') ? 'block' : 'inline';
+      const kind = kebab.startsWith('margin') ? 'margin' : 'padding';
+      return _cssPair(lookup(kind + '-' + axis + '-start'), lookup(kind + '-' + axis + '-end'));
+    }
+    if (kebab === 'inset') {
+      return _cssCollapse4(lookup('top'), lookup('right'), lookup('bottom'), lookup('left'));
+    }
+    if (kebab === 'inset-block') return _cssPair(lookup('top'), lookup('bottom'));
+    if (kebab === 'inset-inline') return _cssPair(lookup('left'), lookup('right'));
+    if (kebab === 'border-block-start' || kebab === 'border-block-end'
+        || kebab === 'border-inline-start' || kebab === 'border-inline-end') {
+      const readEdge = (name) => {
+        const specified = !pseudoName && target.getPropertyValue ? target.getPropertyValue(name) : '';
+        if (!specified || _CSS_WIDE_KW.test(specified)) return '';
+        const edge = _parseBorderEdge(specified);
+        return edge.width && edge.style && edge.color ? edge.width + ' ' + edge.style + ' ' + edge.color : '';
+      };
+      const own = readEdge(kebab);
+      if (own) return own;
+      // border-block sets both block edges; the longhands are not stored.
+      const shared = readEdge(kebab.includes('block') ? 'border-block' : 'border-inline');
+      if (shared) return shared;
+      const w = lookup(kebab + '-width'), s = lookup(kebab + '-style'), c = lookup(kebab + '-color');
+      if (w && s && c) return w + ' ' + s + ' ' + c;
+    }
+    if (kebab === 'border-block' || kebab === 'border-inline') {
+      const specified = !pseudoName && target.getPropertyValue ? target.getPropertyValue(kebab) : '';
+      if (specified && !_CSS_WIDE_KW.test(specified)) {
+        const edge = _parseBorderEdge(specified);
+        if (edge.width && edge.style && edge.color) return edge.width + ' ' + edge.style + ' ' + edge.color;
+      }
+      const axis = kebab.endsWith('block') ? 'block' : 'inline';
+      const a = lookup('border-' + axis + '-start');
+      const b = lookup('border-' + axis + '-end');
+      if (a && a === b) return a;
+      return '';
+    }
+    if (kebab === 'column-rule' || kebab === 'row-rule') {
+      const specified = !pseudoName && target.getPropertyValue ? target.getPropertyValue(kebab) : '';
+      let width = '', style = '', color = '';
+      if (specified && !_CSS_WIDE_KW.test(specified)) {
+        const edge = _parseBorderEdge(specified);
+        width = edge.width; style = edge.style; color = edge.color;
+      }
+      if (!width) width = lookup(kebab + '-width');
+      if (!style) style = lookup(kebab + '-style');
+      if (!color) color = lookup(kebab + '-color');
+      if (width && color) return style && style !== 'none' ? width + ' ' + style + ' ' + color : width + ' ' + color;
+    }
+    if (kebab === 'scroll-margin' || kebab === 'scroll-padding') {
+      const specified = !pseudoName && target.getPropertyValue ? target.getPropertyValue(kebab) : '';
+      if (specified && !_CSS_WIDE_KW.test(specified)) {
+        const sides = _cssExpand4(specified);
+        if (sides) return _cssCollapse4(sides[0], sides[1], sides[2], sides[3]);
+      }
+      return _cssCollapse4(
+        lookup(kebab + '-top'), lookup(kebab + '-right'),
+        lookup(kebab + '-bottom'), lookup(kebab + '-left')
+      );
     }
     if (kebab === 'outline') {
       // Cascade doesn't store outline longhands. An authored shorthand is

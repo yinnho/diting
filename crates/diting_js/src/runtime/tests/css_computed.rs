@@ -244,6 +244,74 @@ fn relative_vertical_percent_uses_parent_content_height() {
 }
 
 #[test]
+fn logical_box_and_rule_shorthands_match_chrome() {
+    // Chrome 157: logical margin/padding and inset collapse like the
+    // physical shorthands. border-block is the shared edge, or "" when the
+    // two edges differ. column-rule drops a none style. A relative box's
+    // inset is 0px; a static one is auto.
+    let mut rt = setup_runtime(
+        "<html><body>\
+         <div id='z'></div>\
+         <div id='m' style='margin-block:10px 4px;padding-inline:6px'></div>\
+         <div id='i' style='inset:1px 2px 3px 4px'></div>\
+         <div id='r' style='position:relative'></div>\
+         <div id='bb' style='border-block:2px solid red'></div>\
+         <div id='bs' style='border-block-start:4px solid black'></div>\
+         <div id='cr' style='column-rule:4px dotted red'></div>\
+         <div id='sm' style='scroll-margin:1px 2px 3px 4px'></div>\
+         <div id='sp' style='scroll-padding:10px 20px'></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"const g = (id) => getComputedStyle(document.getElementById(id));
+            const z = g('z'), body = getComputedStyle(document.body);
+            JSON.stringify({
+              bm: body.marginBlock, zm: z.marginBlock, zi: z.marginInline,
+              zp: z.paddingBlock, zpi: z.paddingInline, zin: z.inset,
+              zib: z.insetBlock, zii: z.insetInline, zbb: z.borderBlock,
+              zbi: z.borderInline, zcr: z.columnRule, zrr: z.rowRule,
+              zsm: z.scrollMargin, zsp: z.scrollPadding,
+              mm: g('m').marginBlock, mp: g('m').paddingInline,
+              ins: g('i').inset, ib: g('i').insetBlock, ii: g('i').insetInline,
+              rel: g('r').inset,
+              bb: g('bb').borderBlock, bbs: g('bb').borderBlockStart,
+              bempty: g('bs').borderBlock, bstart: g('bs').borderBlockStart,
+              cr: g('cr').columnRule, sm: g('sm').scrollMargin, sp: g('sp').scrollPadding
+            })"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["bm"], serde_json::json!("8px"));
+    assert_eq!(v["zm"], serde_json::json!("0px"));
+    assert_eq!(v["zi"], serde_json::json!("0px"));
+    assert_eq!(v["zp"], serde_json::json!("0px"));
+    assert_eq!(v["zpi"], serde_json::json!("0px"));
+    assert_eq!(v["zin"], serde_json::json!("auto"));
+    assert_eq!(v["zib"], serde_json::json!("auto"));
+    assert_eq!(v["zii"], serde_json::json!("auto"));
+    assert_eq!(v["zbb"], serde_json::json!("0px none rgb(0, 0, 0)"));
+    assert_eq!(v["zbi"], serde_json::json!("0px none rgb(0, 0, 0)"));
+    assert_eq!(v["zcr"], serde_json::json!("3px rgb(0, 0, 0)"));
+    assert_eq!(v["zrr"], serde_json::json!("3px rgb(0, 0, 0)"));
+    assert_eq!(v["zsm"], serde_json::json!("0px"));
+    assert_eq!(v["zsp"], serde_json::json!("auto"));
+    assert_eq!(v["mm"], serde_json::json!("10px 4px"));
+    assert_eq!(v["mp"], serde_json::json!("6px"));
+    assert_eq!(v["ins"], serde_json::json!("1px 2px 3px 4px"));
+    assert_eq!(v["ib"], serde_json::json!("1px 3px"));
+    assert_eq!(v["ii"], serde_json::json!("4px 2px"));
+    assert_eq!(v["rel"], serde_json::json!("0px"));
+    assert_eq!(v["bb"], serde_json::json!("2px solid rgb(255, 0, 0)"));
+    assert_eq!(v["bbs"], serde_json::json!("2px solid rgb(255, 0, 0)"));
+    assert_eq!(v["bempty"], serde_json::json!(""));
+    assert_eq!(v["bstart"], serde_json::json!("4px solid rgb(0, 0, 0)"));
+    assert_eq!(v["cr"], serde_json::json!("4px dotted rgb(255, 0, 0)"));
+    assert_eq!(v["sm"], serde_json::json!("1px 2px 3px 4px"));
+    assert_eq!(v["sp"], serde_json::json!("10px 20px"));
+}
+
+#[test]
 fn computed_keywords_and_new_initials_match_chrome() {
     // Chrome 157 (local 157.0.8103.52): medium/thin/thick rule widths are
     // px, corner-shape keywords are superellipse(), offset-rotate:auto is
