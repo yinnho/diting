@@ -61,6 +61,22 @@ curl -X POST :8089/search -d '{"query":"rust 浏览器引擎"}' | jq '.results[:
 curl -X POST :8089/session/create -d '{"url":"https://example.com"}'  # → session_id
 ```
 
+Playwright 走同一端口的 CDP。`/json/version` 报 `diting`；页面里的 UA 仍是 Chrome。
+
+```js
+import { chromium } from "playwright";
+
+const browser = await chromium.connectOverCDP("http://127.0.0.1:8089");
+const context = browser.contexts()[0];
+const page = context.pages()[0] ?? await context.newPage();
+await page.goto("https://example.com");
+console.log(await page.evaluate(() => document.body.innerText));
+await page.screenshot({ path: "page.png" });
+await browser.close();
+```
+
+第一版就是这条路径：连上、开页、读正文、截一张视口 PNG。连接断开时，这次打开的页面会关掉。一次接一个 CDP 客户端。
+
 ## 它的位置
 
 Computer-use agent 有两层：GUI 层驱动整个桌面；**引擎层**让页面本身成为机器。Diting 是引擎层——DOM 动作进、结构化状态出，每会话一个进程而不是一台虚拟机。它是实时检索仪器，不是爬虫：没有跟随链接的递归、内置每域名预算、robots.txt 默认不拦（运营者可开）。

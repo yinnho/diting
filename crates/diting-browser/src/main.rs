@@ -17,6 +17,7 @@ use diting_authoring as authoring;
 mod browser;
 mod browser_import;
 mod captcha;
+mod cdp;
 mod config;
 mod cookie;
 mod curl_import;
@@ -484,6 +485,9 @@ async fn main() -> anyhow::Result<()> {
             "/pdf",
             post(pdf_handler).layer(axum::extract::DefaultBodyLimit::max(max_body_bytes())),
         );
+
+    // CDP (Playwright `connectOverCDP`): same port as the HTTP API.
+    let app = app.merge(cdp::routes());
 
     // #162: the gate layers on AFTER every route above (screenshot routes
     // included) so it
