@@ -665,6 +665,13 @@ pub enum GridTrack {
         percent: f32,
         px: f32,
     },
+    /// `min` / `max` / `clamp`. `op` is 0, 1, or 2. Each arg is
+    /// `(percent, px)` on the CSS 0–100 scale.
+    Math {
+        op: u8,
+        n: u8,
+        args: [(f32, f32); 4],
+    },
     Auto,
     /// minmax(min, max); the two arguments are shallow (nested minmax is
     /// invalid CSS), which also keeps the enum non-recursive.
@@ -686,6 +693,13 @@ pub enum TrackSize {
     Calc {
         percent: f32,
         px: f32,
+    },
+    /// `min` / `max` / `clamp`. `op` is 0, 1, or 2. Each arg is
+    /// `(percent, px)` on the CSS 0–100 scale.
+    Math {
+        op: u8,
+        n: u8,
+        args: [(f32, f32); 4],
     },
     Auto,
 }

@@ -1275,6 +1275,105 @@ fn grid_track_percent_calc_matches_chrome() {
 }
 
 #[test]
+fn grid_track_min_max_matches_chrome() {
+    // Mixed min/max/clamp stay symbolic off a grid and resolve on one.
+    // Width 200: min(50%, 40px) is 40px, width 60 makes the 50% win at 30px.
+    // max(10px, 20%) is 40px. clamp(10px, 50%, 80px) is 80px. The 1fr beside
+    // a 40px min takes the other 160px.
+    let mut rt = setup_runtime(
+        "<html><head><style>body { margin: 0 }</style></head><body>\
+         <div id='a' style='grid-template-columns:min(50%, 40px)'></div>\
+         <div id='b' style='grid-template-columns:min(40px, 50%)'></div>\
+         <div id='c' style='grid-template-columns:max(10px, 20%)'></div>\
+         <div id='d' style='font-size:20px;grid-template-columns:min(1em, 50%)'></div>\
+         <div id='e' style='grid-template-columns:clamp(10px, 50%, 40px)'></div>\
+         <div id='f' style='grid-template-columns:min(10px, 20px)'></div>\
+         <div id='g' style='grid-template-columns:minmax(0, min(50%, 40px))'></div>\
+         <div id='h' style='grid-template-columns:repeat(2, min(50%, 40px))'></div>\
+         <div id='i' style='display:none;grid-template-columns:min(50%, 40px)'></div>\
+         <div id='j' style='display:grid;width:200px;grid-template-columns:min(50%, 40px)'></div>\
+         <div id='k' style='display:grid;width:60px;grid-template-columns:min(50%, 40px)'></div>\
+         <div id='l' style='display:grid;width:200px;grid-template-columns:max(10px, 20%)'></div>\
+         <div id='m' style='display:grid;width:200px;grid-template-columns:min(50%, 40px) 1fr'></div>\
+         <div id='n' style='display:grid;width:200px;grid-template-columns:clamp(10px, 50%, 80px)'></div>\
+         <div id='o' style='display:grid;width:200px;grid-template-columns:repeat(2, min(50%, 40px))'></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"JSON.stringify((() => {
+              const g = (id) => getComputedStyle(document.getElementById(id)).grid;
+              const ids = 'abcdefghijklmno'.split('');
+              const o = {};
+              for (const id of ids) o[id] = g(id);
+              return o;
+            })())"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(
+        v["a"],
+        serde_json::json!("none / min(50%, 40px) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["b"],
+        serde_json::json!("none / min(40px, 50%) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["c"],
+        serde_json::json!("none / max(10px, 20%) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["d"],
+        serde_json::json!("none / min(20px, 50%) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["e"],
+        serde_json::json!("none / clamp(10px, 50%, 40px) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["f"],
+        serde_json::json!("none / 10px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["g"],
+        serde_json::json!("none / minmax(0px, min(50%, 40px)) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["h"],
+        serde_json::json!("none / repeat(2, min(50%, 40px)) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["i"],
+        serde_json::json!("none / min(50%, 40px) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["j"],
+        serde_json::json!("none / 40px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["k"],
+        serde_json::json!("none / 30px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["l"],
+        serde_json::json!("none / 40px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["m"],
+        serde_json::json!("none / 40px 160px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["n"],
+        serde_json::json!("none / 80px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["o"],
+        serde_json::json!("none / 40px 40px / none / row / auto / auto")
+    );
+}
+
+#[test]
 fn text_decoration_shorthand_matches_chrome() {
     // Chrome 157 omits solid, currentcolor, and auto thickness. An explicit
     // color or a non-solid style stays. Line keywords come out as

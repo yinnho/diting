@@ -626,35 +626,87 @@ pub(crate) fn resolve_sizing_keywords(
     }
 }
 
+/// Expressions a grid track asks the layout tree to resolve against the
+/// container size. Registered while the tree is built, dropped at the
+/// start of the next solve. The handle's low 3 bits are taffy's tag.
+enum TrackExpr {
+    Add {
+        percent: f32,
+        px: f32,
+    },
+    /// `op` 0 = min, 1 = max, 2 = clamp. Args are `(percent, px)`.
+    Math {
+        op: u8,
+        n: u8,
+        args: [(f32, f32); 4],
+    },
+}
+
+std::thread_local! {
+    static TRACK_EXPRS: std::cell::RefCell<Vec<TrackExpr>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+pub(crate) fn reset_track_exprs() {
+    TRACK_EXPRS.with(|slot| slot.borrow_mut().clear());
+}
+
+fn register_track_expr(expr: TrackExpr) -> *const () {
+    TRACK_EXPRS.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        slot.push(expr);
+        (slot.len() << 3) as *const ()
+    })
+}
+
+pub(crate) fn resolve_track_expr(ptr: *const (), basis: f32) -> f32 {
+    let idx = (ptr as usize) >> 3;
+    if idx == 0 {
+        return 0.0;
+    }
+    TRACK_EXPRS.with(|slot| {
+        let slot = slot.borrow();
+        let Some(expr) = slot.get(idx - 1) else {
+            return 0.0;
+        };
+        match expr {
+            TrackExpr::Add { percent, px } => basis * percent / 100.0 + px,
+            TrackExpr::Math { op, n, args } => {
+                let n = (*n as usize).min(args.len());
+                let mut vals = [0.0f32; 4];
+                for i in 0..n {
+                    vals[i] = basis * args[i].0 / 100.0 + args[i].1;
+                }
+                match *op {
+                    0 => vals[..n].iter().copied().fold(f32::MAX, f32::min),
+                    1 => vals[..n].iter().copied().fold(f32::MIN, f32::max),
+                    2 if n == 3 => vals[0].max(vals[1].min(vals[2])),
+                    _ => 0.0,
+                }
+            }
+        }
+    })
+}
+
 /// diting_css track → taffy track: `1fr` maps to minmax(auto, 1fr), a px
 /// track is fixed, a % track is fixed percent (taffy resolves it against
 /// the grid container's content box), `auto` sizes to content.
-/// Pack `calc(percent% + px)` into the opaque handle taffy stores on a
-/// track. The low 3 bits are a tag, so the px word loses them; integer
-/// pixels are exact. [`unpack_track_calc`] is the inverse.
 pub(crate) fn pack_track_calc(percent: f32, px: f32) -> *const () {
-    let px_bits = px.to_bits() & !7;
-    let mut bits = ((percent.to_bits() as u64) << 32) | u64::from(px_bits);
-    bits &= !7;
-    if bits == 0 {
-        bits = 8;
-    }
-    bits as *const ()
+    register_track_expr(TrackExpr::Add { percent, px })
 }
 
-pub(crate) fn unpack_track_calc(ptr: *const ()) -> (f32, f32) {
-    let bits = ptr as u64;
-    let percent = f32::from_bits((bits >> 32) as u32);
-    let px = f32::from_bits((bits as u32) & !7);
-    (percent, px)
+fn pack_track_math(op: u8, n: u8, args: [(f32, f32); 4]) -> *const () {
+    register_track_expr(TrackExpr::Math { op, n, args })
 }
 
-fn calc_track(percent: f32, px: f32) -> diting_taffy::style::TrackSizingFunction {
-    let ptr = pack_track_calc(percent, px);
+fn expr_track(ptr: *const ()) -> diting_taffy::style::TrackSizingFunction {
     diting_taffy::style::TrackSizingFunction {
         min: diting_taffy::style::MinTrackSizingFunction::calc(ptr),
         max: diting_taffy::style::MaxTrackSizingFunction::calc(ptr),
     }
+}
+
+fn calc_track(percent: f32, px: f32) -> diting_taffy::style::TrackSizingFunction {
+    expr_track(pack_track_calc(percent, px))
 }
 
 fn to_grid_track(track: GridTrack) -> diting_taffy::style::GridTemplateComponent<String> {
@@ -675,6 +727,7 @@ fn to_grid_track(track: GridTrack) -> diting_taffy::style::GridTemplateComponent
             tsf.into()
         }
         GridTrack::Calc { percent, px } => calc_track(percent, px).into(),
+        GridTrack::Math { op, n, args } => expr_track(pack_track_math(op, n, args)).into(),
         GridTrack::Auto => TrackSizingFunction::AUTO.into(),
         GridTrack::MinMax { min, max } => {
             // min-side fr is invalid CSS; treat it as auto like the spec's
@@ -685,6 +738,9 @@ fn to_grid_track(track: GridTrack) -> diting_taffy::style::GridTemplateComponent
                 diting_css::TrackSize::Calc { percent, px } => {
                     diting_taffy::style::MinTrackSizingFunction::calc(pack_track_calc(percent, px))
                 }
+                diting_css::TrackSize::Math { op, n, args } => {
+                    diting_taffy::style::MinTrackSizingFunction::calc(pack_track_math(op, n, args))
+                }
                 _ => MinTrackSizingFunction::AUTO,
             };
             let t_max: MaxTrackSizingFunction = match max {
@@ -693,6 +749,9 @@ fn to_grid_track(track: GridTrack) -> diting_taffy::style::GridTemplateComponent
                 diting_css::TrackSize::Fr(f) => fr(f),
                 diting_css::TrackSize::Calc { percent, px } => {
                     diting_taffy::style::MaxTrackSizingFunction::calc(pack_track_calc(percent, px))
+                }
+                diting_css::TrackSize::Math { op, n, args } => {
+                    diting_taffy::style::MaxTrackSizingFunction::calc(pack_track_math(op, n, args))
                 }
                 _ => MaxTrackSizingFunction::AUTO,
             };
