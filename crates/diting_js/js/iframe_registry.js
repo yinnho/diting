@@ -27,9 +27,20 @@ function _runSrcdocScripts(el) {
       // single-realm shim the frame's window/document stand in as the
       // script's bindings (parent/top stay the host page's, frameElement
       // is the iframe). module scripts run as classic — best effort.
+      // Free calls (`addEventListener(...)`) close over the parent realm.
+      // Bind the frame's own event target so a srcdoc listener is not the
+      // parent's. `__diting_incumbentWindow` tells localStorage which
+      // window wrote, so the storage event goes to the others.
       const fn = new Function('window', 'document', 'self', 'parent', 'top',
-        'frameElement', 'globalThis', code);
-      fn.call(win, win, doc, win, globalThis, globalThis, el, win);
+        'frameElement', 'globalThis',
+        'var addEventListener = window.addEventListener.bind(window);\n' +
+        'var removeEventListener = window.removeEventListener.bind(window);\n' +
+        'var dispatchEvent = window.dispatchEvent.bind(window);\n' +
+        code);
+      const prev = globalThis.__diting_incumbentWindow;
+      globalThis.__diting_incumbentWindow = win;
+      try { fn.call(win, win, doc, win, globalThis, globalThis, el, win); }
+      finally { globalThis.__diting_incumbentWindow = prev; }
     } catch (e) {
       globalThis.__diting_reportUncaughtError?.(e);
     }

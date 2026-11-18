@@ -41,6 +41,21 @@ function _structuredClone(value, seen) {
     seen.set(value, copy);
     return copy;
   }
+  // Blob/File carry their bytes in a non-enumerable slot. A plain-object
+  // copy drops them, so IndexedDB gives back an object with no text().
+  if (typeof File !== "undefined" && value instanceof File) {
+    const copy = new File([value._bytes || new Uint8Array(0)], value.name || "", {
+      type: value.type || "",
+      lastModified: value.lastModified,
+    });
+    seen.set(value, copy);
+    return copy;
+  }
+  if (typeof Blob !== "undefined" && value instanceof Blob) {
+    const copy = new Blob([value._bytes || new Uint8Array(0)], { type: value.type || "" });
+    seen.set(value, copy);
+    return copy;
+  }
   if (typeof SharedArrayBuffer !== "undefined" && value instanceof SharedArrayBuffer) {
     return value; // transferable, not copyable
   }
