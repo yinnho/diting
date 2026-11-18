@@ -948,10 +948,16 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
       if (mode) return mode;
     }
     if (kebab === 'columns') {
-      const specified = !pseudoName && target.getPropertyValue ? target.getPropertyValue(kebab) : '';
-      if (specified && !_CSS_WIDE_KW.test(specified)) {
-        const parsed = _parseColumns(specified);
-        return _columnsString(parsed.width, parsed.count);
+      // A screenshot snapshot carries the cascaded longhands, so `12em`
+      // is already px. Without one, the authored shorthand is echoed.
+      const snap = snapshot.rendered;
+      const cascaded = snap && Object.prototype.hasOwnProperty.call(snap, 'column-width');
+      if (!cascaded) {
+        const specified = !pseudoName && target.getPropertyValue ? target.getPropertyValue(kebab) : '';
+        if (specified && !_CSS_WIDE_KW.test(specified)) {
+          const parsed = _parseColumns(specified);
+          return _columnsString(parsed.width, parsed.count);
+        }
       }
       return _columnsString(lookup('column-width'), lookup('column-count'));
     }

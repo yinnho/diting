@@ -132,9 +132,9 @@ pub enum VerticalAlign {
 /// paint. The property PROPAGATES to inline descendants rather than
 /// inheriting (CSS 2.1 §16.3.1) — the layout side resolves each text leaf's
 /// used value by walking its ancestor chain and unioning these sets, so the
-/// cascade here only records what the element itself declared. Color/style/
-/// thickness legs of the shorthand parse-and-drop: lines always paint solid
-/// in the text's own color.
+/// cascade here only records what the element itself declared. Color, style,
+/// and thickness live on `ComputedStyle`; lines still paint solid in the
+/// text's own color.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct TextDecorations {
     pub underline: bool,
@@ -159,6 +159,21 @@ impl TextDecorations {
             line_through: self.line_through || other.line_through,
             pierce: self.pierce || other.pierce,
         }
+    }
+}
+
+pub fn deco_line_css(line: Option<TextDecorations>) -> String {
+    match line {
+        Some(d) if !d.is_empty() => [
+            if d.underline { "underline" } else { "" },
+            if d.overline { "overline" } else { "" },
+            if d.line_through { "line-through" } else { "" },
+        ]
+        .into_iter()
+        .filter(|k| !k.is_empty())
+        .collect::<Vec<_>>()
+        .join(" "),
+        _ => "none".to_string(),
     }
 }
 
@@ -766,4 +781,110 @@ pub enum Display {
     /// the table's minimum width only, never its maximum.
     TableCaption,
     None,
+}
+
+/// `column-width`. `Auto` is the initial. A length is already absolute px.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum ColWidth {
+    Auto,
+    Px(f32),
+}
+
+/// `column-count`. `Auto` is the initial. `N` is an integer ≥ 1.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ColCount {
+    Auto,
+    N(u32),
+}
+
+pub fn column_width_css(width: Option<Length>) -> String {
+    match width {
+        Some(Length::Px(v)) => {
+            if (v - v.round()).abs() < f32::EPSILON {
+                format!("{}px", v as i64)
+            } else {
+                let s = format!("{v}");
+                format!("{}px", s.trim_end_matches('0').trim_end_matches('.'))
+            }
+        }
+        _ => "auto".into(),
+    }
+}
+
+pub fn column_count_css(count: Option<u32>) -> String {
+    match count {
+        Some(n) => n.to_string(),
+        None => "auto".into(),
+    }
+}
+
+/// One token of `column-width`: `auto` or a non-negative length. Percents
+/// and negatives are invalid.
+pub(crate) fn parse_column_width_token(t: &str, fonts: &FontCtx) -> Option<ColWidth> {
+    if t.eq_ignore_ascii_case("auto") {
+        return Some(ColWidth::Auto);
+    }
+    match css_len(t.trim(), fonts) {
+        Some(Length::Px(px)) if px.is_finite() && px >= 0.0 => Some(ColWidth::Px(px)),
+        _ => None,
+    }
+}
+
+/// One token of `column-count`: `auto` or an integer ≥ 1 (`+3` counts).
+pub(crate) fn parse_column_count_token(t: &str) -> Option<ColCount> {
+    if t.eq_ignore_ascii_case("auto") {
+        return Some(ColCount::Auto);
+    }
+    let digits = t.trim().strip_prefix('+').unwrap_or(t.trim());
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let n: u32 = digits.parse().ok()?;
+    (n >= 1).then_some(ColCount::N(n))
+}
+
+enum ColPiece {
+    Auto,
+    Width(f32),
+    Count(u32),
+}
+
+fn column_piece(t: &str, fonts: &FontCtx) -> Option<ColPiece> {
+    // A positive integer is a count. Unitless `0` is a length, not a count.
+    // `auto` fails the integer test and is a width keyword.
+    if let Some(ColCount::N(n)) = parse_column_count_token(t) {
+        return Some(ColPiece::Count(n));
+    }
+    match parse_column_width_token(t, fonts)? {
+        ColWidth::Px(px) => Some(ColPiece::Width(px)),
+        ColWidth::Auto => Some(ColPiece::Auto),
+    }
+}
+
+/// `columns` shorthand. One `auto` resets both legs. Two tokens may be a
+/// width and a count in either order; a repeated leg is invalid.
+pub(crate) fn parse_columns_shorthand(v: &str, fonts: &FontCtx) -> Option<(ColWidth, ColCount)> {
+    let toks = split_sides(v);
+    if toks.is_empty() || toks.len() > 2 {
+        return None;
+    }
+    let mut pieces = Vec::with_capacity(toks.len());
+    for tok in toks {
+        pieces.push(column_piece(tok, fonts)?);
+    }
+    Some(match pieces.as_slice() {
+        [ColPiece::Auto] | [ColPiece::Auto, ColPiece::Auto] => (ColWidth::Auto, ColCount::Auto),
+        [ColPiece::Count(n)] => (ColWidth::Auto, ColCount::N(*n)),
+        [ColPiece::Width(px)] => (ColWidth::Px(*px), ColCount::Auto),
+        [ColPiece::Auto, ColPiece::Count(n)] | [ColPiece::Count(n), ColPiece::Auto] => {
+            (ColWidth::Auto, ColCount::N(*n))
+        }
+        [ColPiece::Auto, ColPiece::Width(px)] | [ColPiece::Width(px), ColPiece::Auto] => {
+            (ColWidth::Px(*px), ColCount::Auto)
+        }
+        [ColPiece::Count(n), ColPiece::Width(px)] | [ColPiece::Width(px), ColPiece::Count(n)] => {
+            (ColWidth::Px(*px), ColCount::N(*n))
+        }
+        _ => return None,
+    })
 }

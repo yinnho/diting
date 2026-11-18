@@ -17,7 +17,8 @@ use crate::shadow_parse::{
 };
 use crate::sheet::ContainerType;
 use crate::style_kw::{
-    AlignContentMode, AlignMode, BoxSizing, ClearSide, FlexDirection, FlexWrapMode, FloatSide,
+    parse_column_count_token, parse_column_width_token, parse_columns_shorthand, AlignContentMode,
+    AlignMode, BoxSizing, ClearSide, ColCount, ColWidth, FlexDirection, FlexWrapMode, FloatSide,
     JustifyMode, ObjectFit, ObjectPositionPart, Overflow, PositionMode, TextOverflow, WhiteSpace,
 };
 use crate::transform::{parse_transform_origin, parse_transform_with_vp};
@@ -563,6 +564,16 @@ pub(crate) fn apply_logical_motion(
     })
 }
 
+/// One parenthesis-aware token. A second token rejects the longhand.
+fn one_col_token(v: &str) -> Option<String> {
+    let toks = split_sides(v);
+    if toks.len() == 1 {
+        Some(toks[0].to_ascii_lowercase())
+    } else {
+        None
+    }
+}
+
 /// `apply_one` family: flex and grid alignment and tracks.
 /// `None` = not this family's property; the caller tries the next one.
 pub(crate) fn apply_flex_grid(
@@ -828,6 +839,44 @@ pub(crate) fn apply_flex_grid(
             }
             true
         }
+        "column-width" => {
+            match one_col_token(v).and_then(|t| parse_column_width_token(&t, fonts)) {
+                Some(ColWidth::Auto) => {
+                    style.column_width = None;
+                    true
+                }
+                Some(ColWidth::Px(px)) => {
+                    style.column_width = Some(Length::Px(px));
+                    true
+                }
+                None => false,
+            }
+        }
+        "column-count" => match one_col_token(v).and_then(|t| parse_column_count_token(&t)) {
+            Some(ColCount::Auto) => {
+                style.column_count = None;
+                true
+            }
+            Some(ColCount::N(n)) => {
+                style.column_count = Some(n);
+                true
+            }
+            None => false,
+        },
+        "columns" => match parse_columns_shorthand(v, fonts) {
+            Some((width, count)) => {
+                style.column_width = match width {
+                    ColWidth::Auto => None,
+                    ColWidth::Px(px) => Some(Length::Px(px)),
+                };
+                style.column_count = match count {
+                    ColCount::Auto => None,
+                    ColCount::N(n) => Some(n),
+                };
+                true
+            }
+            None => false,
+        },
         _ => return None,
     })
 }

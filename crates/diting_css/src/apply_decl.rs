@@ -289,6 +289,8 @@ css_wide_longhands! {
     "flex-basis" => flex_basis, false;
     "column-gap" => column_gap, false;
     "row-gap" => row_gap, false;
+    "column-width" => column_width, false;
+    "column-count" => column_count, false;
     "margin-top" => margin.top, false;
     "margin-right" => margin.right, false;
     "margin-bottom" => margin.bottom, false;
@@ -346,6 +348,7 @@ fn css_wide_expand(name: &str) -> Option<&'static [&'static str]> {
             "text-decoration-thickness",
         ],
         "outline" => &["outline-style", "outline-color", "outline-width"],
+        "columns" => &["column-width", "column-count"],
         "list-style" => &["list-style-type"],
         // Logical shorthands (#244) expand to their logical longhands (which
         // css_wide_longhands maps onto the physical slots).

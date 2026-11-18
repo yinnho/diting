@@ -2220,6 +2220,55 @@ fn outline_grammar_matches_chrome() {
 }
 
 #[test]
+fn columns_grammar_matches_chrome() {
+    let f = FontCtx::default();
+    let mut s = ComputedStyle::default();
+    assert!(apply_one(&mut s, "columns", "200px 3", &f));
+    assert_eq!(s.column_width, Some(Length::Px(200.0)));
+    assert_eq!(s.column_count, Some(3));
+    // Either order. A repeated leg drops the declaration.
+    assert!(apply_one(&mut s, "columns", "3 12em", &f));
+    assert_eq!(s.column_width, Some(Length::Px(192.0)));
+    assert_eq!(s.column_count, Some(3));
+    assert!(!apply_one(&mut s, "columns", "200px 100px", &f));
+    assert!(!apply_one(&mut s, "columns", "2 3", &f));
+    assert_eq!(s.column_count, Some(3));
+    // Unitless 0 is a width. Count 0 and percents are invalid.
+    assert!(apply_one(&mut s, "columns", "0", &f));
+    assert_eq!(s.column_width, Some(Length::Px(0.0)));
+    assert!(s.column_count.is_none());
+    assert!(!apply_one(&mut s, "column-count", "0", &f));
+    assert!(!apply_one(&mut s, "column-width", "10%", &f));
+    assert!(!apply_one(&mut s, "column-width", "-10px", &f));
+    assert!(apply_one(&mut s, "column-count", "+3", &f));
+    assert_eq!(s.column_count, Some(3));
+    assert!(apply_one(&mut s, "column-width", "calc(10px + 2px)", &f));
+    assert_eq!(s.column_width, Some(Length::Px(12.0)));
+    assert!(apply_one(&mut s, "columns", "auto auto", &f));
+    assert!(s.column_width.is_none());
+    assert!(s.column_count.is_none());
+    let wide = FontCtx {
+        own: 20.0,
+        viewport_w: 800.0,
+        ..FontCtx::default()
+    };
+    assert!(apply_one(&mut s, "columns", "12em", &wide));
+    assert_eq!(s.column_width, Some(Length::Px(240.0)));
+    assert!(s.column_count.is_none());
+    assert!(apply_one(&mut s, "column-width", "10vw", &wide));
+    assert_eq!(s.column_width, Some(Length::Px(80.0)));
+    // The shorthand resets the count the longhand just set.
+    assert!(apply_one(&mut s, "column-count", "4", &f));
+    assert!(apply_one(&mut s, "columns", "100px", &f));
+    assert_eq!(s.column_width, Some(Length::Px(100.0)));
+    assert!(s.column_count.is_none());
+    assert_eq!(column_width_css(Some(Length::Px(1.5))), "1.5px");
+    assert_eq!(column_width_css(None), "auto");
+    assert_eq!(column_count_css(Some(3)), "3");
+    assert_eq!(column_count_css(None), "auto");
+}
+
+#[test]
 fn ua_text_decoration_tags() {
     let u = Some(TextDecorations {
         underline: true,

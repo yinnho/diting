@@ -455,6 +455,64 @@ fn emphasis_wrap_columns_stroke_shorthands_match_chrome() {
 }
 
 #[test]
+fn columns_stylesheet_matches_chrome() {
+    // Stylesheet columns used to stay "auto". Chrome folds em against the
+    // element's own font-size and omits an auto leg from the shorthand.
+    let mut rt = setup_runtime(
+        "<html><head><style>\
+         #sa { columns: 12em }\
+         #sb { font-size: 20px; columns: 12em }\
+         #sc { columns: 3 200px }\
+         #sd { column-width: 12em }\
+         #se { column-count: 3 }\
+         #sf { columns: auto 3 }\
+         #sg { columns: 200px auto }\
+         #sh { column-width: 0 }\
+         #si { column-width: calc(10px + 2px) }\
+         #sj { columns: 100px 2; column-count: 4 }\
+         #sk { column-count: 4; columns: 100px }\
+         #sl { column-width: 1.5px }\
+         </style></head><body>\
+         <div id='sa'></div><div id='sb'></div><div id='sc'></div>\
+         <div id='sd'></div><div id='se'></div><div id='sf'></div>\
+         <div id='sg'></div><div id='sh'></div><div id='si'></div>\
+         <div id='sj'></div><div id='sk'></div><div id='sl'></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"JSON.stringify((() => {
+              const g = (id) => {
+                const cs = getComputedStyle(document.getElementById(id));
+                return { c: cs.columns, w: cs.columnWidth, n: cs.columnCount };
+              };
+              return { sa: g('sa'), sb: g('sb'), sc: g('sc'), sd: g('sd'),
+                       se: g('se'), sf: g('sf'), sg: g('sg'), sh: g('sh'),
+                       si: g('si'), sj: g('sj'), sk: g('sk'), sl: g('sl') };
+            })())"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["sa"]["c"], serde_json::json!("192px"));
+    assert_eq!(v["sa"]["w"], serde_json::json!("192px"));
+    assert_eq!(v["sa"]["n"], serde_json::json!("auto"));
+    assert_eq!(v["sb"]["c"], serde_json::json!("240px"));
+    assert_eq!(v["sc"]["c"], serde_json::json!("200px 3"));
+    assert_eq!(v["sd"]["w"], serde_json::json!("192px"));
+    assert_eq!(v["sd"]["c"], serde_json::json!("192px"));
+    assert_eq!(v["se"]["c"], serde_json::json!("3"));
+    assert_eq!(v["se"]["n"], serde_json::json!("3"));
+    assert_eq!(v["sf"]["c"], serde_json::json!("3"));
+    assert_eq!(v["sg"]["c"], serde_json::json!("200px"));
+    assert_eq!(v["sh"]["w"], serde_json::json!("0px"));
+    assert_eq!(v["si"]["w"], serde_json::json!("12px"));
+    assert_eq!(v["sj"]["c"], serde_json::json!("100px 4"));
+    assert_eq!(v["sk"]["c"], serde_json::json!("100px"));
+    assert_eq!(v["sk"]["n"], serde_json::json!("auto"));
+    assert_eq!(v["sl"]["w"], serde_json::json!("1.5px"));
+}
+
+#[test]
 fn gap_grid_place_and_marker_shorthands_match_chrome() {
     // Chrome 157: gap is row then column, collapsed when equal. grid is
     // rows / columns / areas / auto-flow / auto-rows / auto-columns.
