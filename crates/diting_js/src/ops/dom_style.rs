@@ -661,6 +661,33 @@ pub(crate) fn dom_cmd_scroll_style(
                         ] {
                             obj.insert(name.to_string(), serde_json::Value::String(value));
                         }
+                        // A grid container's template rows/columns resolve to
+                        // the used track list. A block keeps the specified
+                        // spelling (`repeat()`, `1fr`), and so does
+                        // `display: none`, which never becomes a grid box.
+                        if target.display == Some(diting_css::Display::Grid) {
+                            let tracks =
+                                gs.geometry_cache
+                                    .borrow()
+                                    .as_ref()
+                                    .and_then(|(e, solved, _)| {
+                                        if *e == epoch {
+                                            solved.used_grid_templates(nid)
+                                        } else {
+                                            None
+                                        }
+                                    });
+                            if let Some((rows, cols)) = tracks {
+                                obj.insert(
+                                    "grid-template-rows".to_string(),
+                                    serde_json::Value::String(rows),
+                                );
+                                obj.insert(
+                                    "grid-template-columns".to_string(),
+                                    serde_json::Value::String(cols),
+                                );
+                            }
+                        }
                     }
                     serde_json::Value::Object(obj).to_string()
                 }
