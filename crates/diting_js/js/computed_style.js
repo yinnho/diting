@@ -1008,12 +1008,17 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
         const v = target.getPropertyValue(name);
         return v && !_CSS_WIDE_KW.test(v) ? v : '';
       };
-      if (!style) style = readLong('text-decoration-style').toLowerCase();
+      if (!style) style = String(lookup('text-decoration-style') || '').toLowerCase();
       if (!color) {
-        const c = readLong('text-decoration-color');
-        if (c && c.toLowerCase() !== 'currentcolor') color = _cssComputedColor(c) || c;
+        const snap = snapshot.rendered;
+        if (snap && Object.prototype.hasOwnProperty.call(snap, 'text-decoration-color')) {
+          color = snap['text-decoration-color'];
+        } else {
+          const c = readLong('text-decoration-color');
+          if (c && c.toLowerCase() !== 'currentcolor') color = _cssComputedColor(c) || c;
+        }
       }
-      if (!thick) thick = readLong('text-decoration-thickness');
+      if (!thick) thick = lookup('text-decoration-thickness') || '';
       const line = lookup('text-decoration-line');
       const bits = [];
       if (line && line !== 'none') bits.push(line);

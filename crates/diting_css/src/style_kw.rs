@@ -4,7 +4,7 @@
 //! names the color and length probes a shorthand token is tested against.
 
 use crate::color::parse_color;
-use crate::geom::parse_css_length;
+use crate::geom::{parse_css_length, resolve_len, FontCtx, Length};
 use crate::len_parse::split_sides;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -162,11 +162,150 @@ impl TextDecorations {
     }
 }
 
-/// Shared grammar for `text-decoration-line` (shorthand=false) and the
-/// `text-decoration` shorthand (true: style keywords, colors and thickness
-/// tokens are accepted and dropped). `none` clears the set; an unknown token
-/// invalidates the whole declaration (None) like any CSS parse error, so a
-/// bogus value never strips a UA decoration by accident.
+pub fn deco_style_css(style: Option<DecoStyle>) -> &'static str {
+    match style {
+        Some(DecoStyle::Double) => "double",
+        Some(DecoStyle::Dotted) => "dotted",
+        Some(DecoStyle::Dashed) => "dashed",
+        Some(DecoStyle::Wavy) => "wavy",
+        None => "solid",
+    }
+}
+
+pub fn deco_thick_css(thick: Option<DecoThick>) -> String {
+    match thick {
+        Some(DecoThick::FromFont) => "from-font".into(),
+        Some(DecoThick::Len(Length::Px(v))) => {
+            if (v - v.round()).abs() < f32::EPSILON {
+                format!("{}px", v as i64)
+            } else {
+                let s = format!("{v}");
+                format!("{}px", s.trim_end_matches('0').trim_end_matches('.'))
+            }
+        }
+        Some(DecoThick::Len(Length::Percent(p))) => format!("{p}%"),
+        _ => "auto".into(),
+    }
+}
+
+/// `text-decoration-style`. `None` on the style slot is the initial `solid`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DecoStyle {
+    Double,
+    Dotted,
+    Dashed,
+    Wavy,
+}
+
+/// `text-decoration-thickness` other than the initial `auto` (`None`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DecoThick {
+    FromFont,
+    Len(Length),
+}
+
+/// One `text-decoration` shorthand. Omitted legs stay `None` (solid /
+/// currentcolor / auto). The line set is empty when the shorthand named no
+/// line keyword — that still resets the line to `none`.
+pub(crate) struct ParsedTextDecoration {
+    pub line: TextDecorations,
+    pub style: Option<DecoStyle>,
+    pub color: Option<crate::geom::Color>,
+    pub thick: Option<DecoThick>,
+}
+
+/// `text-decoration` shorthand. A style, color, or thickness with no line
+/// keyword is valid and resets the line to `none`.
+pub(crate) fn parse_text_decoration_shorthand(
+    v: &str,
+    fonts: &FontCtx,
+) -> Option<ParsedTextDecoration> {
+    let mut line = TextDecorations::default();
+    let mut saw_line = false;
+    let mut saw = false;
+    let mut style = None;
+    let mut color = None;
+    let mut thick = None;
+    for tok in split_sides(v) {
+        let t = tok.to_ascii_lowercase();
+        match t.as_str() {
+            "underline" => {
+                line.underline = true;
+                saw_line = true;
+                saw = true;
+            }
+            "overline" => {
+                line.overline = true;
+                saw_line = true;
+                saw = true;
+            }
+            "line-through" => {
+                line.line_through = true;
+                saw_line = true;
+                saw = true;
+            }
+            "none" if !saw_line => {
+                line = TextDecorations::default();
+                saw_line = true;
+                saw = true;
+            }
+            "solid" => {
+                style = None;
+                saw = true;
+            }
+            "double" => {
+                style = Some(DecoStyle::Double);
+                saw = true;
+            }
+            "dotted" => {
+                style = Some(DecoStyle::Dotted);
+                saw = true;
+            }
+            "dashed" => {
+                style = Some(DecoStyle::Dashed);
+                saw = true;
+            }
+            "wavy" => {
+                style = Some(DecoStyle::Wavy);
+                saw = true;
+            }
+            "auto" => {
+                thick = None;
+                saw = true;
+            }
+            "from-font" => {
+                thick = Some(DecoThick::FromFont);
+                saw = true;
+            }
+            "currentcolor" => {
+                color = None;
+                saw = true;
+            }
+            _ => {
+                if let Some(c) = parse_color(&t) {
+                    color = Some(c);
+                    saw = true;
+                } else {
+                    let len = parse_css_length(&t)?;
+                    thick = Some(DecoThick::Len(resolve_len(len, fonts)));
+                    saw = true;
+                }
+            }
+        }
+    }
+    if !saw {
+        return None;
+    }
+    Some(ParsedTextDecoration {
+        line,
+        style,
+        color,
+        thick,
+    })
+}
+
+/// Shared grammar for `text-decoration-line`. `none` clears the set; an
+/// unknown token invalidates the whole declaration (None).
 pub(crate) fn parse_text_decoration(v: &str, shorthand: bool) -> Option<TextDecorations> {
     let mut out = TextDecorations::default();
     let mut saw_line = false;

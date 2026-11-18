@@ -87,6 +87,9 @@ pub(crate) const COMPUTED_STYLE_PROPS: &[&str] = &[
     "table-layout",
     "vertical-align",
     "text-decoration-line",
+    "text-decoration-style",
+    "text-decoration-color",
+    "text-decoration-thickness",
     "font-size",
     "font-weight",
     "text-align",
@@ -307,6 +310,12 @@ fn computed_box(
             .join(" "),
             _ => "none".to_string(),
         }),
+        "text-decoration-style" => Some(diting_css::deco_style_css(s.text_decoration_style).into()),
+        "text-decoration-thickness" => {
+            Some(diting_css::deco_thick_css(s.text_decoration_thickness))
+        }
+        // Absent when the color is currentcolor.
+        "text-decoration-color" => s.text_decoration_color.as_ref().map(cssom_color),
         "float" => Some(
             match s.float_side {
                 Some(FloatSide::Left) => "left",
