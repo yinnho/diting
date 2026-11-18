@@ -326,6 +326,39 @@ fn grid_track_percent_calc_stays_symbolic() {
 }
 
 #[test]
+fn grid_track_min_max_keeps_percent() {
+    // Mixed min/max/clamp stay in source order. em folds. A pure-length
+    // call collapses to px. A missing space after the comma is filled in.
+    let fonts = FontCtx {
+        own: 20.0,
+        ..FontCtx::default()
+    };
+    let mut s = ComputedStyle::default();
+    apply_declarations(&mut s, "grid-template-columns: min(40px, 50%)");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("min(40px, 50%)"));
+    apply_declarations(&mut s, "grid-template-columns: min(50%,40px)");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("min(50%, 40px)"));
+    apply_declarations(&mut s, "grid-template-columns: max(10px, 20%)");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("max(10px, 20%)"));
+    apply_declarations_with(&mut s, "grid-template-columns: min(1em, 50%)", &fonts);
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("min(20px, 50%)"));
+    apply_declarations(&mut s, "grid-template-columns: clamp(10px, 50%, 40px)");
+    assert_eq!(
+        s.grid_cols_specified.as_deref(),
+        Some("clamp(10px, 50%, 40px)")
+    );
+    apply_declarations(&mut s, "grid-template-columns: min(10px, 20px)");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("10px"));
+    apply_declarations(&mut s, "grid-template-columns: clamp(10px, 20px, 40px)");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("20px"));
+    apply_declarations(&mut s, "grid-template-columns: minmax(0, min(50%, 40px))");
+    assert_eq!(
+        s.grid_cols_specified.as_deref(),
+        Some("minmax(0px, min(50%, 40px))")
+    );
+}
+
+#[test]
 fn grid_repeat_expands_inline() {
     // The landing-page idiom: repeat(4, 1fr). Before this batch the
     // token failed to parse, the whole declaration dropped, and the

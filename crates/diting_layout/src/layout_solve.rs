@@ -627,6 +627,7 @@ pub fn layout_solve_rooted(
     base_url: Option<&str>,
     root: Option<NodeId>,
 ) -> SolvedGeometry {
+    crate::style_map::reset_track_exprs();
     let mut taffy_tree = TaffyTree::new();
     let mut node_map: HashMap<diting_taffy::tree::NodeId, NodeId> = HashMap::new();
 

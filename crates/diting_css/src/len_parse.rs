@@ -182,6 +182,7 @@ pub(super) fn parse_grid_track_token(tok: &str, fonts: &FontCtx) -> Option<GridT
         TrackSize::Px(px) => GridTrack::Px(px),
         TrackSize::Percent(p) => GridTrack::Percent(p),
         TrackSize::Calc { percent, px } => GridTrack::Calc { percent, px },
+        TrackSize::Math { op, n, args } => GridTrack::Math { op, n, args },
         TrackSize::Auto => GridTrack::Auto,
     })
 }
@@ -199,6 +200,9 @@ pub(super) fn parse_track_size(tok: &str, fonts: &FontCtx) -> Option<TrackSize> 
         return fr.css_f32().map(TrackSize::Fr);
     }
     if let Some(sz) = track_calc_size(tok, fonts) {
+        return Some(sz);
+    }
+    if let Some(sz) = track_math_size(tok, fonts) {
         return Some(sz);
     }
     if let Some(px) = track_px(tok, fonts) {
@@ -245,6 +249,103 @@ fn track_calc_css(percent: f32, px: f32) -> String {
     } else {
         format!("calc({}% + {}px)", css_num(percent), css_num(px))
     }
+}
+
+/// `min` / `max` / `clamp` that still contains a percentage. Pure lengths
+/// fold in `track_px`. Arguments stay in source order; `em` becomes px.
+fn track_math_size(tok: &str, fonts: &FontCtx) -> Option<TrackSize> {
+    let head = tok.split('(').next()?.trim();
+    let op = if head.eq_ignore_ascii_case("min") {
+        0
+    } else if head.eq_ignore_ascii_case("max") {
+        1
+    } else if head.eq_ignore_ascii_case("clamp") {
+        2
+    } else {
+        return None;
+    };
+    if !tok.contains('%') {
+        return None;
+    }
+    let name = match op {
+        0 => "min",
+        1 => "max",
+        _ => "clamp",
+    };
+    let inner = paren_fn_inner(tok, name)?;
+    let src = split_top_commas(inner);
+    if src.is_empty() || src.len() > 4 || (op == 2 && src.len() != 3) {
+        return None;
+    }
+    let mut args = [(0.0f32, 0.0f32); 4];
+    for (i, arg) in src.iter().enumerate() {
+        args[i] = math_arg(arg, fonts)?;
+    }
+    Some(TrackSize::Math {
+        op,
+        n: src.len() as u8,
+        args,
+    })
+}
+
+fn math_arg(arg: &str, fonts: &FontCtx) -> Option<(f32, f32)> {
+    if let Some(sz) = track_calc_size(arg, fonts) {
+        return match sz {
+            TrackSize::Percent(p) => Some((p, 0.0)),
+            TrackSize::Calc { percent, px } => Some((percent, px)),
+            TrackSize::Px(px) => Some((0.0, px)),
+            _ => None,
+        };
+    }
+    if let Some(px) = track_px(arg, fonts) {
+        return Some((0.0, px));
+    }
+    arg.strip_suffix('%')
+        .and_then(|p| p.css_f32())
+        .map(|p| (p, 0.0))
+}
+
+fn math_css(op: u8, n: u8, args: [(f32, f32); 4]) -> String {
+    let name = match op {
+        0 => "min",
+        1 => "max",
+        _ => "clamp",
+    };
+    let body = (0..n)
+        .map(|i| term_css(args[i as usize]))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{name}({body})")
+}
+
+fn term_css((percent, px): (f32, f32)) -> String {
+    if percent == 0.0 {
+        format!("{}px", css_num(px))
+    } else if px == 0.0 {
+        format!("{}%", css_num(percent))
+    } else {
+        track_calc_css(percent, px)
+    }
+}
+
+fn split_top_commas(s: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut depth = 0i32;
+    let mut start = 0usize;
+    for (i, c) in s.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => depth -= 1,
+            ',' if depth == 0 => {
+                out.push(s[start..i].trim());
+                start = i + c.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    out.push(s[start..].trim());
+    out.retain(|p| !p.is_empty());
+    out
 }
 
 /// `+` and `-` that join terms need whitespace. A sign after `(` is fine.
@@ -378,6 +479,13 @@ fn specified_size(tok: &str, fonts: &FontCtx) -> Option<String> {
         return Some(match sz {
             TrackSize::Percent(p) => format!("{}%", css_num(p)),
             TrackSize::Calc { percent, px } => track_calc_css(percent, px),
+            TrackSize::Px(px) => format!("{}px", css_num(px)),
+            _ => return None,
+        });
+    }
+    if let Some(sz) = track_math_size(tok, fonts) {
+        return Some(match sz {
+            TrackSize::Math { op, n, args } => math_css(op, n, args),
             TrackSize::Px(px) => format!("{}px", css_num(px)),
             _ => return None,
         });
