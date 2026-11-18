@@ -287,7 +287,7 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
   const defaultsKebab = {
     display: 'block', visibility: 'visible', opacity: '1',
     position: 'static', overflow: 'visible',
-    transform: 'none', 'transform-origin': '0px 0px',
+    transform: 'none', 'transform-origin': '50% 50% 0px',
     transition: 'none', animation: 'none',
     float: 'none', clear: 'none',
     margin: '0px', padding: '0px',

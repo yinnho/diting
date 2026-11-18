@@ -1150,6 +1150,7 @@ fn test_get_computed_style_initial_values_not_empty() {
                     rowColor: getComputedStyle(document.getElementById('d')).rowRuleColor,
                     textFit: getComputedStyle(document.getElementById('d')).textFit,
                     markerGroup: getComputedStyle(document.getElementById('d')).scrollMarkerGroup,
+                    origin: getComputedStyle(document.getElementById('d')).transformOrigin,
                 })"#,
             )
             .unwrap();
@@ -1262,6 +1263,7 @@ fn test_get_computed_style_initial_values_not_empty() {
     assert_eq!(v["rowColor"], serde_json::json!("rgb(0, 0, 0)"));
     assert_eq!(v["textFit"], serde_json::json!("none"));
     assert_eq!(v["markerGroup"], serde_json::json!("none"));
+    assert_eq!(v["origin"], serde_json::json!("50% 50% 0px"));
 }
 
 /// Upstream a0e1ba5: CSSStyleDeclaration is a real global interface — the
