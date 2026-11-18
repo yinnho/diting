@@ -469,8 +469,10 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
     'align-self': 'auto', 'flex-grow': '0', 'flex-shrink': '1',
     'flex-basis': 'auto', 'grid-column': 'auto', 'grid-row': 'auto',
     'transition-property': 'all', 'transition-duration': '0s',
-    'animation-name': 'none', 'animation-duration': '0s',
+    'animation-name': 'none', 'animation-duration': '0s', 'animation-delay': '0s',
+    'animation-direction': 'normal', 'animation-fill-mode': 'none', 'animation-play-state': 'running',
     'animation-iteration-count': '1', 'animation-timing-function': 'ease',
+    'transition-delay': '0s', 'transition-timing-function': 'ease',
     'user-select': 'auto', 'box-shadow': 'none', 'text-shadow': 'none',
     'content': 'normal', 'order': '0', 'object-fit': 'fill',
     'resize': 'none', 'appearance': 'none', 'filter': 'none',
@@ -528,7 +530,10 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
         // collapse to rgb() and unequal borders stay "".
         const rebuilt = kebab === 'margin' || kebab === 'padding' || kebab === 'border'
           || kebab === 'outline' || kebab === 'border-top' || kebab === 'border-right'
-          || kebab === 'border-bottom' || kebab === 'border-left';
+          || kebab === 'border-bottom' || kebab === 'border-left'
+          || kebab === 'font' || kebab === 'flex' || kebab === 'flex-flow'
+          || kebab === 'list-style' || kebab === 'background'
+          || kebab === 'animation' || kebab === 'transition';
         if (!rebuilt) {
           if (_isComputedColorProp(kebab)) {
             const painted = _cssComputedColor(inlineVal);
@@ -597,6 +602,54 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
       const t = one('top'), r = one('right'), b = one('bottom'), l = one('left');
       if (t && t === r && t === b && t === l) return t;
       return '';
+    }
+    if (kebab === 'font') {
+      const style = lookup('font-style');
+      const variant = lookup('font-variant');
+      const weight = lookup('font-weight');
+      const stretch = lookup('font-stretch');
+      const size = lookup('font-size');
+      const lh = lookup('line-height');
+      const family = lookup('font-family');
+      if (size && family) {
+        const bits = [];
+        if (style && style !== 'normal') bits.push(style);
+        if (variant && variant !== 'normal') bits.push(variant);
+        if (weight && weight !== '400' && weight !== 'normal') bits.push(weight);
+        if (stretch && stretch !== '100%' && stretch !== 'normal') bits.push(stretch);
+        bits.push(lh && lh !== 'normal' ? size + ' / ' + lh : size);
+        bits.push(family);
+        return bits.join(' ');
+      }
+    }
+    if (kebab === 'flex') {
+      const g = lookup('flex-grow'), s = lookup('flex-shrink'), b = lookup('flex-basis');
+      if (g && s && b) return g + ' ' + s + ' ' + b;
+    }
+    if (kebab === 'flex-flow') {
+      const d = lookup('flex-direction'), w = lookup('flex-wrap');
+      if (d && w) return d + ' ' + w;
+    }
+    if (kebab === 'list-style') {
+      const t = lookup('list-style-type'), p = lookup('list-style-position'), i = lookup('list-style-image');
+      if (t && p && i) return t + ' ' + p + ' ' + i;
+    }
+    if (kebab === 'background') {
+      const c = lookup('background-color'), img = lookup('background-image');
+      const rep = lookup('background-repeat'), att = lookup('background-attachment');
+      const pos = lookup('background-position'), size = lookup('background-size');
+      const origin = lookup('background-origin'), clip = lookup('background-clip');
+      if (c && img && rep && att && pos && size && origin && clip) {
+        return c + ' ' + img + ' ' + rep + ' ' + att + ' ' + pos + ' / ' + size + ' ' + origin + ' ' + clip;
+      }
+    }
+    if (kebab === 'animation') {
+      const parts = ['animation-name', 'animation-duration', 'animation-timing-function', 'animation-delay', 'animation-iteration-count', 'animation-direction', 'animation-fill-mode', 'animation-play-state'].map((n) => lookup(n));
+      if (parts.every(Boolean)) return parts.join(' ');
+    }
+    if (kebab === 'transition') {
+      const parts = ['transition-property', 'transition-duration', 'transition-timing-function', 'transition-delay'].map((n) => lookup(n));
+      if (parts.every(Boolean)) return parts.join(' ');
     }
     if (kebab === 'outline') {
       // Cascade doesn't store outline longhands. An authored shorthand is
