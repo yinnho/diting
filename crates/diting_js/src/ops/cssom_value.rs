@@ -1161,6 +1161,36 @@ pub(super) fn content_inline_for(
     Some(w - border_lr - side(&st.padding.left) - side(&st.padding.right))
 }
 
+/// Content-box block size of `nid`'s parent: the containing block height
+/// for a relative element's top/bottom percentages. Padding percentages
+/// resolve against the parent's inline containing block, same as CSS.
+#[cfg(feature = "screenshot")]
+pub(crate) fn content_block_for(
+    dom: &DomTree,
+    rects: &std::collections::HashMap<NodeId, [f32; 4]>,
+    styles: &std::collections::HashMap<NodeId, diting_css::ComputedStyle>,
+    nid: NodeId,
+    depth: u8,
+) -> Option<f32> {
+    use diting_css::Length;
+    let p = dom.with_node(nid, |n| n.parent).flatten()?;
+    let st = styles.get(&p)?;
+    let h = rects.get(&p)?[3];
+    let border_tb = if st.border_style.is_some() {
+        used_px(&st.border_width.top) + used_px(&st.border_width.bottom)
+    } else {
+        0.0
+    };
+    let cb_w = cb_inline_for(dom, rects, styles, p, depth).unwrap_or(rects.get(&p)?[2]);
+    let side = |l: &Option<Length>| match l {
+        Some(Length::Px(v)) => *v,
+        Some(Length::Percent(pct)) => pct * cb_w / 100.0,
+        Some(Length::Calc { percent, px }) => percent * cb_w / 100.0 + px,
+        _ => 0.0,
+    };
+    Some((h - border_tb - side(&st.padding.top) - side(&st.padding.bottom)).max(0.0))
+}
+
 /// Laid-out border box plus the containing block's padding box, both in
 /// the same coordinate space. Absolute and fixed insets are the distance
 /// between those edges.
@@ -1187,6 +1217,7 @@ pub(crate) struct UsedGeometry {
 pub(crate) fn used_geometry(
     s: &diting_css::ComputedStyle,
     cb_inline: Option<f32>,
+    cb_block: Option<f32>,
     origin_box: Option<(f32, f32)>,
     placed: Option<&PlacedBox>,
 ) -> UsedGeometry {
@@ -1207,7 +1238,7 @@ pub(crate) fn used_geometry(
             format_number(px(&y, h))
         )
     });
-    let (left, top, right, bottom) = inset_sides(s, cb_inline, placed);
+    let (left, top, right, bottom) = inset_sides(s, cb_inline, cb_block, placed);
     UsedGeometry {
         transform_origin,
         left,
@@ -1279,6 +1310,7 @@ fn relative_axis(
 fn inset_sides(
     s: &diting_css::ComputedStyle,
     cb_inline: Option<f32>,
+    cb_block: Option<f32>,
     placed: Option<&PlacedBox>,
 ) -> (String, String, String, String) {
     use diting_css::PositionMode;
@@ -1298,11 +1330,11 @@ fn inset_sides(
             (one(&s.left), one(&s.top), one(&s.right), one(&s.bottom))
         }
         Some(PositionMode::Relative) => {
-            // Horizontal percentages resolve against the CB inline size.
-            // Vertical percentages need the CB block size, which this layer
-            // does not have; a px inset does not use the basis.
+            // Percentages: inline size for left/right, the parent's content
+            // block size for top/bottom (Chrome uses the laid-out height
+            // even when that height is auto).
             let (left, right) = relative_axis(&s.left, &s.right, cb_inline.unwrap_or(0.0));
-            let (top, bottom) = relative_axis(&s.top, &s.bottom, 0.0);
+            let (top, bottom) = relative_axis(&s.top, &s.bottom, cb_block.unwrap_or(0.0));
             (left, top, right, bottom)
         }
         Some(PositionMode::Absolute | PositionMode::Fixed) => {
