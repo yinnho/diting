@@ -110,6 +110,81 @@ fn font_flex_list_background_shorthands_match_chrome() {
     assert_eq!(v["trOn"], serde_json::json!("opacity 1s linear"));
 }
 
+#[test]
+fn computed_keywords_and_new_initials_match_chrome() {
+    // Chrome 157 (local 157.0.8103.52): medium/thin/thick rule widths are
+    // px, corner-shape keywords are superellipse(), offset-rotate:auto is
+    // "auto 0deg", and the longhands added since the 145 list have initials.
+    let mut rt = setup_runtime(
+        "<html><body><div id='z'></div>\
+         <div id='k' style='column-rule-width: medium; row-rule-width: thick; \
+         corner-top-left-shape: round; offset-rotate: reverse; \
+         column-rule-break: auto; text-emphasis-position: over right'></div>\
+         <p id='c' style='color: red'>x</p></body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"const z = getComputedStyle(document.getElementById('z'));
+            const k = getComputedStyle(document.getElementById('k'));
+            const c = getComputedStyle(document.getElementById('c'));
+            JSON.stringify({
+              ruleW: z.columnRuleWidth, rowW: z.rowRuleWidth,
+              ruleB: z.columnRuleBreak, rowB: z.rowRuleBreak,
+              corner: z.cornerTopLeftShape, mask: z.maskPosition,
+              rot: z.offsetRotate, anchor: z.positionAnchor,
+              vis: z.positionVisibility, emph: z.textEmphasisPosition,
+              slice: z.webkitMaskBoxImageSlice, trig: z.animationTrigger,
+              buf: z.bufferedRendering, colH: z.columnHeight,
+              flexN: z.flexLineCount, frame: z.frameSizing,
+              overlap: z.ruleOverlap, axis: z.scrollAxisLock,
+              drag: z.windowDrag, bimg: z.webkitBorderImage,
+              mimg: z.webkitMaskBoxImage, inset: z.columnRuleInsetCapEnd,
+              visItems: z.columnRuleVisibilityItems, rowVis: z.rowRuleVisibilityItems,
+              src: z.timelineTriggerSource, act: z.timelineTriggerActivationRangeStart,
+              active: z.timelineTriggerActiveRangeStart,
+              kW: k.columnRuleWidth, kRow: k.rowRuleWidth, kCorner: k.cornerTopLeftShape,
+              kRot: k.offsetRotate, kBreak: k.columnRuleBreak, kEmph: k.textEmphasisPosition,
+              caret: c.caretColor
+            })"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["ruleW"], serde_json::json!("3px"));
+    assert_eq!(v["rowW"], serde_json::json!("3px"));
+    assert_eq!(v["ruleB"], serde_json::json!("normal"));
+    assert_eq!(v["rowB"], serde_json::json!("normal"));
+    assert_eq!(v["corner"], serde_json::json!("superellipse(1)"));
+    assert_eq!(v["mask"], serde_json::json!("0% 0%"));
+    assert_eq!(v["rot"], serde_json::json!("auto 0deg"));
+    assert_eq!(v["anchor"], serde_json::json!("normal"));
+    assert_eq!(v["vis"], serde_json::json!("anchor-visible"));
+    assert_eq!(v["emph"], serde_json::json!("over"));
+    assert_eq!(v["slice"], serde_json::json!("0 fill"));
+    assert_eq!(v["trig"], serde_json::json!("none"));
+    assert_eq!(v["buf"], serde_json::json!("auto"));
+    assert_eq!(v["colH"], serde_json::json!("auto"));
+    assert_eq!(v["flexN"], serde_json::json!("1"));
+    assert_eq!(v["frame"], serde_json::json!("auto"));
+    assert_eq!(v["overlap"], serde_json::json!("row-over-column"));
+    assert_eq!(v["axis"], serde_json::json!("auto"));
+    assert_eq!(v["drag"], serde_json::json!("none"));
+    assert_eq!(v["bimg"], serde_json::json!("none"));
+    assert_eq!(v["mimg"], serde_json::json!("none"));
+    assert_eq!(v["inset"], serde_json::json!("0px"));
+    assert_eq!(v["visItems"], serde_json::json!("normal"));
+    assert_eq!(v["rowVis"], serde_json::json!("normal"));
+    assert_eq!(v["src"], serde_json::json!("auto"));
+    assert_eq!(v["act"], serde_json::json!("normal"));
+    assert_eq!(v["active"], serde_json::json!("auto"));
+    assert_eq!(v["kW"], serde_json::json!("3px"));
+    assert_eq!(v["kRow"], serde_json::json!("5px"));
+    assert_eq!(v["kCorner"], serde_json::json!("superellipse(1)"));
+    assert_eq!(v["kRot"], serde_json::json!("auto 180deg"));
+    assert_eq!(v["kBreak"], serde_json::json!("normal"));
+    assert_eq!(v["kEmph"], serde_json::json!("over"));
+    assert_eq!(v["caret"], serde_json::json!("rgb(255, 0, 0)"));
+}
+
 /// #214 (blitz#998): `text-align-last` on the computed face — declared
 /// keywords round-trip verbatim, undeclared reports the css-text-3
 /// initial `auto`, and inheritance rides the cascade (a child sees the
@@ -1338,7 +1413,7 @@ fn test_get_computed_style_initial_values_not_empty() {
     assert_eq!(v["clip"], serde_json::json!("auto"));
     assert_eq!(v["containW"], serde_json::json!("none"));
     assert_eq!(v["ruby"], serde_json::json!("over"));
-    assert_eq!(v["anchor"], serde_json::json!("auto"));
+    assert_eq!(v["anchor"], serde_json::json!("normal"));
     assert_eq!(v["area"], serde_json::json!("none"));
     assert_eq!(v["snapStop"], serde_json::json!("normal"));
     assert_eq!(v["inset"], serde_json::json!("auto"));
@@ -1348,7 +1423,7 @@ fn test_get_computed_style_initial_values_not_empty() {
     assert_eq!(v["caretShape"], serde_json::json!("auto"));
     assert_eq!(v["fontPal"], serde_json::json!("normal"));
     assert_eq!(v["maskSize"], serde_json::json!("auto"));
-    assert_eq!(v["maskPos"], serde_json::json!("50% 50%"));
+    assert_eq!(v["maskPos"], serde_json::json!("0% 0%"));
     assert_eq!(v["logicalR"], serde_json::json!("0px"));
     assert_eq!(v["marginTrim"], serde_json::json!("none"));
     assert_eq!(v["readFlow"], serde_json::json!("normal"));
@@ -1356,7 +1431,7 @@ fn test_get_computed_style_initial_values_not_empty() {
     assert_eq!(v["interp"], serde_json::json!("numeric-only"));
     assert_eq!(v["webkitOri"], serde_json::json!("vertical-right"));
     assert_eq!(v["anchorName"], serde_json::json!("none"));
-    assert_eq!(v["corner"], serde_json::json!("round"));
+    assert_eq!(v["corner"], serde_json::json!("superellipse(1)"));
     assert_eq!(v["maxInline"], serde_json::json!("none"));
     assert_eq!(v["minInline"], serde_json::json!("0px"));
     assert_eq!(v["textWrap"], serde_json::json!("auto"));
@@ -1709,7 +1784,7 @@ async fn gcs_camel_webkit_alias_prefix() {
     );
     assert_eq!(v["hex"], serde_json::json!("rgb(0, 0, 255)"));
     assert_eq!(v["alpha"], serde_json::json!("rgba(0, 0, 255, 0.5)"));
-    assert_eq!(v["caret"], serde_json::json!("auto"));
+    assert_eq!(v["caret"], serde_json::json!("rgb(0, 0, 0)"));
     assert_eq!(v["accent"], serde_json::json!("auto"));
     assert_eq!(v["cols"], serde_json::json!("auto"));
     assert_eq!(
@@ -1724,7 +1799,7 @@ async fn gcs_camel_webkit_alias_prefix() {
     );
     assert_eq!(v["decoStyle"], serde_json::json!("solid"));
     assert_eq!(v["emphasis"], serde_json::json!("none"));
-    assert_eq!(v["emphasisPos"], serde_json::json!("over right"));
+    assert_eq!(v["emphasisPos"], serde_json::json!("over"));
     assert_eq!(
         v["outlineColored"], v["color"],
         "outline-color follows a specified color"
