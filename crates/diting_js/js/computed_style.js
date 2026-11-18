@@ -216,6 +216,52 @@ function _cssComputedColor(raw) {
 function _isComputedColorProp(kebab) {
   return kebab === "color" || kebab.endsWith("-color");
 }
+// Comma-separated longhands repeat the shorter side (CSS list alignment).
+function _cssLayers(vals) {
+  const lists = vals.map((v) => String(v).split(',').map((s) => s.trim()).filter((s) => s.length));
+  if (lists.some((l) => l.length === 0)) return null;
+  const n = lists.reduce((m, l) => Math.max(m, l.length), 0);
+  const rows = [];
+  for (let i = 0; i < n; i++) rows.push(lists.map((l) => l[i % l.length]));
+  return rows;
+}
+// Chrome computed `animation` uses grammar order and drops initial pieces.
+// All-initial is "none". A 0s duration stays only when a delay would
+// otherwise be read as the duration. An explicit 0s with no other change
+// is indistinguishable from the initial here (the cascade stores 0).
+function _cssAnimationShorthand(dur, ease, delay, iter, dir, fill, play, name) {
+  const rows = _cssLayers([dur, ease, delay, iter, dir, fill, play, name]);
+  if (!rows) return '';
+  return rows.map((r) => {
+    const bits = [];
+    const delaySet = r[2] !== '0s';
+    if (r[0] !== '0s' || delaySet) bits.push(r[0]);
+    if (r[1] !== 'ease') bits.push(r[1]);
+    if (delaySet) bits.push(r[2]);
+    if (r[3] !== '1') bits.push(r[3]);
+    if (r[4] !== 'normal') bits.push(r[4]);
+    if (r[5] !== 'none') bits.push(r[5]);
+    if (r[6] !== 'running') bits.push(r[6]);
+    if (r[7] !== 'none') bits.push(r[7]);
+    return bits.length ? bits.join(' ') : 'none';
+  }).join(', ');
+}
+// Chrome computed `transition` drops `all`, `0s`, `ease`, and `normal`
+// when anything else remains. All-initial is "all".
+function _cssTransitionShorthand(prop, dur, ease, delay, behavior) {
+  const rows = _cssLayers([prop, dur, ease, delay, behavior]);
+  if (!rows) return '';
+  return rows.map((r) => {
+    const bits = [];
+    const delaySet = r[3] !== '0s';
+    if (r[0] !== 'all') bits.push(r[0]);
+    if (r[1] !== '0s' || delaySet) bits.push(r[1]);
+    if (r[2] !== 'ease') bits.push(r[2]);
+    if (delaySet) bits.push(r[3]);
+    if (r[4] !== 'normal') bits.push(r[4]);
+    return bits.length ? bits.join(' ') : 'all';
+  }).join(', ');
+}
 globalThis.getComputedStyle = (el, pseudoElt) => {
   const pseudoName = _normalizePseudoElt(pseudoElt);
   if (!el) el = document.body || {};
@@ -631,8 +677,9 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
       if (d && w) return d + ' ' + w;
     }
     if (kebab === 'list-style') {
+      // Chrome's computed order is position, image, type: "outside none disc".
       const t = lookup('list-style-type'), p = lookup('list-style-position'), i = lookup('list-style-image');
-      if (t && p && i) return t + ' ' + p + ' ' + i;
+      if (t && p && i) return p + ' ' + i + ' ' + t;
     }
     if (kebab === 'background') {
       const c = lookup('background-color'), img = lookup('background-image');
@@ -644,12 +691,21 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
       }
     }
     if (kebab === 'animation') {
-      const parts = ['animation-name', 'animation-duration', 'animation-timing-function', 'animation-delay', 'animation-iteration-count', 'animation-direction', 'animation-fill-mode', 'animation-play-state'].map((n) => lookup(n));
-      if (parts.every(Boolean)) return parts.join(' ');
+      const dur = lookup('animation-duration'), ease = lookup('animation-timing-function');
+      const delay = lookup('animation-delay'), iter = lookup('animation-iteration-count');
+      const dir = lookup('animation-direction'), fill = lookup('animation-fill-mode');
+      const play = lookup('animation-play-state'), name = lookup('animation-name');
+      if (dur && ease && delay && iter && dir && fill && play && name) {
+        return _cssAnimationShorthand(dur, ease, delay, iter, dir, fill, play, name);
+      }
     }
     if (kebab === 'transition') {
-      const parts = ['transition-property', 'transition-duration', 'transition-timing-function', 'transition-delay'].map((n) => lookup(n));
-      if (parts.every(Boolean)) return parts.join(' ');
+      const prop = lookup('transition-property'), dur = lookup('transition-duration');
+      const ease = lookup('transition-timing-function'), delay = lookup('transition-delay');
+      const behavior = lookup('transition-behavior');
+      if (prop && dur && ease && delay && behavior) {
+        return _cssTransitionShorthand(prop, dur, ease, delay, behavior);
+      }
     }
     if (kebab === 'outline') {
       // Cascade doesn't store outline longhands. An authored shorthand is
