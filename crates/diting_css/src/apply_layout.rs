@@ -691,6 +691,10 @@ fn parse_auto_flow_side(side: &str, fonts: &FontCtx) -> Option<(bool, Option<Str
     if rest.is_empty() {
         return Some((dense, None));
     }
+    // Auto tracks are `<track-size>+`. A line name makes the shorthand invalid.
+    if rest.contains('[') {
+        return None;
+    }
     parse_grid_tracks(&rest, fonts)?;
     Some((dense, Some(specified_track_list(&rest, fonts)?)))
 }

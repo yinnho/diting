@@ -35,6 +35,7 @@ mod computed;
 mod font_shorthand;
 mod geom;
 mod len_parse;
+pub use len_parse::explicit_track_line_names;
 mod media;
 mod shadow_parse;
 mod sheet;

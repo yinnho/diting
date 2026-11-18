@@ -5,7 +5,7 @@
 //! names the taffy style vocabulary and the text measure it asks for sizes.
 
 use diting_css::{
-    AlignContentMode, AlignMode, ComputedStyle, Display as CssDisplay,
+    explicit_track_line_names, AlignContentMode, AlignMode, ComputedStyle, Display as CssDisplay,
     FlexDirection as CssFlexDirection, FlexWrapMode, GridTrack, JustifyMode, PositionMode,
     TextAlign,
 };
@@ -382,9 +382,19 @@ pub(crate) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
     if display == CssDisplay::Grid {
         if let Some(cols) = &style.grid_template_columns {
             s.grid_template_columns = cols.iter().map(|t| to_grid_track(*t)).collect();
+            assign_line_names(
+                &mut s.grid_template_column_names,
+                style.grid_cols_specified.as_deref(),
+                cols.len(),
+            );
         }
         if let Some(rows) = &style.grid_template_rows {
             s.grid_template_rows = rows.iter().map(|t| to_grid_track(*t)).collect();
+            assign_line_names(
+                &mut s.grid_template_row_names,
+                style.grid_rows_specified.as_deref(),
+                rows.len(),
+            );
         }
         if let Some(matrix) = &style.grid_template_areas {
             if let Some(areas) = template_areas_from_matrix(matrix) {
@@ -685,6 +695,19 @@ pub(crate) fn resolve_track_expr(ptr: *const (), basis: f32) -> f32 {
             }
         }
     })
+}
+
+/// Line names from the specified track list. The groups line up with the
+/// expanded tracks (`len == tracks + 1`); a list with no names stays empty
+/// so an unnamed grid serializes as bare px.
+fn assign_line_names(slot: &mut Vec<Vec<String>>, css: Option<&str>, track_count: usize) {
+    let Some(css) = css else {
+        return;
+    };
+    let names = explicit_track_line_names(css);
+    if names.len() == track_count + 1 {
+        *slot = names;
+    }
 }
 
 /// diting_css track → taffy track: `1fr` maps to minmax(auto, 1fr), a px
