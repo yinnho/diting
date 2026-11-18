@@ -1251,6 +1251,7 @@ pub(crate) fn used_geometry(
     cb_block: Option<f32>,
     origin_box: Option<(f32, f32)>,
     placed: Option<&PlacedBox>,
+    sticky_port: (f32, f32),
 ) -> UsedGeometry {
     use diting_css::Length;
     let transform_origin = origin_box.map(|(w, h)| {
@@ -1274,7 +1275,7 @@ pub(crate) fn used_geometry(
             &z,
         )
     });
-    let (left, top, right, bottom) = inset_sides(s, cb_inline, cb_block, placed);
+    let (left, top, right, bottom) = inset_sides(s, cb_inline, cb_block, placed, sticky_port);
     UsedGeometry {
         transform_origin,
         left,
@@ -1348,6 +1349,7 @@ fn inset_sides(
     cb_inline: Option<f32>,
     cb_block: Option<f32>,
     placed: Option<&PlacedBox>,
+    sticky_port: (f32, f32),
 ) -> (String, String, String, String) {
     use diting_css::PositionMode;
     match s.position {
@@ -1357,13 +1359,19 @@ fn inset_sides(
             spell_specified(&s.right),
             spell_specified(&s.bottom),
         ),
+        // Scrollport content box: width for left/right, height for top/bottom.
         Some(PositionMode::Sticky) => {
-            let basis = cb_inline.unwrap_or(0.0);
-            let one = |l: &Option<diting_css::Length>| match l {
+            let (pw, ph) = sticky_port;
+            let one = |l: &Option<diting_css::Length>, basis: f32| match l {
                 None => "auto".to_string(),
                 Some(v) => px_spell(len_against(v, basis)),
             };
-            (one(&s.left), one(&s.top), one(&s.right), one(&s.bottom))
+            (
+                one(&s.left, pw),
+                one(&s.top, ph),
+                one(&s.right, pw),
+                one(&s.bottom, ph),
+            )
         }
         Some(PositionMode::Relative) => {
             // Percentages: inline size for left/right, the parent's content

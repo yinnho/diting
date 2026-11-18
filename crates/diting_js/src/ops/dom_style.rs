@@ -577,6 +577,8 @@ pub(crate) fn dom_cmd_scroll_style(
                     // the host's containing block.
                     let cb = cb_inline_for(dom, rects, styles, nid, 8);
                     let cb_block = cssom_value::content_block_for(dom, rects, styles, nid, 8);
+                    let sticky_port =
+                        super::layout_run::sticky_scrollport(dom, rects, styles, nid, viewport);
                     let origin_box = local_geom.get(&nid).map(|(b, _)| (b[2], b[3]));
                     let placed = match (
                         local_geom.get(&nid).map(|(b, _)| *b),
@@ -587,7 +589,7 @@ pub(crate) fn dom_cmd_scroll_style(
                         }
                         _ => None,
                     };
-                    style.map(|s| (s, cb, cb_block, origin_box, placed))
+                    style.map(|s| (s, cb, cb_block, origin_box, placed, sticky_port))
                 })
             } else {
                 // Mock keeps the cascade and skips the box tree, so there is
@@ -599,11 +601,11 @@ pub(crate) fn dom_cmd_scroll_style(
                     styles
                         .get(&nid)
                         .cloned()
-                        .map(|s| (s, None, None, None, None))
+                        .map(|s| (s, None, None, None, None, viewport))
                 })
             };
             match style_and_cb {
-                Some((s, cb, cb_block, origin_box, placed)) => {
+                Some((s, cb, cb_block, origin_box, placed, sticky_port)) => {
                     // The pseudo cascade lives on the host's ComputedStyle;
                     // a pseudo with no rule serializes the initial-value
                     // table rather than an empty declaration.
@@ -643,6 +645,7 @@ pub(crate) fn dom_cmd_scroll_style(
                             cb_block,
                             origin_box,
                             placed.as_ref(),
+                            sticky_port,
                         );
                         if let Some(origin) = used.transform_origin {
                             obj.insert(
