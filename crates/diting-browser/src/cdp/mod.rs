@@ -328,8 +328,18 @@ async fn page_method(
             json!({ "identifier": SCRIPT_IDS.fetch_add(1, Ordering::Relaxed).to_string() }),
         )])),
         "Runtime.enable" => runtime_enable(id, session).await,
-        "Runtime.evaluate" | "Runtime.callFunctionOn" | "Runtime.releaseObject" => {
-            runtime_forward(id, session, method, params).await
+        "Runtime.evaluate"
+        | "Runtime.callFunctionOn"
+        | "Runtime.releaseObject"
+        | "Input.dispatchMouseEvent"
+        | "Input.dispatchKeyEvent"
+        | "Input.insertText"
+        | "DOM.getContentQuads" => runtime_forward(id, session, method, params).await,
+        // Answer here, not on the session thread. A session command drops
+        // the layout, and Playwright's next visibility check then says the
+        // element is gone.
+        "DOM.scrollIntoViewIfNeeded" => {
+            Ok(Out::from_frames(vec![ok(id, Some(session), json!({}))]))
         }
         "Emulation.setDeviceMetricsOverride" => set_metrics(id, session, params).await,
         "Target.setAutoAttach" | "Target.detachFromTarget" => {

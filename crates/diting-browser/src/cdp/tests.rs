@@ -256,6 +256,75 @@ async fn connect_goto_eval_screenshot() {
     let body = text["result"]["value"].as_str().unwrap_or("");
     assert!(body.contains("Hello CDP"), "{text}");
 
+    client
+        .call(
+            30,
+            "Page.navigate",
+            json!({
+                "url": "data:text/html,<button id=b style=\"position:fixed;left:8px;top:8px;width:100px;height:40px\" onclick=\"this.dataset.hit='1'\">Go</button><input id=t>"
+            }),
+            Some(&session),
+        )
+        .await;
+    for (id, kind) in [
+        (31u64, "mouseMoved"),
+        (32, "mousePressed"),
+        (33, "mouseReleased"),
+    ] {
+        let mut params =
+            json!({ "type": kind, "x": 20, "y": 20, "button": "left", "clickCount": 1 });
+        if kind == "mousePressed" {
+            params["buttons"] = json!(1);
+        }
+        client
+            .call(id, "Input.dispatchMouseEvent", params, Some(&session))
+            .await;
+    }
+    let hit = client
+        .call(
+            34,
+            "Runtime.evaluate",
+            json!({
+                "expression": "document.getElementById('b').dataset.hit",
+                "returnByValue": true,
+            }),
+            Some(&session),
+        )
+        .await;
+    assert_eq!(hit["result"]["value"], "1", "{hit}");
+
+    client
+        .call(
+            35,
+            "Runtime.evaluate",
+            json!({
+                "expression": "var el = document.getElementById('t'); el.focus(); el.value = 'old'; el.setSelectionRange(0, 3); 'ok'",
+                "returnByValue": true,
+            }),
+            Some(&session),
+        )
+        .await;
+    client
+        .call(
+            36,
+            "Input.insertText",
+            json!({ "text": "new" }),
+            Some(&session),
+        )
+        .await;
+    let filled = client
+        .call(
+            37,
+            "Runtime.evaluate",
+            json!({
+                "expression": "document.getElementById('t').value",
+                "returnByValue": true,
+            }),
+            Some(&session),
+        )
+        .await;
+    assert_eq!(filled["result"]["value"], "new", "{filled}");
+
     #[cfg(feature = "screenshot")]
     {
         let metrics = client
