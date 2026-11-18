@@ -114,18 +114,10 @@ pub(crate) fn parse_grid_tracks(v: &str) -> Option<Vec<GridTrack>> {
         // repeat(N, <track-list>) expands inline to N copies of the list.
         // auto-fill/auto-fit counts need the container's size, which the
         // cascade doesn't have — those reject like any unknown token.
-        if let Some(inner) = token
-            .strip_prefix("repeat(")
-            .and_then(|t| t.strip_suffix(')'))
-        {
-            let (count, list) = inner.split_once(',')?;
-            let count: usize = count.trim().parse().ok()?;
-            // Chrome caps explicit tracks at 1000; repeat expansion must not
-            // let a stylesheet allocate unboundedly.
-            if count == 0 || count > 1000 {
-                return None;
-            }
-            let expanded = parse_grid_tracks(list.trim())?;
+        if let Some(inner) = paren_fn_inner(token, "repeat") {
+            let (count, list) = split_first_top_comma(inner)?;
+            let count = repeat_count(count)?;
+            let expanded = parse_grid_tracks(list)?;
             for _ in 0..count {
                 tracks.extend_from_slice(&expanded);
             }
@@ -205,22 +197,184 @@ pub(super) fn parse_track_size(tok: &str) -> Option<TrackSize> {
     {
         return Some(TrackSize::Auto);
     }
-    if let Some(fr) = tok.strip_suffix("fr") {
+    if let Some(fr) = strip_unit(tok, "fr") {
         return fr.css_f32().map(TrackSize::Fr);
     }
-    if let Some(px) = parse_px_f32(tok) {
-        return Some(TrackSize::Px(px));
+    if let Some(px) = strip_unit(tok, "px") {
+        return px.css_f32().map(TrackSize::Px);
     }
-    if let Some(r) = tok.strip_suffix("rem") {
+    // rem folds at the 16px root, the same absolute px Chrome computes
+    // when the root font is `medium`.
+    if let Some(r) = strip_unit(tok, "rem") {
         return r.css_f32().map(|n| TrackSize::Px(n * 16.0));
     }
     if let Some(p) = tok.strip_suffix('%') {
         return p.css_f32().map(TrackSize::Percent);
     }
-    if tok == "0" {
+    // Unitless zero is a length. `0fr` and `0%` already returned above.
+    if unitless_zero(tok) {
         return Some(TrackSize::Px(0.0));
     }
     None
+}
+
+/// Chrome's computed track list. `repeat()` stays. A bare zero becomes
+/// `0px`, `minmax(0, 1fr)` becomes `minmax(0px, 1fr)`, and `11.5rem`
+/// becomes `184px`. `0fr` and `0%` stay flex and percent.
+pub(crate) fn specified_track_list(v: &str) -> Option<String> {
+    let mut rest = v.trim();
+    if rest.is_empty() {
+        return None;
+    }
+    let mut parts = Vec::new();
+    while !rest.is_empty() {
+        let (tok, tail) = next_track_token(rest)?;
+        parts.push(specified_track_token(tok)?);
+        rest = tail.trim_start();
+    }
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join(" "))
+    }
+}
+
+/// `grid-auto-rows` / `grid-auto-columns`: one or more track sizes.
+/// `repeat()` is not a track size, so Chrome drops it.
+pub(crate) fn specified_auto_tracks(v: &str) -> Option<String> {
+    let mut rest = v.trim();
+    if rest.is_empty() {
+        return None;
+    }
+    let mut parts = Vec::new();
+    while !rest.is_empty() {
+        let (tok, tail) = next_track_token(rest)?;
+        if paren_fn_inner(tok, "repeat").is_some() {
+            return None;
+        }
+        parts.push(specified_track_token(tok)?);
+        rest = tail.trim_start();
+    }
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join(" "))
+    }
+}
+
+fn specified_track_token(tok: &str) -> Option<String> {
+    if let Some(inner) = paren_fn_inner(tok, "repeat") {
+        let (count, list) = split_first_top_comma(inner)?;
+        let count = repeat_count(count)?;
+        let inner = specified_track_list(list)?;
+        return Some(format!("repeat({count}, {inner})"));
+    }
+    if let Some(inner) = paren_fn_inner(tok, "minmax") {
+        let (a, b) = split_first_top_comma(inner)?;
+        let a = specified_size(a)?;
+        let b = specified_size(b)?;
+        return Some(format!("minmax({a}, {b})"));
+    }
+    specified_size(tok)
+}
+
+fn specified_size(tok: &str) -> Option<String> {
+    if tok.eq_ignore_ascii_case("auto") {
+        return Some("auto".to_string());
+    }
+    if tok.eq_ignore_ascii_case("min-content") {
+        return Some("min-content".to_string());
+    }
+    if tok.eq_ignore_ascii_case("max-content") {
+        return Some("max-content".to_string());
+    }
+    if let Some(fr) = strip_unit(tok, "fr") {
+        return Some(format!("{}fr", css_num(fr.css_f32()?)));
+    }
+    if let Some(px) = strip_unit(tok, "px") {
+        return Some(format!("{}px", css_num(px.css_f32()?)));
+    }
+    if let Some(r) = strip_unit(tok, "rem") {
+        return Some(format!("{}px", css_num(r.css_f32()? * 16.0)));
+    }
+    if let Some(p) = tok.strip_suffix('%') {
+        return Some(format!("{}%", css_num(p.css_f32()?)));
+    }
+    if unitless_zero(tok) {
+        return Some("0px".to_string());
+    }
+    None
+}
+
+fn css_num(n: f32) -> String {
+    let r = n.round();
+    if (n - r).abs() < 1e-3 && r.abs() < 1.0e7 {
+        format!("{}", r as i64)
+    } else {
+        format!("{n:.6}")
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
+    }
+}
+
+fn unitless_zero(tok: &str) -> bool {
+    if tok
+        .chars()
+        .any(|c| c.is_ascii_alphabetic() && !matches!(c, 'e' | 'E'))
+    {
+        return false;
+    }
+    matches!(tok.css_f32(), Some(n) if n == 0.0)
+}
+
+fn strip_unit<'a>(tok: &'a str, unit: &str) -> Option<&'a str> {
+    if tok.len() > unit.len() && tok[tok.len() - unit.len()..].eq_ignore_ascii_case(unit) {
+        Some(&tok[..tok.len() - unit.len()])
+    } else {
+        None
+    }
+}
+
+fn paren_fn_inner<'a>(tok: &'a str, name: &str) -> Option<&'a str> {
+    if tok.len() > name.len() + 1
+        && tok.as_bytes().get(name.len()) == Some(&b'(')
+        && tok.ends_with(')')
+        && tok[..name.len()].eq_ignore_ascii_case(name)
+    {
+        Some(&tok[name.len() + 1..tok.len() - 1])
+    } else {
+        None
+    }
+}
+
+fn split_first_top_comma(s: &str) -> Option<(&str, &str)> {
+    let mut depth = 0i32;
+    for (i, c) in s.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => depth -= 1,
+            ',' if depth == 0 => return Some((s[..i].trim(), s[i + 1..].trim())),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// `+2` is a count. Zero and counts above 1000 are invalid.
+fn repeat_count(raw: &str) -> Option<usize> {
+    let raw = raw.trim();
+    let digits = match raw.strip_prefix('+') {
+        Some(rest) if !rest.is_empty() && !rest.starts_with('+') => rest,
+        Some(_) => return None,
+        None => raw,
+    };
+    let count: usize = digits.parse().ok()?;
+    if count == 0 || count > 1000 {
+        None
+    } else {
+        Some(count)
+    }
 }
 
 /// `'a b' 'c d'` → `[[a, b], [c, d]]`. Every string row must have the same
@@ -282,7 +436,7 @@ pub(crate) fn parse_grid_areas_template(v: &str) -> Option<GridAreasTemplate> {
         } else {
             let (tok, tail) = next_track_token(rest)?;
             rows.push(parse_grid_track_token(tok)?);
-            rows_css.push(tok.trim().to_string());
+            rows_css.push(specified_track_list(tok)?);
             rest = tail.trim_start();
         }
     }
@@ -292,7 +446,10 @@ pub(crate) fn parse_grid_areas_template(v: &str) -> Option<GridAreasTemplate> {
         if cols.is_empty() || cols.eq_ignore_ascii_case("none") {
             return None;
         }
-        (Some(parse_grid_tracks(cols)?), Some(cols.to_string()))
+        (
+            Some(parse_grid_tracks(cols)?),
+            Some(specified_track_list(cols)?),
+        )
     } else if rest.is_empty() {
         (None, None)
     } else {

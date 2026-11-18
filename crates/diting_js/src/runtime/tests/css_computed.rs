@@ -1019,6 +1019,100 @@ fn grid_areas_shorthand_matches_chrome() {
 }
 
 #[test]
+fn grid_track_zero_matches_chrome() {
+    // Chrome 157 computes a bare zero as 0px inside minmax() and repeat().
+    // 0fr and 0% stay. A grid container still resolves the track to used px.
+    // display:none keeps the specified spelling. repeat() is not a value of
+    // grid-auto-rows, so that declaration drops and the earlier 10px stays.
+    let mut rt = setup_runtime(
+        "<html><head><style>body { margin: 0 }</style></head><body>\
+         <div id='a' style='grid-template-columns:minmax(0, 1fr)'></div>\
+         <div id='b' style='grid-template-columns:0'></div>\
+         <div id='c' style='grid-template-columns:repeat(2, minmax(0, 1fr))'></div>\
+         <div id='d' style='grid-template-columns:0fr'></div>\
+         <div id='e' style='grid-template-columns:0%'></div>\
+         <div id='f' style='grid-template-columns:minmax(0,1fr)'></div>\
+         <div id='g' style='grid-template-columns:11.5rem'></div>\
+         <div id='h' style='display:none;grid-template-columns:minmax(0, 1fr)'></div>\
+         <div id='i' style='display:grid;width:200px;grid-template-columns:minmax(0, 1fr)'></div>\
+         <div id='j' style='grid-auto-rows:minmax(0, 1fr)'></div>\
+         <div id='k' style='grid-auto-columns:0'></div>\
+         <div id='l' style='grid: 100px / minmax(0, 1fr)'></div>\
+         <div id='m' style='grid-auto-rows:10px;grid-auto-rows:repeat(2, 10px)'></div>\
+         <div id='n' style='grid-template-columns:repeat(4, 1fr)'></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"JSON.stringify((() => {
+              const g = (id) => getComputedStyle(document.getElementById(id)).grid;
+              const ids = 'abcdefghijklmn'.split('');
+              const o = {};
+              for (const id of ids) o[id] = g(id);
+              return o;
+            })())"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(
+        v["a"],
+        serde_json::json!("none / minmax(0px, 1fr) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["b"],
+        serde_json::json!("none / 0px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["c"],
+        serde_json::json!("none / repeat(2, minmax(0px, 1fr)) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["d"],
+        serde_json::json!("none / 0fr / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["e"],
+        serde_json::json!("none / 0% / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["f"],
+        serde_json::json!("none / minmax(0px, 1fr) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["g"],
+        serde_json::json!("none / 184px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["h"],
+        serde_json::json!("none / minmax(0px, 1fr) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["i"],
+        serde_json::json!("none / 200px / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["j"],
+        serde_json::json!("none / none / none / row / minmax(0px, 1fr) / auto")
+    );
+    assert_eq!(
+        v["k"],
+        serde_json::json!("none / none / none / row / auto / 0px")
+    );
+    assert_eq!(
+        v["l"],
+        serde_json::json!("100px / minmax(0px, 1fr) / none / row / auto / auto")
+    );
+    assert_eq!(
+        v["m"],
+        serde_json::json!("none / none / none / row / 10px / auto")
+    );
+    assert_eq!(
+        v["n"],
+        serde_json::json!("none / repeat(4, 1fr) / none / row / auto / auto")
+    );
+}
+
+#[test]
 fn text_decoration_shorthand_matches_chrome() {
     // Chrome 157 omits solid, currentcolor, and auto thickness. An explicit
     // color or a non-solid style stays. Line keywords come out as

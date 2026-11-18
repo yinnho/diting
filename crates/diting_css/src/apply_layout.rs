@@ -11,7 +11,8 @@ use crate::geom::{FontCtx, Length};
 use crate::len_parse::{
     css_box_offset, css_len, expand_sides, grid_areas_css, parse_aspect_ratio,
     parse_grid_areas_template, parse_grid_template_areas, parse_grid_tracks, parse_num_f32,
-    parse_px_f32, split_sides, CssF32, GridAreasTemplate,
+    parse_px_f32, specified_auto_tracks, specified_track_list, split_sides, CssF32,
+    GridAreasTemplate,
 };
 use crate::shadow_parse::{
     parse_backdrop_blur, parse_box_shadow, parse_mix_blend_mode, parse_text_shadow,
@@ -588,10 +589,20 @@ fn set_grid_tracks(
         *specified = None;
         return true;
     }
-    match parse_grid_tracks(v) {
-        Some(parsed) => {
+    match (parse_grid_tracks(v), specified_track_list(v)) {
+        (Some(parsed), Some(css)) => {
             *tracks = Some(parsed);
-            *specified = Some(v.trim().to_string());
+            *specified = Some(css);
+            true
+        }
+        _ => false,
+    }
+}
+
+fn set_auto_tracks(v: &str, slot: &mut Option<String>) -> bool {
+    match specified_auto_tracks(v) {
+        Some(css) => {
+            *slot = Some(css);
             true
         }
         None => false,
@@ -680,7 +691,7 @@ fn parse_auto_flow_side(side: &str) -> Option<(bool, Option<String>)> {
         return Some((dense, None));
     }
     parse_grid_tracks(&rest)?;
-    Some((dense, Some(rest)))
+    Some((dense, Some(specified_track_list(&rest)?)))
 }
 
 fn parse_track_side(
@@ -693,7 +704,8 @@ fn parse_track_side(
     if t.eq_ignore_ascii_case("none") {
         return Some((None, None));
     }
-    Some((Some(parse_grid_tracks(t)?), Some(t.to_string())))
+    let parsed = parse_grid_tracks(t)?;
+    Some((Some(parsed), Some(specified_track_list(t)?)))
 }
 
 fn parse_grid_shorthand(v: &str) -> Option<ParsedGridShorthand> {
@@ -1133,6 +1145,8 @@ pub(crate) fn apply_flex_grid(
             &mut style.grid_template_rows,
             &mut style.grid_rows_specified,
         ),
+        "grid-auto-rows" => set_auto_tracks(v, &mut style.grid_auto_rows_specified),
+        "grid-auto-columns" => set_auto_tracks(v, &mut style.grid_auto_cols_specified),
         "grid-template-areas" => {
             if v.eq_ignore_ascii_case("none") {
                 style.grid_template_areas = None;
