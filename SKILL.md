@@ -6,7 +6,8 @@ description: >
   Sogou, WeChat, Google), take screenshots as visual input, extract
   structured data from SPAs, and drive multi-step interactions (click, type,
   fill forms, login, paginate) through indexed sessions. One HTTP API from a
-  single Rust binary — no Chromium. Use when the agent needs to read a web
+  single Rust binary — no Chromium. Playwright can attach over CDP on the
+  same port. Use when the agent needs to read a web
   page, scrape or extract content from a URL, search the web, screenshot a
   page, log in or fill a form, or click through interactive content. Triggers
   include user requests to "read this page", "open this link", "what does
@@ -27,7 +28,9 @@ read, search, screenshot, download files, interact, generate
 documents/video, and replay recorded interactions with zero tokens. When a
 task involves reading/searching/screenshotting a web page or driving a
 multi-step interaction, prefer these routes over hand-rolled `curl` + HTML
-parsing.
+parsing. An existing Playwright script attaches with
+`chromium.connectOverCDP("http://127.0.0.1:8089")` and uses `goto`,
+`evaluate`, and `screenshot`.
 
 ## Setup: install the local server (one-time)
 
@@ -78,7 +81,7 @@ curl http://127.0.0.1:8089/health
 
 `BASE` = `http://127.0.0.1:8089` (override with `DITING_URL`).
 
-| Intent | Route (all POST) | Key params |
+| Intent | Route | Key params |
 |--------|------|-----------|
 | Read a single page (article/docs/blog) | `BASE/fetch` | `url`, `format`(default markdown), `selector`, `js_extract` |
 | JS-rendered page / pull structured data | `BASE/fetch` | `js_extract:{expression, timeout_ms}`, `wait_secs` |
@@ -96,6 +99,7 @@ curl http://127.0.0.1:8089/health
 | Text → image (cover/card/title) | `BASE/render` → `BASE/screenshot` | `kind`,`title`,`body`(card rows),`theme`; pipe `{html,width,height}` + `full_page:false` into `/screenshot` |
 | HTML/CSS animation → video | `BASE/video` | `html` (CSS keyframes or `__timelines`), `fps`, `hold_tail_secs` — same frame every seek, no wall clock |
 | Firecrawl-compatible clients | `BASE/v1/scrape` | `actions` runs a single-page session flow |
+| Existing Playwright / Puppeteer script | CDP `connectOverCDP(BASE)` | `page.goto`, `page.evaluate`, `page.screenshot({path})`. `/json/version` reports `diting`. One client; disconnect closes its pages |
 
 ## Flows (record once, replay free)
 
@@ -150,7 +154,7 @@ curl -sS -X POST $BASE/fetch -H "Content-Type: application/json" -d '{
 
 ## Why diting
 
-- Single Rust binary — no Chromium, no Playwright, no Puppeteer, no Docker
+- Single Rust binary — no Chromium process and no Docker. Playwright and Puppeteer can attach over CDP; the HTTP routes stay the native API
 - Real TLS fingerprinting (`chrome145` shape / Firefox133 / Safari / Edge; fleet UA Chrome/145) to get
   through Cloudflare and other anti-bot defenses
 - 5-engine aggregated search including Baidu, Sogou, and WeChat — the Chinese

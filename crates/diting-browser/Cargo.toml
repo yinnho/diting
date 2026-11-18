@@ -48,7 +48,7 @@ futures = "0.3"
 async-trait = "0.1"
 
 # --- web framework ---
-axum = "0.7"
+axum = { version = "0.7", features = ["ws"] }
 tower-http = { version = "0.6", features = ["cors", "catch-panic"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 uuid = { version = "1", features = ["v4"] }
@@ -120,6 +120,7 @@ path = "src/main.rs"
 # auth.rs gate tests drive the axum Router via ServiceExt::oneshot (same
 # version axum 0.7.9 already compiles into the tree).
 tower = { version = "0.5", features = ["util"] }
+tokio-tungstenite = "0.24"
 
 [lints]
 workspace = true

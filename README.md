@@ -48,6 +48,22 @@ curl -X POST :8089/search -d '{"query":"rust browser engine"}' | jq '.results[:3
 curl -X POST :8089/session/create -d '{"url":"https://example.com"}'  # → session_id
 ```
 
+Playwright attaches over CDP on the same port. `/json/version` reports `diting`; the page user agent stays Chrome.
+
+```js
+import { chromium } from "playwright";
+
+const browser = await chromium.connectOverCDP("http://127.0.0.1:8089");
+const context = browser.contexts()[0];
+const page = context.pages()[0] ?? await context.newPage();
+await page.goto("https://example.com");
+console.log(await page.evaluate(() => document.body.innerText));
+await page.screenshot({ path: "page.png" });
+await browser.close();
+```
+
+This first slice is that path: connect, open a page, read text, take a viewport PNG. Closing the connection closes the pages it opened. One CDP client at a time.
+
 ## Where it sits
 
 Computer-use agents come in two layers: GUI-layer stacks drive a whole desktop; **engine-layer** browsers make the page itself the machine. Diting is the engine layer — DOM actions in, structured state out, one process per session instead of a VM. It is a real-time retrieval instrument, not a crawler: no link-following recursion, built-in per-domain budgets, robots.txt opt-in.

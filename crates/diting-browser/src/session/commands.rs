@@ -254,6 +254,16 @@ pub enum SessionCommand {
     Verdict {
         reply: oneshot::Sender<Result<String, String>>,
     },
+    /// CDP `Runtime.evaluate` / `callFunctionOn` / `releaseObject`. These
+    /// have to run on the page isolate so object ids stay live. The reply
+    /// is the CDP result object, or `Err` for a protocol failure (no
+    /// realm, eval timeout) — a thrown script is `Ok` with
+    /// `exceptionDetails`, matching Chrome.
+    CdpRuntime {
+        method: String,
+        params: Value,
+        reply: oneshot::Sender<Result<Value, String>>,
+    },
 }
 
 #[derive(Debug, Deserialize, Clone, Copy)]
