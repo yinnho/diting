@@ -26,6 +26,17 @@ function _parseCssInto(props, text) {
     }
   });
 }
+// Chrome's specified color serializes comma-form rgb()/rgba() with a
+// space after each comma (`rgb(1, 2, 3)`). The sheet text often has none.
+function _cssReadValue(name, value) {
+  if (!value || (name !== "color" && !name.endsWith("-color"))) return value;
+  return value.replace(/rgba?\([^)]*\)/gi, (fn) => {
+    const open = fn.indexOf("(");
+    const inner = fn.slice(open + 1, -1);
+    if (inner.indexOf(",") < 0) return fn;
+    return fn.slice(0, open + 1) + inner.split(",").map((part) => part.trim()).join(", ") + ")";
+  });
+}
 function _serializeCss(props) {
   const e = Object.entries(props);
   return e.length ? e.map(([k, v]) => `${k}: ${v}`).join("; ") + ";" : "";
@@ -93,7 +104,7 @@ class CSSStyleDeclaration {
     this._push();
   }
   removeProperty(name) { this._pull(); const k = _cssCamelToKebab(String(name)); const old = this._props[k]; delete this._props[k]; this._push(); return old || ""; }
-  getPropertyValue(name) { this._pull(); return this._props[_cssCamelToKebab(String(name))] || ""; }
+  getPropertyValue(name) { this._pull(); const k = _cssCamelToKebab(String(name)); return _cssReadValue(k, this._props[k] || ""); }
   getPropertyPriority() { return ""; }
   get cssText() { this._pull(); return _serializeCss(this._props); }
   set cssText(v) {

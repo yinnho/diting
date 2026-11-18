@@ -155,7 +155,12 @@ globalThis.DOMParser = class DOMParser {
       get links() { return __diting_mkCollection(this.querySelectorAll('a[href], area[href]')); },
       // No script of this document is executing — Chrome reports null here.
       get currentScript() { return null; },
-      createElement: (t) => document.createElement(t),
+      createElement: (t) => {
+        const el = document.createElement(t);
+        const docs = globalThis.__diting_ownerDocs;
+        if (el && docs) docs.set(el, docNode);
+        return el;
+      },
       createElementNS: (ns, t) => document.createElement(t),
       createTextNode: (t) => document.createTextNode(t),
       createComment: (t) => document.createComment(t),

@@ -27,7 +27,7 @@ class Node {
   constructor(nid) { this._nid = nid;  __hideOwn(this);}
   get nodeType() { return +_dom("node_type", this._nid); }
   get nodeName() { return _domParse("node_name", this._nid) || ""; }
-  get ownerDocument() { return globalThis.document; }
+  get ownerDocument() { const m = globalThis.__diting_ownerDocs; return (m && m.get(this)) || globalThis.document; }
   // https://dom.spec.whatwg.org/#dom-node-baseuri
   get baseURI() {
     try {
@@ -3410,7 +3410,7 @@ class Document extends Node {
     // second arg to the null namespace (correct for XML elements with no
     // xmlns), so the HTML path must say XHTML here.
     const lower = t.toLowerCase();
-    const el = _wrapEl(+_dom("create_element", lower, "http://www.w3.org/1999/xhtml"));
+    const el = _wrapEl(+_dom("create_element", lower, "http://www.w3.org/1999/xhtml")); if (el && this !== globalThis.document) globalThis.__diting_ownerDocs?.set(el, this);
     if (el) {
       // Chrome runs a registered custom element's constructor during
       // createElement — the element is born upgraded, detached, so
