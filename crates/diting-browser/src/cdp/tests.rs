@@ -10,6 +10,10 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use super::routes;
 
+/// The CDP hub is process-wide. These tests each bind their own port, but
+/// they share that hub, so they must not run at the same time.
+static CDP_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 async fn http_get(addr: std::net::SocketAddr, path: &str) -> Value {
     let mut stream = TcpStream::connect(addr).await.expect("connect");
     let req = format!("GET {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n\r\n");
@@ -65,6 +69,7 @@ impl Client {
 
 #[tokio::test]
 async fn version_names_diting() {
+    let _guard = CDP_LOCK.lock().await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
@@ -89,6 +94,7 @@ async fn version_names_diting() {
 
 #[tokio::test]
 async fn connect_goto_eval_screenshot() {
+    let _guard = CDP_LOCK.lock().await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
@@ -506,4 +512,139 @@ async fn connect_goto_eval_screenshot() {
         .await;
     let listed = http_get(addr, "/json/list").await;
     assert!(listed.as_array().unwrap().is_empty(), "{listed}");
+}
+
+fn page_target_ids(targets: &Value) -> Vec<String> {
+    targets["targetInfos"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|info| info["type"] == "page")
+        .map(|info| info["targetId"].as_str().unwrap().to_string())
+        .collect()
+}
+
+async fn open_owned_page(client: &mut Client, n: u64) -> (String, String) {
+    client
+        .call(
+            n,
+            "Target.setAutoAttach",
+            json!({ "autoAttach": true, "waitForDebuggerOnStart": true, "flatten": true }),
+            None,
+        )
+        .await;
+    let created = client
+        .call(
+            n + 1,
+            "Target.createTarget",
+            json!({ "url": "about:blank" }),
+            None,
+        )
+        .await;
+    let target_id = created["targetId"].as_str().unwrap().to_string();
+    let session = client
+        .events
+        .iter()
+        .rev()
+        .find(|event| {
+            event["method"] == "Target.attachedToTarget"
+                && event["params"]["targetInfo"]["targetId"] == target_id
+        })
+        .and_then(|event| event["params"]["sessionId"].as_str())
+        .expect("attachedToTarget")
+        .to_string();
+    client
+        .call(n + 2, "Runtime.enable", json!({}), Some(&session))
+        .await;
+    (target_id, session)
+}
+
+#[tokio::test]
+async fn two_clients_keep_their_own_pages() {
+    let _guard = CDP_LOCK.lock().await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, routes()).await.unwrap();
+    });
+    let version = http_get(addr, "/json/version/").await;
+    let ws_url = version["webSocketDebuggerUrl"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let (ws_a, _) = connect_async(&ws_url).await.expect("client a");
+    let (ws_b, _) = connect_async(&ws_url).await.expect("client b");
+    let mut a = Client {
+        ws: ws_a,
+        events: Vec::new(),
+    };
+    let mut b = Client {
+        ws: ws_b,
+        events: Vec::new(),
+    };
+    let (target_a, session_a) = open_owned_page(&mut a, 1).await;
+    let (target_b, session_b) = open_owned_page(&mut b, 1).await;
+    assert_ne!(target_a, target_b);
+
+    a.call(
+        10,
+        "Runtime.evaluate",
+        json!({ "expression": "globalThis.__who = 'a'", "returnByValue": true }),
+        Some(&session_a),
+    )
+    .await;
+    b.call(
+        10,
+        "Runtime.evaluate",
+        json!({ "expression": "globalThis.__who = 'b'", "returnByValue": true }),
+        Some(&session_b),
+    )
+    .await;
+    let who_a = a
+        .call(
+            11,
+            "Runtime.evaluate",
+            json!({ "expression": "globalThis.__who", "returnByValue": true }),
+            Some(&session_a),
+        )
+        .await;
+    let who_b = b
+        .call(
+            11,
+            "Runtime.evaluate",
+            json!({ "expression": "globalThis.__who", "returnByValue": true }),
+            Some(&session_b),
+        )
+        .await;
+    assert_eq!(who_a["result"]["value"], "a", "{who_a}");
+    assert_eq!(who_b["result"]["value"], "b", "{who_b}");
+
+    let seen_a = page_target_ids(&a.call(12, "Target.getTargets", json!({}), None).await);
+    let seen_b = page_target_ids(&b.call(12, "Target.getTargets", json!({}), None).await);
+    assert_eq!(seen_a, vec![target_a.clone()], "{seen_a:?}");
+    assert_eq!(seen_b, vec![target_b.clone()], "{seen_b:?}");
+    assert_eq!(
+        http_get(addr, "/json/list").await.as_array().unwrap().len(),
+        2
+    );
+
+    a.call(13, "Browser.close", json!({}), None).await;
+    let who_b = b
+        .call(
+            14,
+            "Runtime.evaluate",
+            json!({ "expression": "globalThis.__who", "returnByValue": true }),
+            Some(&session_b),
+        )
+        .await;
+    assert_eq!(
+        who_b["result"]["value"], "b",
+        "closing a dropped b: {who_b}"
+    );
+    let seen_b = page_target_ids(&b.call(15, "Target.getTargets", json!({}), None).await);
+    assert_eq!(seen_b, vec![target_b.clone()], "{seen_b:?}");
+    let listed = http_get(addr, "/json/list").await;
+    assert_eq!(listed.as_array().unwrap().len(), 1, "{listed}");
+    assert_eq!(listed[0]["id"], target_b);
+    b.call(16, "Browser.close", json!({}), None).await;
 }

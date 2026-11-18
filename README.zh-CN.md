@@ -75,7 +75,7 @@ await page.screenshot({ path: "page.png" });
 await browser.close();
 ```
 
-这条路径再加上 `locator.click()`、`locator.fill()` 和 `page.setContent()`。屏幕外的目标会滚进视口。连接断开时，这次打开的页面会关掉。一次接一个 CDP 客户端。
+这条路径再加上 `locator.click()`、`locator.fill()` 和 `page.setContent()`。屏幕外的目标会滚进视口。可以同时接多个 CDP 客户端。一个连接断开时，只关掉它自己打开的页面。
 
 ## 它的位置
 
