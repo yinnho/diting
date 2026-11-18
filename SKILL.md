@@ -30,7 +30,7 @@ task involves reading/searching/screenshotting a web page or driving a
 multi-step interaction, prefer these routes over hand-rolled `curl` + HTML
 parsing. An existing Playwright script attaches with
 `chromium.connectOverCDP("http://127.0.0.1:8089")` and uses `goto`,
-`evaluate`, and `screenshot`.
+`setContent`, `evaluate`, `locator.click`, `locator.fill`, and `screenshot`.
 
 ## Setup: install the local server (one-time)
 
@@ -99,7 +99,7 @@ curl http://127.0.0.1:8089/health
 | Text → image (cover/card/title) | `BASE/render` → `BASE/screenshot` | `kind`,`title`,`body`(card rows),`theme`; pipe `{html,width,height}` + `full_page:false` into `/screenshot` |
 | HTML/CSS animation → video | `BASE/video` | `html` (CSS keyframes or `__timelines`), `fps`, `hold_tail_secs` — same frame every seek, no wall clock |
 | Firecrawl-compatible clients | `BASE/v1/scrape` | `actions` runs a single-page session flow |
-| Existing Playwright / Puppeteer script | CDP `connectOverCDP(BASE)` | `page.goto`, `page.evaluate`, `locator.click`, `locator.fill`, `page.screenshot({path})`. `/json/version` reports `diting`. One client; disconnect closes its pages. Off-screen targets are not scrolled into view |
+| Existing Playwright / Puppeteer script | CDP `connectOverCDP(BASE)` | `page.goto`, `page.setContent`, `page.evaluate`, `locator.click`, `locator.fill`, `page.screenshot({path})`. `/json/version` reports `diting`. One client; disconnect closes its pages. Off-screen targets are not scrolled into view |
 
 ## Flows (record once, replay free)
 

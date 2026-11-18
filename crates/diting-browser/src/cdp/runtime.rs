@@ -12,6 +12,10 @@ use crate::session::{
 
 const AWAIT_MS: u64 = 30_000;
 
+/// Stripped by the dispatcher before the command result is written. Carries
+/// console calls and the document.write load signal for this command.
+pub(crate) const SIDE_KEY: &str = "__ditingSide";
+
 pub(crate) async fn on_runtime(
     page: &mut Page,
     method: String,
@@ -28,7 +32,58 @@ pub(crate) async fn on_runtime(
         "DOM.getContentQuads" => content_quads(page, &params).await,
         other => Err(format!("'{other}' wasn't found")),
     };
+    // Take the queues here, on the session thread, before the actor's
+    // post-command drain moves them into the HTTP console ring.
+    let result = match result {
+        Ok(mut value) => {
+            if let Some(side) = page_side(page, &params) {
+                if let Some(obj) = value.as_object_mut() {
+                    obj.insert(SIDE_KEY.to_string(), side);
+                }
+            }
+            Ok(value)
+        }
+        Err(err) => Err(err),
+    };
     let _ = reply.send(result);
+}
+
+fn page_side(page: &mut Page, params: &Value) -> Option<Value> {
+    let calls = page.inner.take_pending_console_calls();
+    let write_nav = page.inner.take_pending_write_nav();
+    let console: Vec<Value> = calls
+        .into_iter()
+        .filter_map(|(level, text, url)| {
+            let kind = console_type(&level)?;
+            Some(json!({ "type": kind, "text": text, "url": url }))
+        })
+        .collect();
+    if console.is_empty() && !write_nav {
+        return None;
+    }
+    let context_id = params
+        .get("contextId")
+        .or_else(|| params.get("executionContextId"))
+        .and_then(|v| v.as_i64())
+        .filter(|id| *id > 0);
+    Some(json!({
+        "console": console,
+        "writeNav": write_nav,
+        "contextId": context_id,
+    }))
+}
+
+/// Playwright's setContent matches `console.debug` only. `dialog` is a
+/// session-console record, not a page console API call.
+fn console_type(level: &str) -> Option<&'static str> {
+    Some(match level {
+        "dialog" => return None,
+        "warn" | "warning" => "warning",
+        "error" => "error",
+        "debug" => "debug",
+        "info" => "info",
+        _ => "log",
+    })
 }
 
 async fn evaluate(page: &mut Page, params: &Value) -> Result<Value, String> {

@@ -614,8 +614,11 @@ pub(crate) fn dom_cmd_mutate(
                 .collect();
             serde_json::to_string(&pairs).unwrap_or("[]".into())
         }
-        // document.open() discards what the input stream holds and starts over.
+        // document.open() discards what the input stream holds and starts a
+        // new document. Same load signal as document.write: setContent can
+        // open and then write an empty string.
         "document_write_reset" => {
+            gs.pending_write_nav.set(true);
             *gs.write_stream.borrow_mut() = None;
             "true".into()
         }
