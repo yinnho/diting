@@ -557,6 +557,20 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
       }
       return lookup('color');
     }
+    // margin/padding shorthands are not in the cascade snapshot. Chrome
+    // collapses equal sides: body is "8px", not the static "0px" fallback.
+    if (kebab === 'margin' || kebab === 'padding') {
+      const t = lookup(kebab + '-top');
+      const r = lookup(kebab + '-right');
+      const b = lookup(kebab + '-bottom');
+      const l = lookup(kebab + '-left');
+      if (t && r && b && l) {
+        if (t === r && r === b && b === l) return t;
+        if (t === b && r === l) return t + ' ' + r;
+        if (r === l) return t + ' ' + r + ' ' + b;
+        return t + ' ' + r + ' ' + b + ' ' + l;
+      }
+    }
     if (defaultsKebab[rawProp]) return defaultsKebab[rawProp];
     if (defaultsKebab[kebab]) return defaultsKebab[kebab];
     return globalThis.__customPropInitial?.(kebab) ?? '';
