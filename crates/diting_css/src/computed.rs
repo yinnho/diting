@@ -219,6 +219,11 @@ pub struct ComputedStyle {
     pub flex_basis: Option<Length>,
     pub column_gap: Option<Length>,
     pub row_gap: Option<Length>,
+    /// `column-width`. `None` is `auto`. A length is absolute px (em/rem/vw
+    /// already folded). The multicol layout itself is not modeled.
+    pub column_width: Option<Length>,
+    /// `column-count`. `None` is `auto`. `Some(n)` is an integer ≥ 1.
+    pub column_count: Option<u32>,
     /// Track list (px / rem / fr / auto / minmax). `None` = not declared.
     pub grid_template_columns: Option<Vec<GridTrack>>,
     pub grid_template_rows: Option<Vec<GridTrack>>,
