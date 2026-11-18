@@ -678,6 +678,65 @@ fn gap_grid_place_and_marker_shorthands_match_chrome() {
 }
 
 #[test]
+fn place_shorthands_match_chrome() {
+    // Chrome 157 keeps `start` and `end`. One value sets both axes. A later
+    // longhand wins. The shorthand collapses when the two axes match.
+    let mut rt = setup_runtime(
+        "<html><head><style>\
+         #a { place-content: center }\
+         #b { place-content: center start }\
+         #c { place-content: center; justify-content: end }\
+         #d { place-items: center stretch }\
+         #e { place-items: start end }\
+         #f { place-self: center }\
+         #g { place-self: start end }\
+         #h { place-self: flex-end }\
+         #i { justify-content: start }\
+         </style></head><body>\
+         <div id='a'></div><div id='b'></div><div id='c'></div>\
+         <div id='d'></div><div id='e'></div><div id='f'></div>\
+         <div id='g'></div><div id='h'></div><div id='i'></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"JSON.stringify((() => {
+              const g = (id) => getComputedStyle(document.getElementById(id));
+              return {
+                a: g('a').placeContent, ac: g('a').alignContent, aj: g('a').justifyContent,
+                b: g('b').placeContent, bj: g('b').justifyContent,
+                c: g('c').placeContent,
+                d: g('d').placeItems, di: g('d').alignItems, dj: g('d').justifyItems,
+                e: g('e').placeItems,
+                f: g('f').placeSelf, fa: g('f').alignSelf, fj: g('f').justifySelf,
+                g: g('g').placeSelf,
+                h: g('h').placeSelf,
+                i: g('i').justifyContent, ip: g('i').placeContent
+              };
+            })())"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["a"], serde_json::json!("center"));
+    assert_eq!(v["ac"], serde_json::json!("center"));
+    assert_eq!(v["aj"], serde_json::json!("center"));
+    assert_eq!(v["b"], serde_json::json!("center start"));
+    assert_eq!(v["bj"], serde_json::json!("start"));
+    assert_eq!(v["c"], serde_json::json!("center end"));
+    assert_eq!(v["d"], serde_json::json!("center stretch"));
+    assert_eq!(v["di"], serde_json::json!("center"));
+    assert_eq!(v["dj"], serde_json::json!("stretch"));
+    assert_eq!(v["e"], serde_json::json!("start end"));
+    assert_eq!(v["f"], serde_json::json!("center"));
+    assert_eq!(v["fa"], serde_json::json!("center"));
+    assert_eq!(v["fj"], serde_json::json!("center"));
+    assert_eq!(v["g"], serde_json::json!("start end"));
+    assert_eq!(v["h"], serde_json::json!("flex-end"));
+    assert_eq!(v["i"], serde_json::json!("start"));
+    assert_eq!(v["ip"], serde_json::json!("normal start"));
+}
+
+#[test]
 fn text_decoration_shorthand_matches_chrome() {
     // Chrome 157 omits solid, currentcolor, and auto thickness. An explicit
     // color or a non-solid style stays. Line keywords come out as

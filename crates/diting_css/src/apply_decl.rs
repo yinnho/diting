@@ -349,6 +349,9 @@ fn css_wide_expand(name: &str) -> Option<&'static [&'static str]> {
         ],
         "outline" => &["outline-style", "outline-color", "outline-width"],
         "columns" => &["column-width", "column-count"],
+        "place-content" => &["align-content", "justify-content"],
+        "place-items" => &["align-items", "justify-items"],
+        "place-self" => &["align-self", "justify-self"],
         "list-style" => &["list-style-type"],
         // Logical shorthands (#244) expand to their logical longhands (which
         // css_wide_longhands maps onto the physical slots).

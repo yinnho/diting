@@ -702,6 +702,12 @@ pub enum JustifyMode {
     SpaceBetween,
     SpaceAround,
     SpaceEvenly,
+    /// `start`. LTR horizontal-tb packs on the same edge as flex-start.
+    Start,
+    /// `end`.
+    End,
+    /// `justify-items: stretch` / `justify-self: stretch`.
+    Stretch,
 }
 
 /// `align-content` keywords. Carries `Stretch` (content lines grow to fill
@@ -715,6 +721,10 @@ pub enum AlignContentMode {
     SpaceAround,
     SpaceEvenly,
     Stretch,
+    /// `start`. Same edge as flex-start in this LTR mode.
+    Start,
+    /// `end`.
+    End,
 }
 
 impl JustifyMode {
@@ -724,9 +734,12 @@ impl JustifyMode {
     /// where they land in Chrome for a single-item area.
     pub fn static_offset(self, free: f32) -> f32 {
         match self {
-            JustifyMode::FlexStart | JustifyMode::SpaceBetween => 0.0,
+            JustifyMode::FlexStart
+            | JustifyMode::Start
+            | JustifyMode::Stretch
+            | JustifyMode::SpaceBetween => 0.0,
             JustifyMode::Center | JustifyMode::SpaceAround | JustifyMode::SpaceEvenly => free / 2.0,
-            JustifyMode::FlexEnd => free,
+            JustifyMode::FlexEnd | JustifyMode::End => free,
         }
     }
 }
@@ -737,6 +750,10 @@ pub enum AlignMode {
     FlexStart,
     Center,
     FlexEnd,
+    /// `start`. Same edge as flex-start in this LTR mode.
+    Start,
+    /// `end`.
+    End,
 }
 
 impl AlignMode {
@@ -746,10 +763,52 @@ impl AlignMode {
     /// so stretch degenerates to start.
     pub fn static_offset(self, free: f32) -> f32 {
         match self {
-            AlignMode::Stretch | AlignMode::FlexStart => 0.0,
+            AlignMode::Stretch | AlignMode::FlexStart | AlignMode::Start => 0.0,
             AlignMode::Center => free / 2.0,
-            AlignMode::FlexEnd => free,
+            AlignMode::FlexEnd | AlignMode::End => free,
         }
+    }
+}
+
+pub fn justify_mode_css(mode: Option<JustifyMode>, unset: &str) -> String {
+    match mode {
+        Some(JustifyMode::FlexStart) => "flex-start".into(),
+        Some(JustifyMode::Center) => "center".into(),
+        Some(JustifyMode::FlexEnd) => "flex-end".into(),
+        Some(JustifyMode::SpaceBetween) => "space-between".into(),
+        Some(JustifyMode::SpaceAround) => "space-around".into(),
+        Some(JustifyMode::SpaceEvenly) => "space-evenly".into(),
+        Some(JustifyMode::Start) => "start".into(),
+        Some(JustifyMode::End) => "end".into(),
+        Some(JustifyMode::Stretch) => "stretch".into(),
+        None => unset.into(),
+    }
+}
+
+pub fn align_mode_css(mode: Option<AlignMode>, unset: &str) -> String {
+    match mode {
+        Some(AlignMode::Stretch) => "stretch".into(),
+        Some(AlignMode::FlexStart) => "flex-start".into(),
+        Some(AlignMode::Center) => "center".into(),
+        Some(AlignMode::FlexEnd) => "flex-end".into(),
+        Some(AlignMode::Start) => "start".into(),
+        Some(AlignMode::End) => "end".into(),
+        None => unset.into(),
+    }
+}
+
+pub fn align_content_css(mode: Option<AlignContentMode>) -> &'static str {
+    match mode {
+        Some(AlignContentMode::FlexStart) => "flex-start",
+        Some(AlignContentMode::Center) => "center",
+        Some(AlignContentMode::FlexEnd) => "flex-end",
+        Some(AlignContentMode::SpaceBetween) => "space-between",
+        Some(AlignContentMode::SpaceAround) => "space-around",
+        Some(AlignContentMode::SpaceEvenly) => "space-evenly",
+        Some(AlignContentMode::Stretch) => "stretch",
+        Some(AlignContentMode::Start) => "start",
+        Some(AlignContentMode::End) => "end",
+        None => "normal",
     }
 }
 

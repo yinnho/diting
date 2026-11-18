@@ -716,7 +716,8 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
           || kebab === 'scroll-margin' || kebab === 'scroll-padding'
           || kebab === 'text-emphasis' || kebab === 'text-wrap' || kebab === 'columns'
           || kebab === 'font-synthesis' || kebab === '-webkit-text-stroke'
-          || kebab === 'gap' || kebab === 'text-decoration';
+          || kebab === 'gap' || kebab === 'text-decoration'
+          || kebab === 'place-content' || kebab === 'place-items' || kebab === 'place-self';
         if (!rebuilt) {
           if (_isComputedColorProp(kebab)) {
             const painted = _cssComputedColor(inlineVal);

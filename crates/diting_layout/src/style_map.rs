@@ -277,16 +277,18 @@ pub(crate) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
         if let Some(ai) = style.align_items {
             s.align_items = match ai {
                 AlignMode::Stretch => AlignItems::STRETCH,
-                AlignMode::FlexStart => AlignItems::FLEX_START,
+                AlignMode::FlexStart | AlignMode::Start => AlignItems::FLEX_START,
                 AlignMode::Center => AlignItems::CENTER,
-                AlignMode::FlexEnd => AlignItems::FLEX_END,
+                AlignMode::FlexEnd | AlignMode::End => AlignItems::FLEX_END,
             };
         }
         if let Some(jc) = style.justify_content {
             s.justify_content = match jc {
-                JustifyMode::FlexStart => JustifyContent::FLEX_START,
+                JustifyMode::FlexStart | JustifyMode::Start | JustifyMode::Stretch => {
+                    JustifyContent::FLEX_START
+                }
                 JustifyMode::Center => JustifyContent::CENTER,
-                JustifyMode::FlexEnd => JustifyContent::FLEX_END,
+                JustifyMode::FlexEnd | JustifyMode::End => JustifyContent::FLEX_END,
                 JustifyMode::SpaceBetween => JustifyContent::SPACE_BETWEEN,
                 JustifyMode::SpaceAround => JustifyContent::SPACE_AROUND,
                 JustifyMode::SpaceEvenly => JustifyContent::SPACE_EVENLY,
@@ -297,9 +299,9 @@ pub(crate) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
         // no-op there, so no wrap guard is needed.
         if let Some(ac) = style.align_content {
             s.align_content = match ac {
-                AlignContentMode::FlexStart => AlignContent::FLEX_START,
+                AlignContentMode::FlexStart | AlignContentMode::Start => AlignContent::FLEX_START,
                 AlignContentMode::Center => AlignContent::CENTER,
-                AlignContentMode::FlexEnd => AlignContent::FLEX_END,
+                AlignContentMode::FlexEnd | AlignContentMode::End => AlignContent::FLEX_END,
                 AlignContentMode::SpaceBetween => AlignContent::SPACE_BETWEEN,
                 AlignContentMode::SpaceAround => AlignContent::SPACE_AROUND,
                 AlignContentMode::SpaceEvenly => AlignContent::SPACE_EVENLY,
