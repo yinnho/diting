@@ -583,13 +583,14 @@ fn set_grid_tracks(
     v: &str,
     tracks: &mut Option<Vec<crate::style_kw::GridTrack>>,
     specified: &mut Option<String>,
+    fonts: &FontCtx,
 ) -> bool {
     if v.eq_ignore_ascii_case("none") {
         *tracks = None;
         *specified = None;
         return true;
     }
-    match (parse_grid_tracks(v), specified_track_list(v)) {
+    match (parse_grid_tracks(v, fonts), specified_track_list(v, fonts)) {
         (Some(parsed), Some(css)) => {
             *tracks = Some(parsed);
             *specified = Some(css);
@@ -599,8 +600,8 @@ fn set_grid_tracks(
     }
 }
 
-fn set_auto_tracks(v: &str, slot: &mut Option<String>) -> bool {
-    match specified_auto_tracks(v) {
+fn set_auto_tracks(v: &str, slot: &mut Option<String>, fonts: &FontCtx) -> bool {
+    match specified_auto_tracks(v, fonts) {
         Some(css) => {
             *slot = Some(css);
             true
@@ -662,7 +663,7 @@ fn side_has_auto_flow(side: &str) -> bool {
 }
 
 /// `(dense, optional auto-track spelling)`.
-fn parse_auto_flow_side(side: &str) -> Option<(bool, Option<String>)> {
+fn parse_auto_flow_side(side: &str, fonts: &FontCtx) -> Option<(bool, Option<String>)> {
     let mut dense = false;
     let mut saw = false;
     let mut rest = String::new();
@@ -690,12 +691,13 @@ fn parse_auto_flow_side(side: &str) -> Option<(bool, Option<String>)> {
     if rest.is_empty() {
         return Some((dense, None));
     }
-    parse_grid_tracks(&rest)?;
-    Some((dense, Some(specified_track_list(&rest)?)))
+    parse_grid_tracks(&rest, fonts)?;
+    Some((dense, Some(specified_track_list(&rest, fonts)?)))
 }
 
 fn parse_track_side(
     side: &str,
+    fonts: &FontCtx,
 ) -> Option<(Option<Vec<crate::style_kw::GridTrack>>, Option<String>)> {
     let t = side.trim();
     if t.is_empty() {
@@ -704,11 +706,11 @@ fn parse_track_side(
     if t.eq_ignore_ascii_case("none") {
         return Some((None, None));
     }
-    let parsed = parse_grid_tracks(t)?;
-    Some((Some(parsed), Some(specified_track_list(t)?)))
+    let parsed = parse_grid_tracks(t, fonts)?;
+    Some((Some(parsed), Some(specified_track_list(t, fonts)?)))
 }
 
-fn parse_grid_shorthand(v: &str) -> Option<ParsedGridShorthand> {
+fn parse_grid_shorthand(v: &str, fonts: &FontCtx) -> Option<ParsedGridShorthand> {
     let v = v.trim();
     if v.contains('\'') || v.contains('"') {
         return None;
@@ -734,8 +736,8 @@ fn parse_grid_shorthand(v: &str) -> Option<ParsedGridShorthand> {
         return None;
     }
     if left_flow {
-        let (dense, auto_rows) = parse_auto_flow_side(left)?;
-        let (cols, cols_css) = parse_track_side(right)?;
+        let (dense, auto_rows) = parse_auto_flow_side(left, fonts)?;
+        let (cols, cols_css) = parse_track_side(right, fonts)?;
         return Some(ParsedGridShorthand {
             rows: None,
             cols,
@@ -747,8 +749,8 @@ fn parse_grid_shorthand(v: &str) -> Option<ParsedGridShorthand> {
         });
     }
     if right_flow {
-        let (rows, rows_css) = parse_track_side(left)?;
-        let (dense, auto_cols) = parse_auto_flow_side(right)?;
+        let (rows, rows_css) = parse_track_side(left, fonts)?;
+        let (dense, auto_cols) = parse_auto_flow_side(right, fonts)?;
         return Some(ParsedGridShorthand {
             rows,
             cols: None,
@@ -759,8 +761,8 @@ fn parse_grid_shorthand(v: &str) -> Option<ParsedGridShorthand> {
             auto_cols,
         });
     }
-    let (rows, rows_css) = parse_track_side(left)?;
-    let (cols, cols_css) = parse_track_side(right)?;
+    let (rows, rows_css) = parse_track_side(left, fonts)?;
+    let (cols, cols_css) = parse_track_side(right, fonts)?;
     Some(ParsedGridShorthand {
         rows,
         cols,
@@ -1139,14 +1141,16 @@ pub(crate) fn apply_flex_grid(
             v,
             &mut style.grid_template_columns,
             &mut style.grid_cols_specified,
+            fonts,
         ),
         "grid-template-rows" => set_grid_tracks(
             v,
             &mut style.grid_template_rows,
             &mut style.grid_rows_specified,
+            fonts,
         ),
-        "grid-auto-rows" => set_auto_tracks(v, &mut style.grid_auto_rows_specified),
-        "grid-auto-columns" => set_auto_tracks(v, &mut style.grid_auto_cols_specified),
+        "grid-auto-rows" => set_auto_tracks(v, &mut style.grid_auto_rows_specified, fonts),
+        "grid-auto-columns" => set_auto_tracks(v, &mut style.grid_auto_cols_specified, fonts),
         "grid-template-areas" => {
             if v.eq_ignore_ascii_case("none") {
                 style.grid_template_areas = None;
@@ -1168,7 +1172,7 @@ pub(crate) fn apply_flex_grid(
         // container's used px still comes from layout.
         "grid" => {
             if v.contains('\'') || v.contains('"') {
-                match parse_grid_areas_template(v) {
+                match parse_grid_areas_template(v, fonts) {
                     Some(t) => {
                         assign_grid_areas(style, t, true);
                         true
@@ -1176,7 +1180,7 @@ pub(crate) fn apply_flex_grid(
                     None => false,
                 }
             } else {
-                match parse_grid_shorthand(v) {
+                match parse_grid_shorthand(v, fonts) {
                     Some(g) => {
                         style.grid_template_rows = g.rows;
                         style.grid_template_columns = g.cols;
@@ -1197,7 +1201,7 @@ pub(crate) fn apply_flex_grid(
         // this does not reset grid-auto-flow / grid-auto-rows / columns.
         "grid-template" => {
             if v.contains('\'') || v.contains('"') {
-                match parse_grid_areas_template(v) {
+                match parse_grid_areas_template(v, fonts) {
                     Some(t) => {
                         assign_grid_areas(style, t, false);
                         true
@@ -1209,10 +1213,12 @@ pub(crate) fn apply_flex_grid(
                     rows,
                     &mut style.grid_template_rows,
                     &mut style.grid_rows_specified,
+                    fonts,
                 ) && set_grid_tracks(
                     cols,
                     &mut style.grid_template_columns,
                     &mut style.grid_cols_specified,
+                    fonts,
                 )
             } else {
                 false

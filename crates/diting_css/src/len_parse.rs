@@ -106,7 +106,7 @@ pub(crate) fn parse_num_f32(v: &str) -> Option<f32> {
 
 /// Whitespace-separated track list: `1fr 2fr 100px auto`. Unknown tokens
 /// abort the whole declaration (browsers drop it entirely).
-pub(crate) fn parse_grid_tracks(v: &str) -> Option<Vec<GridTrack>> {
+pub(crate) fn parse_grid_tracks(v: &str, fonts: &FontCtx) -> Option<Vec<GridTrack>> {
     let mut tracks = Vec::new();
     let mut rest = v.trim();
     while !rest.is_empty() {
@@ -117,12 +117,12 @@ pub(crate) fn parse_grid_tracks(v: &str) -> Option<Vec<GridTrack>> {
         if let Some(inner) = paren_fn_inner(token, "repeat") {
             let (count, list) = split_first_top_comma(inner)?;
             let count = repeat_count(count)?;
-            let expanded = parse_grid_tracks(list)?;
+            let expanded = parse_grid_tracks(list, fonts)?;
             for _ in 0..count {
                 tracks.extend_from_slice(&expanded);
             }
         } else {
-            tracks.push(parse_grid_track_token(token)?);
+            tracks.push(parse_grid_track_token(token, fonts)?);
         }
         rest = tail.trim_start();
     }
@@ -169,18 +169,15 @@ pub(super) fn next_track_token(v: &str) -> Option<(&str, &str)> {
 /// box, resolved at layout time), `Nfr`, `0`, or a `minmax(a, b)` pair.
 /// `min-content`/`max-content` approximate to `auto` until the track
 /// machinery learns them.
-pub(super) fn parse_grid_track_token(tok: &str) -> Option<GridTrack> {
-    if let Some(inner) = tok
-        .strip_prefix("minmax(")
-        .and_then(|t| t.strip_suffix(')'))
-    {
-        let (a, b) = inner.split_once(',')?;
+pub(super) fn parse_grid_track_token(tok: &str, fonts: &FontCtx) -> Option<GridTrack> {
+    if let Some(inner) = paren_fn_inner(tok, "minmax") {
+        let (a, b) = split_first_top_comma(inner)?;
         return Some(GridTrack::MinMax {
-            min: parse_track_size(a.trim())?,
-            max: parse_track_size(b.trim())?,
+            min: parse_track_size(a, fonts)?,
+            max: parse_track_size(b, fonts)?,
         });
     }
-    parse_track_size(tok).map(|sz| match sz {
+    parse_track_size(tok, fonts).map(|sz| match sz {
         TrackSize::Fr(f) => GridTrack::Fr(f),
         TrackSize::Px(px) => GridTrack::Px(px),
         TrackSize::Percent(p) => GridTrack::Percent(p),
@@ -190,7 +187,7 @@ pub(super) fn parse_grid_track_token(tok: &str) -> Option<GridTrack> {
 
 /// One minmax() argument (or a bare track token): same sizings as
 /// [`parse_grid_track_token`], minus minmax itself.
-pub(super) fn parse_track_size(tok: &str) -> Option<TrackSize> {
+pub(super) fn parse_track_size(tok: &str, fonts: &FontCtx) -> Option<TrackSize> {
     if tok.eq_ignore_ascii_case("auto")
         || tok.eq_ignore_ascii_case("min-content")
         || tok.eq_ignore_ascii_case("max-content")
@@ -200,13 +197,8 @@ pub(super) fn parse_track_size(tok: &str) -> Option<TrackSize> {
     if let Some(fr) = strip_unit(tok, "fr") {
         return fr.css_f32().map(TrackSize::Fr);
     }
-    if let Some(px) = strip_unit(tok, "px") {
-        return px.css_f32().map(TrackSize::Px);
-    }
-    // rem folds at the 16px root, the same absolute px Chrome computes
-    // when the root font is `medium`.
-    if let Some(r) = strip_unit(tok, "rem") {
-        return r.css_f32().map(|n| TrackSize::Px(n * 16.0));
+    if let Some(px) = track_px(tok, fonts) {
+        return Some(TrackSize::Px(px));
     }
     if let Some(p) = tok.strip_suffix('%') {
         return p.css_f32().map(TrackSize::Percent);
@@ -218,10 +210,50 @@ pub(super) fn parse_track_size(tok: &str) -> Option<TrackSize> {
     None
 }
 
+/// Absolute track length: px, em against this element's font, rem against
+/// the root, viewport units, and a calc/min/max/clamp that is all lengths.
+/// A percent calc stays unresolved and is rejected here.
+fn track_px(tok: &str, fonts: &FontCtx) -> Option<f32> {
+    if let Some(n) = strip_unit(tok, "px") {
+        return n.css_f32();
+    }
+    // `rem` before `em`: `1rem` also ends in `em`.
+    if let Some(n) = strip_unit(tok, "rem") {
+        return Some(n.css_f32()? * fonts.root);
+    }
+    if let Some(n) = strip_unit(tok, "em") {
+        return Some(n.css_f32()? * fonts.own);
+    }
+    if let Some(n) = strip_unit(tok, "vw") {
+        return Some(n.css_f32()? * fonts.viewport_w / 100.0);
+    }
+    if let Some(n) = strip_unit(tok, "vh") {
+        return Some(n.css_f32()? * fonts.viewport_h / 100.0);
+    }
+    if let Some(n) = strip_unit(tok, "vmin") {
+        return Some(n.css_f32()? * fonts.viewport_w.min(fonts.viewport_h) / 100.0);
+    }
+    if let Some(n) = strip_unit(tok, "vmax") {
+        return Some(n.css_f32()? * fonts.viewport_w.max(fonts.viewport_h) / 100.0);
+    }
+    let head = tok.split('(').next()?.trim();
+    if !matches!(
+        head.to_ascii_lowercase().as_str(),
+        "calc" | "min" | "max" | "clamp"
+    ) || tok.contains('%')
+    {
+        return None;
+    }
+    match eval_math_call(tok, fonts)? {
+        Length::Px(px) => Some(px),
+        _ => None,
+    }
+}
+
 /// Chrome's computed track list. `repeat()` stays. A bare zero becomes
 /// `0px`, `minmax(0, 1fr)` becomes `minmax(0px, 1fr)`, and `11.5rem`
 /// becomes `184px`. `0fr` and `0%` stay flex and percent.
-pub(crate) fn specified_track_list(v: &str) -> Option<String> {
+pub(crate) fn specified_track_list(v: &str, fonts: &FontCtx) -> Option<String> {
     let mut rest = v.trim();
     if rest.is_empty() {
         return None;
@@ -229,7 +261,7 @@ pub(crate) fn specified_track_list(v: &str) -> Option<String> {
     let mut parts = Vec::new();
     while !rest.is_empty() {
         let (tok, tail) = next_track_token(rest)?;
-        parts.push(specified_track_token(tok)?);
+        parts.push(specified_track_token(tok, fonts)?);
         rest = tail.trim_start();
     }
     if parts.is_empty() {
@@ -241,7 +273,7 @@ pub(crate) fn specified_track_list(v: &str) -> Option<String> {
 
 /// `grid-auto-rows` / `grid-auto-columns`: one or more track sizes.
 /// `repeat()` is not a track size, so Chrome drops it.
-pub(crate) fn specified_auto_tracks(v: &str) -> Option<String> {
+pub(crate) fn specified_auto_tracks(v: &str, fonts: &FontCtx) -> Option<String> {
     let mut rest = v.trim();
     if rest.is_empty() {
         return None;
@@ -252,7 +284,7 @@ pub(crate) fn specified_auto_tracks(v: &str) -> Option<String> {
         if paren_fn_inner(tok, "repeat").is_some() {
             return None;
         }
-        parts.push(specified_track_token(tok)?);
+        parts.push(specified_track_token(tok, fonts)?);
         rest = tail.trim_start();
     }
     if parts.is_empty() {
@@ -262,23 +294,23 @@ pub(crate) fn specified_auto_tracks(v: &str) -> Option<String> {
     }
 }
 
-fn specified_track_token(tok: &str) -> Option<String> {
+fn specified_track_token(tok: &str, fonts: &FontCtx) -> Option<String> {
     if let Some(inner) = paren_fn_inner(tok, "repeat") {
         let (count, list) = split_first_top_comma(inner)?;
         let count = repeat_count(count)?;
-        let inner = specified_track_list(list)?;
+        let inner = specified_track_list(list, fonts)?;
         return Some(format!("repeat({count}, {inner})"));
     }
     if let Some(inner) = paren_fn_inner(tok, "minmax") {
         let (a, b) = split_first_top_comma(inner)?;
-        let a = specified_size(a)?;
-        let b = specified_size(b)?;
+        let a = specified_size(a, fonts)?;
+        let b = specified_size(b, fonts)?;
         return Some(format!("minmax({a}, {b})"));
     }
-    specified_size(tok)
+    specified_size(tok, fonts)
 }
 
-fn specified_size(tok: &str) -> Option<String> {
+fn specified_size(tok: &str, fonts: &FontCtx) -> Option<String> {
     if tok.eq_ignore_ascii_case("auto") {
         return Some("auto".to_string());
     }
@@ -291,11 +323,8 @@ fn specified_size(tok: &str) -> Option<String> {
     if let Some(fr) = strip_unit(tok, "fr") {
         return Some(format!("{}fr", css_num(fr.css_f32()?)));
     }
-    if let Some(px) = strip_unit(tok, "px") {
-        return Some(format!("{}px", css_num(px.css_f32()?)));
-    }
-    if let Some(r) = strip_unit(tok, "rem") {
-        return Some(format!("{}px", css_num(r.css_f32()? * 16.0)));
+    if let Some(px) = track_px(tok, fonts) {
+        return Some(format!("{}px", css_num(px)));
     }
     if let Some(p) = tok.strip_suffix('%') {
         return Some(format!("{}%", css_num(p.css_f32()?)));
@@ -409,7 +438,7 @@ pub(crate) struct GridAreasTemplate {
     pub areas_css: String,
 }
 
-pub(crate) fn parse_grid_areas_template(v: &str) -> Option<GridAreasTemplate> {
+pub(crate) fn parse_grid_areas_template(v: &str, fonts: &FontCtx) -> Option<GridAreasTemplate> {
     let mut rest = v.trim();
     if rest.is_empty() || rest.starts_with('[') {
         return None;
@@ -435,8 +464,8 @@ pub(crate) fn parse_grid_areas_template(v: &str) -> Option<GridAreasTemplate> {
             return None;
         } else {
             let (tok, tail) = next_track_token(rest)?;
-            rows.push(parse_grid_track_token(tok)?);
-            rows_css.push(specified_track_list(tok)?);
+            rows.push(parse_grid_track_token(tok, fonts)?);
+            rows_css.push(specified_track_list(tok, fonts)?);
             rest = tail.trim_start();
         }
     }
@@ -447,8 +476,8 @@ pub(crate) fn parse_grid_areas_template(v: &str) -> Option<GridAreasTemplate> {
             return None;
         }
         (
-            Some(parse_grid_tracks(cols)?),
-            Some(specified_track_list(cols)?),
+            Some(parse_grid_tracks(cols, fonts)?),
+            Some(specified_track_list(cols, fonts)?),
         )
     } else if rest.is_empty() {
         (None, None)
