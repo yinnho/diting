@@ -65,6 +65,38 @@ fn border_and_outline_shorthands_match_chrome() {
     assert_eq!(v["painted"], serde_json::json!("rgb(0, 0, 255) dashed 2px"));
 }
 
+#[test]
+fn font_flex_list_background_shorthands_match_chrome() {
+    let mut rt = setup_runtime("<html><body><div id='z'></div><b id='b'>x</b></body></html>");
+    let out = rt
+        .evaluate(
+            r#"const z = getComputedStyle(document.getElementById('z'));
+            const b = getComputedStyle(document.getElementById('b'));
+            JSON.stringify({
+              font: z.font, bold: b.font, flex: z.flex, flow: z.flexFlow,
+              list: z.listStyle, bg: z.background, anim: z.animation, tr: z.transition
+            })"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["font"], serde_json::json!("16px Times"));
+    assert_eq!(v["bold"], serde_json::json!("700 16px Times"));
+    assert_eq!(v["flex"], serde_json::json!("0 1 auto"));
+    assert_eq!(v["flow"], serde_json::json!("row nowrap"));
+    assert_eq!(v["list"], serde_json::json!("disc outside none"));
+    assert_eq!(
+        v["bg"],
+        serde_json::json!(
+            "rgba(0, 0, 0, 0) none repeat scroll 0% 0% / auto padding-box border-box"
+        )
+    );
+    assert_eq!(
+        v["anim"],
+        serde_json::json!("none 0s ease 0s 1 normal none running")
+    );
+    assert_eq!(v["tr"], serde_json::json!("all 0s ease 0s"));
+}
+
 /// #214 (blitz#998): `text-align-last` on the computed face — declared
 /// keywords round-trip verbatim, undeclared reports the css-text-3
 /// initial `auto`, and inheritance rides the cascade (a child sees the
