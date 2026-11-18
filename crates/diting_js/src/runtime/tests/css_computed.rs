@@ -111,6 +111,97 @@ fn font_flex_list_background_shorthands_match_chrome() {
 }
 
 #[test]
+fn insets_and_transform_origin_match_chrome() {
+    // Chrome 157: a static inset is the specified value (`auto` when unset,
+    // a percentage stays a percentage). Relative autos become 0px, and one
+    // specified side negates the other. Absolute/fixed insets are used px
+    // against the containing block. transform-origin on a box is used px
+    // and drops a zero z; display:none keeps "50% 50%".
+    let mut rt = setup_runtime(
+        "<html><head><style>\
+         body { margin: 0 }\
+         #s { left: 10px; width: 100px; height: 40px }\
+         #sp { left: 10%; width: 80px; height: 20px }\
+         #u { width: 100px; height: 40px }\
+         #rel { position: relative; width: 100px; height: 40px }\
+         #shift { position: relative; left: 10px; top: 5px; width: 100px; height: 40px }\
+         #host { width: 200px }\
+         #pct { position: relative; left: 10%; width: 100px; height: 40px }\
+         #abs { position: absolute; left: 40px; top: 12px; width: 30px; height: 10px }\
+         #stick { position: sticky; top: 8px; width: 100px; height: 40px }\
+         #none { display: none; width: 100px; height: 40px }\
+         #orig { width: 100px; height: 40px; transform-origin: left top }\
+         </style></head><body>\
+         <div id='s'></div><div id='sp'></div><div id='u'></div>\
+         <div id='rel'></div><div id='shift'></div>\
+         <div id='host'><div id='pct'></div></div>\
+         <div id='abs'></div><div id='stick'></div><div id='none'></div>\
+         <div id='orig'></div>\
+         <div id='p' style='width:100px;height:40px;perspective-origin:10px 30px'></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"
+            __diting_setViewport(800, 600, false, undefined);
+            const g = (id) => getComputedStyle(document.getElementById(id));
+            const box = (id) => {
+              const c = g(id);
+              return [c.left, c.top, c.right, c.bottom, c.transformOrigin, c.perspectiveOrigin].join(' ');
+            };
+            JSON.stringify({
+              s: box('s'), sp: box('sp'), u: box('u'), rel: box('rel'),
+              shift: box('shift'), pct: box('pct'), abs: box('abs'),
+              stick: box('stick'), none: box('none'), orig: box('orig'),
+              p: g('p').perspectiveOrigin
+            })"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(
+        v["s"],
+        serde_json::json!("10px auto auto auto 50px 20px 50px 20px")
+    );
+    assert_eq!(
+        v["sp"],
+        serde_json::json!("10% auto auto auto 40px 10px 40px 10px")
+    );
+    assert_eq!(
+        v["u"],
+        serde_json::json!("auto auto auto auto 50px 20px 50px 20px")
+    );
+    assert_eq!(
+        v["rel"],
+        serde_json::json!("0px 0px 0px 0px 50px 20px 50px 20px")
+    );
+    assert_eq!(
+        v["shift"],
+        serde_json::json!("10px 5px -10px -5px 50px 20px 50px 20px")
+    );
+    assert_eq!(
+        v["pct"],
+        serde_json::json!("20px 0px -20px 0px 50px 20px 50px 20px")
+    );
+    assert_eq!(
+        v["abs"],
+        serde_json::json!("40px 12px 730px 578px 15px 5px 15px 5px")
+    );
+    assert_eq!(
+        v["stick"],
+        serde_json::json!("auto 8px auto auto 50px 20px 50px 20px")
+    );
+    assert_eq!(
+        v["none"],
+        serde_json::json!("auto auto auto auto 50% 50% 50% 50%")
+    );
+    assert_eq!(
+        v["orig"],
+        serde_json::json!("auto auto auto auto 0px 0px 50px 20px")
+    );
+    assert_eq!(v["p"], serde_json::json!("10px 30px"));
+}
+
+#[test]
 fn computed_keywords_and_new_initials_match_chrome() {
     // Chrome 157 (local 157.0.8103.52): medium/thin/thick rule widths are
     // px, corner-shape keywords are superellipse(), offset-rotate:auto is
@@ -313,6 +404,7 @@ fn logical_box_properties_and_transform_origin_serve_and_layout() {
              #a { margin-block-start: 10px; padding-inline-start: 5% }\
              #host { width: 400px }\
              #b { margin-inline: 4px 8px }\
+             #pct { width: 200px; height: 40px }\
              #c { transform-origin: left top; transform: rotate(90deg); width: 100px; height: 50px }\
              #d { transform: rotate(90deg); width: 100px; height: 50px }\
              </style></head><body>\
@@ -344,12 +436,12 @@ fn logical_box_properties_and_transform_origin_serve_and_layout() {
     // padding-inline-start 5% resolves against its CB (body content —
     // margin 0, so the full pinned 1920) like any #242 face → 96px.
     // #b: the 1-2 value shorthand fills left=4 right=8.
-    // transform-origin: default "50% 50% 0px" (Chrome's string from the
-    // issue probe), declared "left top" normalizes to 0% 0%, unset
-    // logical margin answers 0px like Chrome.
+    // transform-origin: Chrome resolves against the border box and drops
+    // a zero z. #pct is 200×40 so the initial center is "100px 20px";
+    // "left top" on #c is "0px 0px". Unset logical margin is 0px.
     assert_eq!(
         out.as_str().unwrap(),
-        "10px|96px|4px|8px|50% 50% 0px|0% 0% 0px|0px",
+        "10px|96px|4px|8px|100px 20px|0px 0px|0px",
         "logical longhands serve from the physical slots with used-px resolution"
     );
     // The declarations LAYOUT too: #a's margin-block-start: 10px offsets
@@ -1223,7 +1315,9 @@ fn test_get_computed_style_table_family_and_flex_initials() {
 // now carries Chrome's initial values (audited against Chromium 147).
 #[test]
 fn test_get_computed_style_initial_values_not_empty() {
-    let mut rt = setup_runtime(r#"<html><body><div id="d">x</div></body></html>"#);
+    let mut rt = setup_runtime(
+        r#"<html><body><div id="d" style="width:100px;height:40px">x</div></body></html>"#,
+    );
     let out = rt
             .evaluate(
                 r#"JSON.stringify({
@@ -1446,7 +1540,7 @@ fn test_get_computed_style_initial_values_not_empty() {
     assert_eq!(v["rowColor"], serde_json::json!("rgb(0, 0, 0)"));
     assert_eq!(v["textFit"], serde_json::json!("none"));
     assert_eq!(v["markerGroup"], serde_json::json!("none"));
-    assert_eq!(v["origin"], serde_json::json!("50% 50% 0px"));
+    assert_eq!(v["origin"], serde_json::json!("50px 20px"));
 }
 
 /// Upstream a0e1ba5: CSSStyleDeclaration is a real global interface — the

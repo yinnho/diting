@@ -564,18 +564,29 @@ pub(crate) fn dom_cmd_scroll_style(
                 .flatten();
             let epoch = dom.epoch();
             ensure_layout_run(gs, dom, epoch);
+            let viewport = gs.viewport;
             let style_and_cb = if gs.layout_policy.uses_real_layout() {
                 gs.layout_cache.borrow().as_ref().and_then(|(e, r)| {
                     if *e != epoch {
                         return None;
                     }
-                    let (rects, _, styles, _, _, _, _) = r;
+                    let (rects, _, styles, _, local_geom, _, _) = r;
                     let style = styles.get(&nid).cloned();
                     // #242: percentage padding/margin resolves to used px against
                     // the containing block — Chrome's gCS posture. Pseudos share
                     // the host's containing block.
                     let cb = cb_inline_for(dom, rects, styles, nid, 8);
-                    style.map(|s| (s, cb))
+                    let origin_box = local_geom.get(&nid).map(|(b, _)| (b[2], b[3]));
+                    let placed = match (
+                        local_geom.get(&nid).map(|(b, _)| *b),
+                        cssom_value::cb_pad_box(dom, rects, styles, nid, viewport),
+                    ) {
+                        (Some(border), Some(cb_box)) => {
+                            Some(cssom_value::PlacedBox { border, cb: cb_box })
+                        }
+                        _ => None,
+                    };
+                    style.map(|s| (s, cb, origin_box, placed))
                 })
             } else {
                 // Mock keeps the cascade and skips the box tree, so there is
@@ -584,11 +595,11 @@ pub(crate) fn dom_cmd_scroll_style(
                     if *e != epoch {
                         return None;
                     }
-                    styles.get(&nid).cloned().map(|s| (s, None))
+                    styles.get(&nid).cloned().map(|s| (s, None, None, None))
                 })
             };
             match style_and_cb {
-                Some((s, cb)) => {
+                Some((s, cb, origin_box, placed)) => {
                     // The pseudo cascade lives on the host's ComputedStyle;
                     // a pseudo with no rule serializes the initial-value
                     // table rather than an empty declaration.
@@ -618,6 +629,26 @@ pub(crate) fn dom_cmd_scroll_style(
                     }
                     for (k, v) in diting_css::props::missing_initials(&target.custom) {
                         obj.insert(k, serde_json::Value::String(v));
+                    }
+                    // Insets and a resolved transform-origin. Pseudos have no
+                    // box of their own, so they keep the specified spelling.
+                    if pseudo_kind == 0 {
+                        let used =
+                            cssom_value::used_geometry(&target, cb, origin_box, placed.as_ref());
+                        if let Some(origin) = used.transform_origin {
+                            obj.insert(
+                                "transform-origin".to_string(),
+                                serde_json::Value::String(origin),
+                            );
+                        }
+                        for (name, value) in [
+                            ("left", used.left),
+                            ("top", used.top),
+                            ("right", used.right),
+                            ("bottom", used.bottom),
+                        ] {
+                            obj.insert(name.to_string(), serde_json::Value::String(value));
+                        }
                     }
                     serde_json::Value::Object(obj).to_string()
                 }
