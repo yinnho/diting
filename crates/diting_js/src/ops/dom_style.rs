@@ -576,6 +576,7 @@ pub(crate) fn dom_cmd_scroll_style(
                     // the containing block — Chrome's gCS posture. Pseudos share
                     // the host's containing block.
                     let cb = cb_inline_for(dom, rects, styles, nid, 8);
+                    let cb_block = cssom_value::content_block_for(dom, rects, styles, nid, 8);
                     let origin_box = local_geom.get(&nid).map(|(b, _)| (b[2], b[3]));
                     let placed = match (
                         local_geom.get(&nid).map(|(b, _)| *b),
@@ -586,7 +587,7 @@ pub(crate) fn dom_cmd_scroll_style(
                         }
                         _ => None,
                     };
-                    style.map(|s| (s, cb, origin_box, placed))
+                    style.map(|s| (s, cb, cb_block, origin_box, placed))
                 })
             } else {
                 // Mock keeps the cascade and skips the box tree, so there is
@@ -595,11 +596,14 @@ pub(crate) fn dom_cmd_scroll_style(
                     if *e != epoch {
                         return None;
                     }
-                    styles.get(&nid).cloned().map(|s| (s, None, None, None))
+                    styles
+                        .get(&nid)
+                        .cloned()
+                        .map(|s| (s, None, None, None, None))
                 })
             };
             match style_and_cb {
-                Some((s, cb, origin_box, placed)) => {
+                Some((s, cb, cb_block, origin_box, placed)) => {
                     // The pseudo cascade lives on the host's ComputedStyle;
                     // a pseudo with no rule serializes the initial-value
                     // table rather than an empty declaration.
@@ -633,8 +637,13 @@ pub(crate) fn dom_cmd_scroll_style(
                     // Insets and a resolved transform-origin. Pseudos have no
                     // box of their own, so they keep the specified spelling.
                     if pseudo_kind == 0 {
-                        let used =
-                            cssom_value::used_geometry(&target, cb, origin_box, placed.as_ref());
+                        let used = cssom_value::used_geometry(
+                            &target,
+                            cb,
+                            cb_block,
+                            origin_box,
+                            placed.as_ref(),
+                        );
                         if let Some(origin) = used.transform_origin {
                             obj.insert(
                                 "transform-origin".to_string(),

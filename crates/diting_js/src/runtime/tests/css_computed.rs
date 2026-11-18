@@ -202,6 +202,48 @@ fn insets_and_transform_origin_match_chrome() {
 }
 
 #[test]
+fn relative_vertical_percent_uses_parent_content_height() {
+    // Chrome 157: top/bottom percentages on a relative element resolve
+    // against the parent's content-box height, including when that height
+    // is auto (the laid-out content) or border-box (padding is subtracted).
+    // Both sides specified stay independent; an auto side is the negation.
+    let mut rt = setup_runtime(
+        "<html><head><style>body{margin:0}\
+         #h{height:200px} #c{position:relative;top:10%;height:20px}\
+         #b{height:200px;padding:20px;box-sizing:border-box}\
+         #cb{position:relative;top:10%;height:20px}\
+         #a #ca{position:relative;top:10%;height:20px}\
+         #both{height:200px} #bt{position:relative;top:10%;bottom:20px;height:20px}\
+         </style></head><body>\
+         <div id='h'><div id='c'></div></div>\
+         <div id='b'><div id='cb'></div></div>\
+         <div id='a'><div id='ca'></div></div>\
+         <div id='both'><div id='bt'></div></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"const g = (id) => getComputedStyle(document.getElementById(id));
+            JSON.stringify({
+              t: g('c').top, b: g('c').bottom,
+              tb: g('cb').top, bb: g('cb').bottom,
+              ta: g('ca').top, ba: g('ca').bottom,
+              tt: g('bt').top, bt: g('bt').bottom
+            })"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["t"], serde_json::json!("20px"));
+    assert_eq!(v["b"], serde_json::json!("-20px"));
+    assert_eq!(v["tb"], serde_json::json!("16px"));
+    assert_eq!(v["bb"], serde_json::json!("-16px"));
+    assert_eq!(v["ta"], serde_json::json!("2px"));
+    assert_eq!(v["ba"], serde_json::json!("-2px"));
+    assert_eq!(v["tt"], serde_json::json!("20px"));
+    assert_eq!(v["bt"], serde_json::json!("20px"));
+}
+
+#[test]
 fn computed_keywords_and_new_initials_match_chrome() {
     // Chrome 157 (local 157.0.8103.52): medium/thin/thick rule widths are
     // px, corner-shape keywords are superellipse(), offset-rotate:auto is
