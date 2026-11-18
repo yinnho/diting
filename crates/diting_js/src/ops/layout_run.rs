@@ -619,29 +619,29 @@ pub(crate) fn sticky_scrollport(
     let mut cur = dom.get_node(nid).and_then(|nd| nd.parent);
     while let Some(p) = cur {
         if is_element_scroller(dom, rects, styles, p) {
-            return scrollport_content(dom, rects, styles, p);
+            if let Some(b) = scrollport_content(dom, rects, styles, p) {
+                return (b[2], b[3]);
+            }
         }
         cur = dom.get_node(p).and_then(|nd| nd.parent);
     }
     viewport
 }
 
-/// Border box minus border and padding. Vertical padding percentages use
-/// the inline containing block, same as CSS.
+/// Content box of an element scroller, in the same space as `rects`.
+/// Chrome pins sticky insets to this edge and resolves percentages
+/// against its size. Vertical padding percentages use the inline
+/// containing block, same as CSS.
 #[cfg(feature = "screenshot")]
 fn scrollport_content(
     dom: &DomTree,
     rects: &HashMap<NodeId, [f32; 4]>,
     styles: &HashMap<NodeId, diting_css::ComputedStyle>,
     id: NodeId,
-) -> (f32, f32) {
+) -> Option<[f32; 4]> {
     use diting_css::Length;
-    let Some(st) = styles.get(&id) else {
-        return (0.0, 0.0);
-    };
-    let Some(&[_, _, w, h]) = rects.get(&id) else {
-        return (0.0, 0.0);
-    };
+    let st = styles.get(&id)?;
+    let &[x, y, w, h] = rects.get(&id)?;
     let (bt, br, bb, bl) = if st.border_style.is_some() {
         (
             px_len(&st.border_width.top),
@@ -659,10 +659,16 @@ fn scrollport_content(
         Some(Length::Calc { percent, px }) => percent * cb_w / 100.0 + px,
         _ => 0.0,
     };
-    (
-        (w - bl - br - pad(&st.padding.left) - pad(&st.padding.right)).max(0.0),
-        (h - bt - bb - pad(&st.padding.top) - pad(&st.padding.bottom)).max(0.0),
-    )
+    let pl = pad(&st.padding.left);
+    let pr = pad(&st.padding.right);
+    let pt = pad(&st.padding.top);
+    let pb = pad(&st.padding.bottom);
+    Some([
+        x + bl + pl,
+        y + bt + pt,
+        (w - bl - br - pl - pr).max(0.0),
+        (h - bt - bb - pt - pb).max(0.0),
+    ])
 }
 
 #[cfg(feature = "screenshot")]
@@ -770,12 +776,6 @@ pub(crate) fn sticky_shifts(gs: &JsState, dom: &DomTree) -> std::rc::Rc<HashMap<
 
     let resolve =
         |l: &Option<Length>, port: f32| l.as_ref().map(|l| diting_layout::sticky_inset_px(l, port));
-    // Border widths count only with a border-style — the clip walk's
-    // side_px rule; the scrollport is the padding box.
-    let side_px = |l: &Option<Length>| match l {
-        Some(Length::Px(v)) => *v,
-        _ => 0.0,
-    };
 
     let mut out: HashMap<NodeId, [f32; 2]> = HashMap::new();
     for (nid, scroller_source) in sources {
@@ -811,29 +811,10 @@ pub(crate) fn sticky_shifts(gs: &JsState, dom: &DomTree) -> std::rc::Rc<HashMap<
                 }
             }
             if port.is_none() && is_element_scroller(dom, rects, styles, p) {
-                let [px, py, pw, ph] = rects[&p];
-                let st = &styles[&p];
-                // Padding box = border box inset by border widths, which
-                // apply only with a border-style.
-                let (bt, br, bb, bl) = if st.border_style.is_some() {
-                    (
-                        side_px(&st.border_width.top),
-                        side_px(&st.border_width.right),
-                        side_px(&st.border_width.bottom),
-                        side_px(&st.border_width.left),
-                    )
-                } else {
-                    (0.0, 0.0, 0.0, 0.0)
-                };
-                port = Some((
-                    [
-                        px + bl,
-                        py + bt,
-                        (pw - bl - br).max(0.0),
-                        (ph - bt - bb).max(0.0),
-                    ],
-                    scrolls.get(&p).copied().unwrap_or([0.0, 0.0]),
-                ));
+                // Content box, same edge getComputedStyle resolves against.
+                if let Some(b) = scrollport_content(dom, rects, styles, p) {
+                    port = Some((b, scrolls.get(&p).copied().unwrap_or([0.0, 0.0])));
+                }
             }
             cur = dom.get_node(p).and_then(|nd| nd.parent);
         }
