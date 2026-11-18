@@ -359,6 +359,91 @@ fn grid_track_min_max_keeps_percent() {
 }
 
 #[test]
+fn grid_line_names_keep_chrome_spelling() {
+    // Line names stay in source order. Empty brackets disappear. Case is
+    // kept. span, auto, and CSS-wide keywords drop the declaration.
+    let mut s = ComputedStyle::default();
+    apply_declarations(&mut s, "grid-template-columns: [start] 1fr [end]");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("[start] 1fr [end]"));
+    assert_eq!(s.grid_template_columns, Some(vec![GridTrack::Fr(1.0)]));
+    apply_declarations(&mut s, "grid-template-columns: [  start   end  ] 1fr");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("[start end] 1fr"));
+    apply_declarations(&mut s, "grid-template-columns: [] 1fr []");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("1fr"));
+    apply_declarations(&mut s, "grid-template-columns: [START] 1fr");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("[START] 1fr"));
+    apply_declarations(&mut s, "grid-template-columns: [--foo] 1fr");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("[--foo] 1fr"));
+    apply_declarations(&mut s, "grid-template-columns: [a]1fr[b]");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("[a] 1fr [b]"));
+    apply_declarations(&mut s, "grid-template-columns: [s] 0 [e]");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("[s] 0px [e]"));
+    apply_declarations(&mut s, "grid-template-columns: [s] minmax(0, 1fr) [e]");
+    assert_eq!(
+        s.grid_cols_specified.as_deref(),
+        Some("[s] minmax(0px, 1fr) [e]")
+    );
+    apply_declarations(&mut s, "grid-template-columns: [a\\31] 1fr");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("[a1] 1fr"));
+    apply_declarations(&mut s, "grid-template-columns: repeat(2, [a] 1fr [b])");
+    assert_eq!(
+        s.grid_cols_specified.as_deref(),
+        Some("repeat(2, [a] 1fr [b])")
+    );
+    assert_eq!(
+        s.grid_template_columns,
+        Some(vec![GridTrack::Fr(1.0), GridTrack::Fr(1.0)])
+    );
+    apply_declarations(&mut s, "grid-template-columns: [a] [b] 1fr");
+    assert_eq!(
+        s.grid_cols_specified.as_deref(),
+        Some("repeat(2, [a] 1fr [b])")
+    );
+    apply_declarations(&mut s, "grid-template-columns: [span] 1fr");
+    assert_eq!(
+        s.grid_cols_specified.as_deref(),
+        Some("repeat(2, [a] 1fr [b])")
+    );
+    apply_declarations(&mut s, "grid-template-columns: [auto] 1fr");
+    assert_eq!(
+        s.grid_cols_specified.as_deref(),
+        Some("repeat(2, [a] 1fr [b])")
+    );
+    apply_declarations(&mut s, "grid-auto-rows: [s] 20px");
+    assert_eq!(s.grid_auto_rows_specified, None);
+
+    let mut s = ComputedStyle::default();
+    apply_declarations(&mut s, "grid: [s] 'a a' [e] / 1fr 1fr");
+    assert_eq!(s.grid_rows_specified.as_deref(), Some("[s] auto [e]"));
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("1fr 1fr"));
+    assert_eq!(s.grid_areas_specified.as_deref(), Some("\"a a\""));
+    apply_declarations(&mut s, "grid: [s] 'a a' [m] 'b b' [e] / 1fr 1fr");
+    assert_eq!(
+        s.grid_rows_specified.as_deref(),
+        Some("[s] auto [m] auto [e]")
+    );
+    apply_declarations(
+        &mut s,
+        "grid-template: [header-top] \"a a a\" [header-bottom] [main-top] \"b b b\" 1fr [main-bottom] / auto 1fr auto",
+    );
+    assert_eq!(
+        s.grid_rows_specified.as_deref(),
+        Some("[header-top] auto [header-bottom main-top] 1fr [main-bottom]")
+    );
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("auto 1fr auto"));
+    apply_declarations(&mut s, "grid: [s] 1fr [e] / [c] 2fr [d]");
+    assert_eq!(s.grid_rows_specified.as_deref(), Some("[s] 1fr [e]"));
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("[c] 2fr [d]"));
+    assert_eq!(s.grid_areas_specified, None);
+    apply_declarations(&mut s, "grid: auto-flow dense / [c] 100px [d]");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("[c] 100px [d]"));
+    assert_eq!(s.grid_auto_flow_specified.as_deref(), Some("dense"));
+    apply_declarations(&mut s, "grid: auto-flow [s] 20px / 1fr");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("[c] 100px [d]"));
+    assert_eq!(s.grid_auto_flow_specified.as_deref(), Some("dense"));
+}
+
+#[test]
 fn grid_repeat_expands_inline() {
     // The landing-page idiom: repeat(4, 1fr). Before this batch the
     // token failed to parse, the whole declaration dropped, and the

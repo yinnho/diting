@@ -104,33 +104,10 @@ pub(crate) fn parse_num_f32(v: &str) -> Option<f32> {
     css_f32(v)
 }
 
-/// Whitespace-separated track list: `1fr 2fr 100px auto`. Unknown tokens
-/// abort the whole declaration (browsers drop it entirely).
+/// Whitespace-separated track list: `1fr 2fr 100px auto`, plus line names.
+/// Unknown tokens abort the whole declaration (browsers drop it entirely).
 pub(crate) fn parse_grid_tracks(v: &str, fonts: &FontCtx) -> Option<Vec<GridTrack>> {
-    let mut tracks = Vec::new();
-    let mut rest = v.trim();
-    while !rest.is_empty() {
-        let (token, tail) = next_track_token(rest)?;
-        // repeat(N, <track-list>) expands inline to N copies of the list.
-        // auto-fill/auto-fit counts need the container's size, which the
-        // cascade doesn't have — those reject like any unknown token.
-        if let Some(inner) = paren_fn_inner(token, "repeat") {
-            let (count, list) = split_first_top_comma(inner)?;
-            let count = repeat_count(count)?;
-            let expanded = parse_grid_tracks(list, fonts)?;
-            for _ in 0..count {
-                tracks.extend_from_slice(&expanded);
-            }
-        } else {
-            tracks.push(parse_grid_track_token(token, fonts)?);
-        }
-        rest = tail.trim_start();
-    }
-    if tracks.is_empty() {
-        None
-    } else {
-        Some(tracks)
-    }
+    Some(parse_named_tracks(v, fonts)?.tracks)
 }
 
 /// Split off one track token: `minmax(a, b)` and `repeat(n, …)` contain
@@ -138,9 +115,14 @@ pub(crate) fn parse_grid_tracks(v: &str, fonts: &FontCtx) -> Option<Vec<GridTrac
 /// whose first `(` precedes any whitespace runs to its balanced close
 /// (repeat lists can nest a minmax, so the scan counts depth).
 pub(super) fn next_track_token(v: &str) -> Option<(&str, &str)> {
+    if v.starts_with('[') {
+        let end = v.find(']')?;
+        return Some(v.split_at(end + 1));
+    }
     let ws = v.find(char::is_whitespace).unwrap_or(v.len());
     let paren = v.find('(').unwrap_or(v.len());
-    if paren < ws {
+    let bracket = v.find('[').unwrap_or(v.len());
+    if paren < ws && paren < bracket {
         let mut depth = 0usize;
         for (i, c) in v.char_indices() {
             match c {
@@ -156,10 +138,11 @@ pub(super) fn next_track_token(v: &str) -> Option<(&str, &str)> {
         }
         return None;
     }
-    if ws == 0 {
+    let end = ws.min(bracket);
+    if end == 0 {
         None
     } else {
-        Some(v.split_at(ws))
+        Some(v.split_at(end))
     }
 }
 
@@ -404,23 +387,282 @@ fn track_px(tok: &str, fonts: &FontCtx) -> Option<f32> {
 
 /// Chrome's computed track list. `repeat()` stays. A bare zero becomes
 /// `0px`, `minmax(0, 1fr)` becomes `minmax(0px, 1fr)`, and `11.5rem`
-/// becomes `184px`. `0fr` and `0%` stay flex and percent.
+/// becomes `184px`. `0fr` and `0%` stay flex and percent. Line names stay
+/// in source order; an empty `[]` is omitted.
 pub(crate) fn specified_track_list(v: &str, fonts: &FontCtx) -> Option<String> {
+    Some(parse_named_tracks(v, fonts)?.css)
+}
+
+/// Expanded line-name groups for a track list Chrome has already spelled.
+/// Empty when every line is unnamed. Length is `tracks + 1` otherwise,
+/// with empty groups kept so a name stays on its own line.
+pub fn explicit_track_line_names(v: &str) -> Vec<Vec<String>> {
+    match parse_named_tracks(v, &FontCtx::default()) {
+        Some(n) if n.names.iter().any(|g| !g.is_empty()) => n.names,
+        _ => Vec::new(),
+    }
+}
+
+struct NamedTracks {
+    tracks: Vec<GridTrack>,
+    names: Vec<Vec<String>>,
+    css: String,
+}
+
+enum TrackPiece {
+    Names(Vec<String>),
+    Single(GridTrack, String),
+    Repeat {
+        count: usize,
+        inner_css: String,
+        tracks: Vec<GridTrack>,
+        names: Vec<Vec<String>>,
+    },
+}
+
+fn parse_named_tracks(v: &str, fonts: &FontCtx) -> Option<NamedTracks> {
     let mut rest = v.trim();
     if rest.is_empty() {
         return None;
     }
-    let mut parts = Vec::new();
+    let mut pieces = Vec::new();
     while !rest.is_empty() {
+        if rest.starts_with('[') {
+            let (tok, tail) = next_track_token(rest)?;
+            pieces.push(TrackPiece::Names(parse_line_names(tok)?));
+            rest = tail.trim_start();
+            continue;
+        }
         let (tok, tail) = next_track_token(rest)?;
-        parts.push(specified_track_token(tok, fonts)?);
+        if let Some(inner) = paren_fn_inner(tok, "repeat") {
+            let (count, list) = split_first_top_comma(inner)?;
+            let count = repeat_count(count)?;
+            let inner = parse_named_tracks(list, fonts)?;
+            pieces.push(TrackPiece::Repeat {
+                count,
+                inner_css: inner.css,
+                tracks: inner.tracks,
+                names: inner.names,
+            });
+        } else {
+            pieces.push(TrackPiece::Single(
+                parse_grid_track_token(tok, fonts)?,
+                specified_track_token(tok, fonts)?,
+            ));
+        }
         rest = tail.trim_start();
     }
-    if parts.is_empty() {
-        None
-    } else {
-        Some(parts.join(" "))
+    expand_track_pieces(&pieces)
+}
+
+/// One `<line-names>?` before each track, and the names of a `repeat()`
+/// collapse with the next line. Two bracket groups in a row are invalid.
+fn expand_track_pieces(pieces: &[TrackPiece]) -> Option<NamedTracks> {
+    let mut tracks = Vec::new();
+    let mut names = vec![Vec::new()];
+    let mut css = String::new();
+    let mut saw_track = false;
+    let mut prev_names = false;
+    for piece in pieces {
+        match piece {
+            TrackPiece::Names(group) => {
+                if prev_names {
+                    return None;
+                }
+                if let Some(slot) = names.last_mut() {
+                    slot.extend(group.iter().cloned());
+                }
+                push_css(&mut css, &line_names_css(group));
+                prev_names = true;
+            }
+            TrackPiece::Single(track, track_css) => {
+                tracks.push(*track);
+                names.push(Vec::new());
+                push_css(&mut css, track_css);
+                saw_track = true;
+                prev_names = false;
+            }
+            TrackPiece::Repeat {
+                count,
+                inner_css,
+                tracks: inner_tracks,
+                names: inner_names,
+            } => {
+                push_css(&mut css, &format!("repeat({count}, {inner_css})"));
+                for _ in 0..*count {
+                    if let Some(first) = inner_names.first() {
+                        if let Some(slot) = names.last_mut() {
+                            slot.extend(first.iter().cloned());
+                        }
+                    }
+                    for (i, track) in inner_tracks.iter().enumerate() {
+                        tracks.push(*track);
+                        let next = inner_names.get(i + 1).cloned().unwrap_or_default();
+                        names.push(next);
+                    }
+                }
+                saw_track = true;
+                prev_names = false;
+            }
+        }
     }
+    if !saw_track {
+        return None;
+    }
+    Some(NamedTracks { tracks, names, css })
+}
+
+fn push_css(out: &mut String, piece: &str) {
+    if piece.is_empty() {
+        return;
+    }
+    if !out.is_empty() {
+        out.push(' ');
+    }
+    out.push_str(piece);
+}
+
+fn line_names_css(names: &[String]) -> String {
+    if names.is_empty() {
+        return String::new();
+    }
+    let mut s = String::from("[");
+    for (i, name) in names.iter().enumerate() {
+        if i > 0 {
+            s.push(' ');
+        }
+        s.push_str(name);
+    }
+    s.push(']');
+    s
+}
+
+/// `[a b]` → `a`, `b`. `[]` is an empty group. `span`, `auto`, and the
+/// CSS-wide keywords are not line names, so the declaration drops.
+fn parse_line_names(tok: &str) -> Option<Vec<String>> {
+    let inner = tok.strip_prefix('[')?.strip_suffix(']')?;
+    let mut names = Vec::new();
+    let mut rest = inner.trim_start();
+    while !rest.is_empty() {
+        let (name, tail) = take_custom_ident(rest)?;
+        if reserved_line_name(&name) {
+            return None;
+        }
+        names.push(name);
+        if tail.is_empty() {
+            break;
+        }
+        if !tail.starts_with(|c: char| c.is_whitespace()) {
+            return None;
+        }
+        rest = tail.trim_start();
+    }
+    Some(names)
+}
+
+fn reserved_line_name(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "span" | "auto" | "initial" | "inherit" | "unset" | "revert" | "revert-layer" | "default"
+    )
+}
+
+fn take_custom_ident(s: &str) -> Option<(String, &str)> {
+    if s.is_empty() {
+        return None;
+    }
+    let bytes = s.as_bytes();
+    let mut out = String::new();
+    let mut i = if bytes[0] == b'-' {
+        out.push('-');
+        if bytes.len() > 1 && bytes[1] == b'-' {
+            out.push('-');
+            2
+        } else {
+            let (ch, n) = take_ident_unit(s, 1, true)?;
+            out.push(ch);
+            n
+        }
+    } else {
+        let (ch, n) = take_ident_unit(s, 0, true)?;
+        out.push(ch);
+        n
+    };
+    while let Some((ch, n)) = take_ident_unit(s, i, false) {
+        out.push(ch);
+        i = n;
+    }
+    if out == "-" {
+        return None;
+    }
+    Some((out, &s[i..]))
+}
+
+fn take_ident_unit(s: &str, i: usize, start: bool) -> Option<(char, usize)> {
+    if i >= s.len() {
+        return None;
+    }
+    let c = s[i..].chars().next()?;
+    if c == '\\' {
+        return take_css_escape(s, i);
+    }
+    let ok = c.is_ascii_alphabetic()
+        || c == '_'
+        || (c as u32) >= 0x80
+        || (!start && (c.is_ascii_digit() || c == '-'));
+    if ok {
+        Some((c, i + c.len_utf8()))
+    } else {
+        None
+    }
+}
+
+/// CSS escape: hex (1–6 digits, one trailing whitespace eaten) or the
+/// next character. A newline after `\` is not an escape.
+fn take_css_escape(s: &str, i: usize) -> Option<(char, usize)> {
+    let bytes = s.as_bytes();
+    if i >= bytes.len() || bytes[i] != b'\\' {
+        return None;
+    }
+    let mut j = i + 1;
+    if j >= s.len() {
+        return None;
+    }
+    let c = s[j..].chars().next()?;
+    if c == '\n' || c == '\r' || c == '\u{000c}' {
+        return None;
+    }
+    if !c.is_ascii_hexdigit() {
+        return Some((c, j + c.len_utf8()));
+    }
+    let mut val: u32 = 0;
+    let mut digits = 0u8;
+    while j < s.len() && digits < 6 {
+        let ch = s[j..].chars().next()?;
+        if !ch.is_ascii_hexdigit() {
+            break;
+        }
+        val = val * 16 + ch.to_digit(16)?;
+        j += ch.len_utf8();
+        digits += 1;
+    }
+    if j < s.len() {
+        let ch = s[j..].chars().next()?;
+        if ch == '\r' {
+            j += 1;
+            if j < s.len() && s.as_bytes()[j] == b'\n' {
+                j += 1;
+            }
+        } else if matches!(ch, ' ' | '\t' | '\n' | '\u{000c}') {
+            j += ch.len_utf8();
+        }
+    }
+    let ch = if val == 0 || val > 0x10_FFFF || (0xD800..=0xDFFF).contains(&val) {
+        '\u{FFFD}'
+    } else {
+        char::from_u32(val).unwrap_or('\u{FFFD}')
+    };
+    Some((ch, j))
 }
 
 /// `grid-auto-rows` / `grid-auto-columns`: one or more track sizes.
@@ -593,9 +835,11 @@ pub(crate) fn parse_grid_template_areas(v: &str) -> Option<Vec<Vec<String>>> {
     same_width(rows)
 }
 
-/// `grid` / `grid-template` areas form: `'a a' 20px / 1fr 1fr`.
+/// `grid` / `grid-template` areas form: `[s] 'a a' 20px [e] / [c] 1fr`.
 /// Omitted row sizes are `auto`. No slash leaves columns at `none`.
-/// Line names (`[s]`) are not represented, so a bracket rejects the value.
+/// A line-name group may sit before each string and after each row size.
+/// The name after one row and the name before the next are the same line,
+/// so they join: `[e] [m]` becomes `[e m]`.
 pub(crate) struct GridAreasTemplate {
     pub rows: Vec<GridTrack>,
     pub rows_css: String,
@@ -607,35 +851,66 @@ pub(crate) struct GridAreasTemplate {
 
 pub(crate) fn parse_grid_areas_template(v: &str, fonts: &FontCtx) -> Option<GridAreasTemplate> {
     let mut rest = v.trim();
-    if rest.is_empty() || rest.starts_with('[') {
+    if rest.is_empty() {
         return None;
     }
     let mut areas = Vec::new();
     let mut rows = Vec::new();
-    let mut rows_css = Vec::new();
+    let mut row_css = Vec::new();
+    let mut leads = Vec::new();
+    let mut trails = Vec::new();
     while !rest.is_empty() && !rest.starts_with('/') {
-        if rest.starts_with('[') || (!rest.starts_with('\'') && !rest.starts_with('"')) {
+        let (lead, after_lead) = take_optional_names(rest)?;
+        if after_lead.starts_with('[') {
             return None;
         }
-        let (content, after) = take_css_string(rest)?;
+        if !after_lead.starts_with('\'') && !after_lead.starts_with('"') {
+            return None;
+        }
+        let (content, after) = take_css_string(after_lead)?;
         areas.push(area_cells(&content)?);
         rest = after.trim_start();
-        if rest.is_empty()
+        let (track, css, after_size) = if rest.is_empty()
             || rest.starts_with('/')
             || rest.starts_with('\'')
             || rest.starts_with('"')
+            || rest.starts_with('[')
         {
-            rows.push(GridTrack::Auto);
-            rows_css.push("auto".to_string());
-        } else if rest.starts_with('[') {
-            return None;
+            (GridTrack::Auto, "auto".to_string(), rest)
         } else {
             let (tok, tail) = next_track_token(rest)?;
-            rows.push(parse_grid_track_token(tok, fonts)?);
-            rows_css.push(specified_track_list(tok, fonts)?);
-            rest = tail.trim_start();
+            (
+                parse_grid_track_token(tok, fonts)?,
+                specified_track_list(tok, fonts)?,
+                tail.trim_start(),
+            )
+        };
+        let (trail, after_trail) = take_optional_names(after_size)?;
+        // A second bracket group is the next row's leading names when a
+        // string follows it. Anything else is two groups on one line.
+        if after_trail.starts_with('[') {
+            let (_, after_next) = take_optional_names(after_trail)?;
+            if !after_next.starts_with('\'') && !after_next.starts_with('"') {
+                return None;
+            }
         }
+        leads.push(lead);
+        trails.push(trail);
+        rows.push(track);
+        row_css.push(css);
+        rest = after_trail;
     }
+    if rows.is_empty() {
+        return None;
+    }
+    let mut name_lines = Vec::with_capacity(rows.len() + 1);
+    name_lines.push(leads[0].clone());
+    for i in 0..rows.len() - 1 {
+        let mut line = trails[i].clone();
+        line.extend(leads[i + 1].iter().cloned());
+        name_lines.push(line);
+    }
+    name_lines.push(trails[rows.len() - 1].clone());
     let areas = same_width(areas)?;
     let (cols, cols_css) = if let Some(after) = rest.strip_prefix('/') {
         let cols = after.trim();
@@ -653,12 +928,39 @@ pub(crate) fn parse_grid_areas_template(v: &str, fonts: &FontCtx) -> Option<Grid
     };
     Some(GridAreasTemplate {
         rows,
-        rows_css: rows_css.join(" "),
+        rows_css: named_track_css(&name_lines, &row_css),
         cols,
         cols_css,
         areas_css: grid_areas_css(&areas),
         areas,
     })
+}
+
+fn take_optional_names(rest: &str) -> Option<(Vec<String>, &str)> {
+    let rest = rest.trim_start();
+    if !rest.starts_with('[') {
+        return Some((Vec::new(), rest));
+    }
+    let (tok, tail) = next_track_token(rest)?;
+    Some((parse_line_names(tok)?, tail.trim_start()))
+}
+
+fn named_track_css(names: &[Vec<String>], tracks: &[String]) -> String {
+    let mut parts = Vec::new();
+    for (i, track) in tracks.iter().enumerate() {
+        let lead = line_names_css(names.get(i).map(Vec::as_slice).unwrap_or(&[]));
+        if !lead.is_empty() {
+            parts.push(lead);
+        }
+        parts.push(track.clone());
+    }
+    if let Some(tail) = names.get(tracks.len()) {
+        let tail = line_names_css(tail);
+        if !tail.is_empty() {
+            parts.push(tail);
+        }
+    }
+    parts.join(" ")
 }
 
 /// Chrome's computed `grid-template-areas`: double quotes, one space
