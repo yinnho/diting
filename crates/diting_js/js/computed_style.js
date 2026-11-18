@@ -524,11 +524,18 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
     if (!pseudoName) {
       const inlineVal = target.getPropertyValue ? target.getPropertyValue(rawProp) : '';
       if (inlineVal && !_CSS_WIDE_KW.test(inlineVal)) {
-        if (_isComputedColorProp(kebab)) {
-          const painted = _cssComputedColor(inlineVal);
-          if (painted) return painted;
+        // These shorthands are rebuilt from longhands below so colors
+        // collapse to rgb() and unequal borders stay "".
+        const rebuilt = kebab === 'margin' || kebab === 'padding' || kebab === 'border'
+          || kebab === 'outline' || kebab === 'border-top' || kebab === 'border-right'
+          || kebab === 'border-bottom' || kebab === 'border-left';
+        if (!rebuilt) {
+          if (_isComputedColorProp(kebab)) {
+            const painted = _cssComputedColor(inlineVal);
+            if (painted) return painted;
+          }
+          return inlineVal;
         }
-        return inlineVal;
       }
     }
     // A pseudo-element generates no box of its own: Chrome answers 'auto'
@@ -570,6 +577,52 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
         if (r === l) return t + ' ' + r + ' ' + b;
         return t + ' ' + r + ' ' + b + ' ' + l;
       }
+    }
+    // border-top is "width style color". The border shorthand is that
+    // string only when all four sides match; otherwise Chrome answers "".
+    if (kebab === 'border-top' || kebab === 'border-right' || kebab === 'border-bottom' || kebab === 'border-left') {
+      const side = kebab.slice(7);
+      const w = lookup('border-' + side + '-width');
+      const s = lookup('border-' + side + '-style');
+      const c = lookup('border-' + side + '-color');
+      if (w && s && c) return w + ' ' + s + ' ' + c;
+    }
+    if (kebab === 'border') {
+      const one = (side) => {
+        const w = lookup('border-' + side + '-width');
+        const s = lookup('border-' + side + '-style');
+        const c = lookup('border-' + side + '-color');
+        return w && s && c ? w + ' ' + s + ' ' + c : '';
+      };
+      const t = one('top'), r = one('right'), b = one('bottom'), l = one('left');
+      if (t && t === r && t === b && t === l) return t;
+      return '';
+    }
+    if (kebab === 'outline') {
+      // Cascade doesn't store outline longhands. An authored shorthand is
+      // reordered to Chrome's "color style width".
+      if (!pseudoName && target.getPropertyValue) {
+        const specified = target.getPropertyValue('outline');
+        if (specified && !_CSS_WIDE_KW.test(specified)) {
+          const styles = { none: 1, hidden: 1, dotted: 1, dashed: 1, solid: 1, double: 1, groove: 1, ridge: 1, inset: 1, outset: 1 };
+          const widths = { thin: '1px', medium: '3px', thick: '5px' };
+          let width = '', style = '', color = '';
+          for (const p of specified.trim().split(/\s+/)) {
+            if (styles[p]) style = p;
+            else if (widths[p]) width = widths[p];
+            else if (/^(?:0|-?[\d.]+)(?:px|em|rem|%)$/.test(p)) width = p;
+            else color = _cssComputedColor(p) || p;
+          }
+          if (!color) color = lookup('outline-color');
+          if (!style) style = lookup('outline-style');
+          if (!width) width = lookup('outline-width');
+          if (color && style && width) return color + ' ' + style + ' ' + width;
+        }
+      }
+      const c = lookup('outline-color');
+      const s = lookup('outline-style');
+      const w = lookup('outline-width');
+      if (c && s && w) return c + ' ' + s + ' ' + w;
     }
     if (defaultsKebab[rawProp]) return defaultsKebab[rawProp];
     if (defaultsKebab[kebab]) return defaultsKebab[kebab];
