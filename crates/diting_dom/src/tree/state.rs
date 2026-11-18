@@ -8,6 +8,35 @@ use std::collections::HashMap;
 
 use super::{DomTree, DomTreeInner, NodeId};
 
+/// Percent-decode a URL fragment. A broken `%` sequence stays as written.
+fn decode_fragment(raw: &str) -> String {
+    let raw = raw.strip_prefix('#').unwrap_or(raw);
+    let bytes = raw.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let (Some(hi), Some(lo)) = (hex_nibble(bytes[i + 1]), hex_nibble(bytes[i + 2])) {
+                out.push((hi << 4) | lo);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn hex_nibble(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
 /// Whether a hover/focus/active anchor sits at or below `root` — a subtree
 /// entering or leaving the document then carries the anchor with it, and the
 /// `:hover`/`:focus`/`:active`/`:focus-within` compounds on ancestors
@@ -105,6 +134,29 @@ impl DomTree {
                 return;
             }
             inner.active_node = id;
+            inner.epoch_gen = inner.epoch_gen.wrapping_add(1);
+        }
+        self.note_state_change();
+    }
+
+    /// The document's decoded URL fragment. `:target` matches the element
+    /// `getElementById` would return for it. An empty string matches nothing.
+    pub fn css_target(&self) -> String {
+        self.inner.borrow().css_target.clone()
+    }
+
+    /// Record the fragment from `location.hash` (leading `#` stripped,
+    /// percent-decoded). Same-document hash changes call this before
+    /// `hashchange` so a listener's `getComputedStyle` already sees the
+    /// new `:target`. A no-op when the fragment did not change.
+    pub fn set_css_target(&self, fragment: &str) {
+        let decoded = decode_fragment(fragment);
+        {
+            let mut inner = self.inner.borrow_mut();
+            if inner.css_target == decoded {
+                return;
+            }
+            inner.css_target = decoded;
             inner.epoch_gen = inner.epoch_gen.wrapping_add(1);
         }
         self.note_state_change();

@@ -183,7 +183,8 @@ impl RuleDeps {
                 | PseudoClass::Active
                 | PseudoClass::Focus
                 | PseudoClass::FocusVisible
-                | PseudoClass::FocusWithin => self.state = true,
+                | PseudoClass::FocusWithin
+                | PseudoClass::Target => self.state = true,
                 PseudoClass::Enabled
                 | PseudoClass::Disabled
                 | PseudoClass::Checked

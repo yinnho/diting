@@ -111,6 +111,8 @@ pub enum PseudoClass {
     Dir {
         rtl: bool,
     },
+    /// The element indicated by the document URL's fragment.
+    Target,
 }
 
 impl parser::NonTSPseudoClass for PseudoClass {
@@ -150,6 +152,7 @@ impl ToCss for PseudoClass {
             PseudoClass::Open => dest.write_str(":open"),
             PseudoClass::Dir { rtl: true } => dest.write_str(":dir(rtl)"),
             PseudoClass::Dir { rtl: false } => dest.write_str(":dir(ltr)"),
+            PseudoClass::Target => dest.write_str(":target"),
         }
     }
 }
@@ -221,6 +224,7 @@ impl<'i> parser::Parser<'i> for DitingSelectorParser {
             "read-write" => Ok(PseudoClass::ReadWrite),
             // #333: :open is a bare Selectors-4 state pseudo-class.
             "open" => Ok(PseudoClass::Open),
+            "target" => Ok(PseudoClass::Target),
             // 0.41: the error kind dropped its payload and the trait dropped
             // the SourceLocation param — ParseError::custom fills both.
             _ => Err(diting_cssparser::ParseError::custom(
@@ -815,6 +819,12 @@ impl<'a> Element for DomElement<'a> {
             // attribute on the self-or-ancestor chain wins, everything under
             // it inherits (an undirected child inside dir=rtl is :dir(rtl)).
             PseudoClass::Dir { rtl } => self.resolved_dir_rtl() == *rtl,
+            // The fragment's element, not its ancestors. The first id wins,
+            // same element getElementById returns.
+            PseudoClass::Target => {
+                let frag = self.tree.css_target();
+                !frag.is_empty() && self.tree.get_element_by_id(&frag) == Some(self.node_id)
+            }
         }
     }
 

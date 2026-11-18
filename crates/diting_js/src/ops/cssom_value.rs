@@ -347,16 +347,16 @@ fn computed_box(
         ),
         // Chrome's computed value is the declared keyword itself (not a used
         // value), so the CSS initial surfaces as content-box.
-        // Chrome's initial computed content is "normal"; declared strings
-        // re-serialize quoted, attr()/counter()/counters()/quotes keywords
-        // keep their functional shape — the flattened text lives on
-        // `content_resolved` for the box builder and never surfaces here
-        // (#19; pseudos serve the same functional shape as hosts).
+        // Strings stay quoted and counter() stays functional (#19). A bare
+        // attr() quotes content_resolved; a host without it keeps attr(name).
         "content" => Some(match &s.content {
             Some(ContentValue::Str(t)) => {
                 format!("\"{}\"", t.replace('\\', "\\\\").replace('"', "\\\""))
             }
-            Some(ContentValue::Attr(name)) => format!("attr({})", name),
+            Some(ContentValue::Attr(name)) => match s.content_resolved.as_deref() {
+                Some(text) => format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\"")),
+                None => format!("attr({})", name),
+            },
             Some(ContentValue::Counter { name, style }) => {
                 format!("counter({}{})", name, counter_style_suffix(*style))
             }
