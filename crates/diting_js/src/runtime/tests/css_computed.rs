@@ -2,6 +2,36 @@
 use super::super::*;
 use super::common::setup_runtime;
 
+/// Body's UA margin is 8px on every side. Chrome's computed `margin`
+/// shorthand collapses that to "8px", and drops repeated sides.
+#[test]
+fn margin_shorthand_collapses_like_chrome() {
+    let mut rt = setup_runtime(
+        "<html><body>\
+             <div id='z'></div>\
+             <div id='v' style='margin:1px 2px'></div>\
+             <div id='a' style='margin:1px 2px 3px 4px'></div>\
+             </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"JSON.stringify({
+              body: getComputedStyle(document.body).margin,
+              top: getComputedStyle(document.body).marginTop,
+              zero: getComputedStyle(document.getElementById('z')).margin,
+              pair: getComputedStyle(document.getElementById('v')).margin,
+              quad: getComputedStyle(document.getElementById('a')).margin
+            })"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["body"], serde_json::json!("8px"));
+    assert_eq!(v["top"], serde_json::json!("8px"));
+    assert_eq!(v["zero"], serde_json::json!("0px"));
+    assert_eq!(v["pair"], serde_json::json!("1px 2px"));
+    assert_eq!(v["quad"], serde_json::json!("1px 2px 3px 4px"));
+}
+
 /// #214 (blitz#998): `text-align-last` on the computed face — declared
 /// keywords round-trip verbatim, undeclared reports the css-text-3
 /// initial `auto`, and inheritance rides the cascade (a child sees the
