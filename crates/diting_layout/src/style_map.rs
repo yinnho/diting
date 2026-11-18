@@ -5,14 +5,18 @@
 //! names the taffy style vocabulary and the text measure it asks for sizes.
 
 use diting_css::{
-    explicit_track_line_names, AlignContentMode, AlignMode, ComputedStyle, Display as CssDisplay,
-    FlexDirection as CssFlexDirection, FlexWrapMode, GridTrack, JustifyMode, PositionMode,
-    TextAlign,
+    explicit_track_line_names, grid_layout_tracks, AlignContentMode, AlignMode, ComputedStyle,
+    Display as CssDisplay, FlexDirection as CssFlexDirection, FlexWrapMode, GridTrack, JustifyMode,
+    LaidTrack, MathNode, PositionMode, TextAlign,
 };
 use diting_taffy::prelude::{
-    auto, fr, length, minmax, percent, AlignContent, AlignItems, AvailableSpace, Dimension,
-    Display, FlexDirection, FlexWrap, JustifyContent, LengthPercentage, LengthPercentageAuto,
-    Position, Size, Style, TaffyAuto,
+    auto, fit_content, fr, length, line, minmax, percent, span, AlignContent, AlignItems,
+    AvailableSpace, Dimension, Display, FlexDirection, FlexWrap, JustifyContent, LengthPercentage,
+    LengthPercentageAuto, Position, Size, Style, TaffyAuto,
+};
+use diting_taffy::style::{
+    GridAutoFlow, GridPlacement, GridTemplateComponent, GridTemplateRepetition, RepetitionCount,
+    TrackSizingFunction,
 };
 
 use crate::flow_tree::FlowTree as TaffyTree;
@@ -379,8 +383,23 @@ pub(crate) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
             height: LengthPercentage::length(gap),
         };
     }
+    s.grid_auto_flow = match style.grid_auto_flow_specified.as_deref() {
+        Some("column") => GridAutoFlow::Column,
+        Some("column dense") => GridAutoFlow::ColumnDense,
+        Some("dense") => GridAutoFlow::RowDense,
+        _ => GridAutoFlow::Row,
+    };
     if display == CssDisplay::Grid {
-        if let Some(cols) = &style.grid_template_columns {
+        if auto_repeat(style.grid_cols_specified.as_deref()) {
+            if let Some(css) = &style.grid_cols_specified {
+                if let Some(parts) = grid_layout_tracks(css) {
+                    s.grid_template_columns = parts_to_taffy(parts);
+                    // Taffy reads a repeat's own line names only while walking
+                    // one outer name set per template component.
+                    s.grid_template_column_names = vec![Vec::new(); s.grid_template_columns.len()];
+                }
+            }
+        } else if let Some(cols) = &style.grid_template_columns {
             s.grid_template_columns = cols.iter().map(|t| to_grid_track(*t)).collect();
             assign_line_names(
                 &mut s.grid_template_column_names,
@@ -388,7 +407,14 @@ pub(crate) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
                 cols.len(),
             );
         }
-        if let Some(rows) = &style.grid_template_rows {
+        if auto_repeat(style.grid_rows_specified.as_deref()) {
+            if let Some(css) = &style.grid_rows_specified {
+                if let Some(parts) = grid_layout_tracks(css) {
+                    s.grid_template_rows = parts_to_taffy(parts);
+                    s.grid_template_row_names = vec![Vec::new(); s.grid_template_rows.len()];
+                }
+            }
+        } else if let Some(rows) = &style.grid_template_rows {
             s.grid_template_rows = rows.iter().map(|t| to_grid_track(*t)).collect();
             assign_line_names(
                 &mut s.grid_template_row_names,
@@ -406,13 +432,26 @@ pub(crate) fn to_taffy_style(style: &ComputedStyle, pct_h_resolves: bool) -> Sty
     // implicit `<name>-start`/`<name>-end` lines on both axes (CSS §8,
     // exactly the convention taffy's NamedLineResolver implements).
     if let Some(name) = &style.grid_area {
-        let start = diting_taffy::style::GridPlacement::NamedLine(format!("{}-start", name), 1);
-        let end = diting_taffy::style::GridPlacement::NamedLine(format!("{}-end", name), 1);
+        let start = GridPlacement::NamedLine(format!("{}-start", name), 1);
+        let end = GridPlacement::NamedLine(format!("{}-end", name), 1);
         s.grid_row = diting_taffy::geometry::Line {
             start: start.clone(),
             end: end.clone(),
         };
         s.grid_column = diting_taffy::geometry::Line { start, end };
+    } else if style.grid_row_start.is_some()
+        || style.grid_row_end.is_some()
+        || style.grid_column_start.is_some()
+        || style.grid_column_end.is_some()
+    {
+        s.grid_row = diting_taffy::geometry::Line {
+            start: grid_line(&style.grid_row_start),
+            end: grid_line(&style.grid_row_end),
+        };
+        s.grid_column = diting_taffy::geometry::Line {
+            start: grid_line(&style.grid_column_start),
+            end: grid_line(&style.grid_column_end),
+        };
     }
 
     // --- positioning + clamps (batch 2d) ---
@@ -640,16 +679,8 @@ pub(crate) fn resolve_sizing_keywords(
 /// container size. Registered while the tree is built, dropped at the
 /// start of the next solve. The handle's low 3 bits are taffy's tag.
 enum TrackExpr {
-    Add {
-        percent: f32,
-        px: f32,
-    },
-    /// `op` 0 = min, 1 = max, 2 = clamp. Args are `(percent, px)`.
-    Math {
-        op: u8,
-        n: u8,
-        args: [(f32, f32); 4],
-    },
+    Add { percent: f32, px: f32 },
+    Tree { root: u8, nodes: [MathNode; 8] },
 }
 
 std::thread_local! {
@@ -680,21 +711,29 @@ pub(crate) fn resolve_track_expr(ptr: *const (), basis: f32) -> f32 {
         };
         match expr {
             TrackExpr::Add { percent, px } => basis * percent / 100.0 + px,
-            TrackExpr::Math { op, n, args } => {
-                let n = (*n as usize).min(args.len());
-                let mut vals = [0.0f32; 4];
-                for i in 0..n {
-                    vals[i] = basis * args[i].0 / 100.0 + args[i].1;
-                }
-                match *op {
-                    0 => vals[..n].iter().copied().fold(f32::MAX, f32::min),
-                    1 => vals[..n].iter().copied().fold(f32::MIN, f32::max),
-                    2 if n == 3 => vals[0].max(vals[1].min(vals[2])),
-                    _ => 0.0,
-                }
-            }
+            TrackExpr::Tree { root, nodes } => eval_math_node(nodes, *root, basis),
         }
     })
+}
+
+fn eval_math_node(nodes: &[MathNode; 8], i: u8, basis: f32) -> f32 {
+    let node = nodes.get(i as usize).copied().unwrap_or(MathNode::ZERO);
+    match node.op {
+        0 => basis * node.percent / 100.0 + node.px,
+        1 => (0..node.n).fold(f32::MAX, |acc, k| {
+            acc.min(eval_math_node(nodes, node.kids[k as usize], basis))
+        }),
+        2 => (0..node.n).fold(f32::MIN, |acc, k| {
+            acc.max(eval_math_node(nodes, node.kids[k as usize], basis))
+        }),
+        3 if node.n == 3 => {
+            let min = eval_math_node(nodes, node.kids[0], basis);
+            let val = eval_math_node(nodes, node.kids[1], basis);
+            let max = eval_math_node(nodes, node.kids[2], basis);
+            min.max(val.min(max))
+        }
+        _ => 0.0,
+    }
 }
 
 /// Line names from the specified track list. The groups line up with the
@@ -710,6 +749,76 @@ fn assign_line_names(slot: &mut Vec<Vec<String>>, css: Option<&str>, track_count
     }
 }
 
+fn fit_limit(pct: f32, px: f32) -> GridTemplateComponent<String> {
+    let limit = if pct == 0.0 {
+        length(px)
+    } else if px == 0.0 {
+        percent(pct / 100.0)
+    } else {
+        diting_taffy::style::LengthPercentage::calc(pack_track_calc(pct, px))
+    };
+    fit_content(limit)
+}
+
+fn to_sizing(track: GridTrack) -> TrackSizingFunction {
+    match to_grid_track(track) {
+        GridTemplateComponent::Single(size) => size,
+        GridTemplateComponent::Repeat(_) => TrackSizingFunction::AUTO,
+    }
+}
+
+fn parts_to_taffy(parts: Vec<LaidTrack>) -> Vec<GridTemplateComponent<String>> {
+    parts
+        .into_iter()
+        .map(|part| match part {
+            LaidTrack::One(track) => to_grid_track(track),
+            LaidTrack::Auto {
+                fill,
+                tracks,
+                names,
+            } => {
+                let named = names.iter().any(|g| !g.is_empty());
+                GridTemplateComponent::Repeat(GridTemplateRepetition {
+                    count: if fill {
+                        RepetitionCount::AutoFill
+                    } else {
+                        RepetitionCount::AutoFit
+                    },
+                    tracks: tracks.into_iter().map(to_sizing).collect(),
+                    line_names: if named { names } else { Vec::new() },
+                })
+            }
+        })
+        .collect()
+}
+
+fn auto_repeat(css: Option<&str>) -> bool {
+    css.is_some_and(|s| s.contains("auto-fill") || s.contains("auto-fit"))
+}
+
+fn grid_line(v: &Option<String>) -> GridPlacement<String> {
+    let Some(v) = v else {
+        return GridPlacement::Auto;
+    };
+    if v == "auto" {
+        return GridPlacement::Auto;
+    }
+    if let Some(rest) = v.strip_prefix("span ") {
+        if let Ok(n) = rest.parse::<u16>() {
+            if n > 0 {
+                return span(n);
+            }
+        }
+        return GridPlacement::NamedSpan(rest.to_string(), 1);
+    }
+    if let Ok(n) = v.parse::<i16>() {
+        if n != 0 {
+            return line(n);
+        }
+    }
+    GridPlacement::NamedLine(v.clone(), 1)
+}
+
 /// diting_css track → taffy track: `1fr` maps to minmax(auto, 1fr), a px
 /// track is fixed, a % track is fixed percent (taffy resolves it against
 /// the grid container's content box), `auto` sizes to content.
@@ -717,8 +826,8 @@ pub(crate) fn pack_track_calc(percent: f32, px: f32) -> *const () {
     register_track_expr(TrackExpr::Add { percent, px })
 }
 
-fn pack_track_math(op: u8, n: u8, args: [(f32, f32); 4]) -> *const () {
-    register_track_expr(TrackExpr::Math { op, n, args })
+fn pack_track_math(root: u8, nodes: [MathNode; 8]) -> *const () {
+    register_track_expr(TrackExpr::Tree { root, nodes })
 }
 
 fn expr_track(ptr: *const ()) -> diting_taffy::style::TrackSizingFunction {
@@ -750,7 +859,8 @@ fn to_grid_track(track: GridTrack) -> diting_taffy::style::GridTemplateComponent
             tsf.into()
         }
         GridTrack::Calc { percent, px } => calc_track(percent, px).into(),
-        GridTrack::Math { op, n, args } => expr_track(pack_track_math(op, n, args)).into(),
+        GridTrack::Math { root, nodes } => expr_track(pack_track_math(root, nodes)).into(),
+        GridTrack::FitContent { percent, px } => fit_limit(percent, px),
         GridTrack::Auto => TrackSizingFunction::AUTO.into(),
         GridTrack::MinMax { min, max } => {
             // min-side fr is invalid CSS; treat it as auto like the spec's
@@ -761,8 +871,8 @@ fn to_grid_track(track: GridTrack) -> diting_taffy::style::GridTemplateComponent
                 diting_css::TrackSize::Calc { percent, px } => {
                     diting_taffy::style::MinTrackSizingFunction::calc(pack_track_calc(percent, px))
                 }
-                diting_css::TrackSize::Math { op, n, args } => {
-                    diting_taffy::style::MinTrackSizingFunction::calc(pack_track_math(op, n, args))
+                diting_css::TrackSize::Math { root, nodes } => {
+                    diting_taffy::style::MinTrackSizingFunction::calc(pack_track_math(root, nodes))
                 }
                 _ => MinTrackSizingFunction::AUTO,
             };
@@ -773,8 +883,8 @@ fn to_grid_track(track: GridTrack) -> diting_taffy::style::GridTemplateComponent
                 diting_css::TrackSize::Calc { percent, px } => {
                     diting_taffy::style::MaxTrackSizingFunction::calc(pack_track_calc(percent, px))
                 }
-                diting_css::TrackSize::Math { op, n, args } => {
-                    diting_taffy::style::MaxTrackSizingFunction::calc(pack_track_math(op, n, args))
+                diting_css::TrackSize::Math { root, nodes } => {
+                    diting_taffy::style::MaxTrackSizingFunction::calc(pack_track_math(root, nodes))
                 }
                 _ => MaxTrackSizingFunction::AUTO,
             };

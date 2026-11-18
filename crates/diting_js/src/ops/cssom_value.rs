@@ -168,6 +168,10 @@ pub(crate) const COMPUTED_STYLE_PROPS: &[&str] = &[
     "grid-auto-flow",
     "grid-auto-rows",
     "grid-auto-columns",
+    "grid-row-start",
+    "grid-row-end",
+    "grid-column-start",
+    "grid-column-end",
     "justify-content",
     "justify-items",
     "justify-self",
@@ -841,6 +845,10 @@ fn grid_specified(s: &diting_css::ComputedStyle, prop: &str) -> Option<String> {
         "grid-auto-flow" => (&s.grid_auto_flow_specified, "row"),
         "grid-auto-rows" => (&s.grid_auto_rows_specified, "auto"),
         "grid-auto-columns" => (&s.grid_auto_cols_specified, "auto"),
+        "grid-row-start" => (&s.grid_row_start, "auto"),
+        "grid-row-end" => (&s.grid_row_end, "auto"),
+        "grid-column-start" => (&s.grid_column_start, "auto"),
+        "grid-column-end" => (&s.grid_column_end, "auto"),
         _ => return None,
     };
     Some(slot.clone().unwrap_or_else(|| initial.to_string()))
@@ -864,15 +872,6 @@ fn computed_flex_grid(
             }
             .into(),
         ),
-        // Flex computed trio (takumi #2361): layout has consumed grow/
-        // shrink/basis all along (the shorthand's omitted basis is 0% in
-        // the cascade), but the snapshot never spelled them — sheet-sourced
-        // values fell through to the JS defaults ("0"/"1"/"auto") while
-        // inline ones only worked via the inline echo. Numbers are always
-        // initial-valued answers ("0"/"1"), so this arm can't shadow a
-        // caller that knows better. flex-basis computed value keeps the
-        // declared shape (px/% verbatim, em already folded by the cascade);
-        // auto is the initial and stays None there.
         "flex-grow" => Some(format_number(s.flex_grow.unwrap_or(0.0))),
         "flex-shrink" => Some(format_number(s.flex_shrink.unwrap_or(1.0))),
         "flex-basis" => Some(match &s.flex_basis {
@@ -882,8 +881,6 @@ fn computed_flex_grid(
             Some(Length::MinContent) => "min-content".into(),
             Some(Length::MaxContent) => "max-content".into(),
             Some(Length::FitContent) => "fit-content".into(),
-            // No border box at this snapshot layer to spell a mixed calc,
-            // and the JS chain echoes the declared spelling anyway.
             Some(Length::Calc { .. }) => return Some(None),
             Some(Length::Auto) => "auto".into(),
         }),
@@ -896,7 +893,11 @@ fn computed_flex_grid(
         | "grid-template-areas"
         | "grid-auto-flow"
         | "grid-auto-rows"
-        | "grid-auto-columns" => grid_specified(s, prop),
+        | "grid-auto-columns"
+        | "grid-row-start"
+        | "grid-row-end"
+        | "grid-column-start"
+        | "grid-column-end" => grid_specified(s, prop),
         "row-gap" | "column-gap" => {
             let slot = if prop == "row-gap" {
                 &s.row_gap

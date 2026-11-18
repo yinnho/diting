@@ -9,9 +9,9 @@ use crate::computed::ComputedStyle;
 use crate::content::{parse_content_value, parse_counter_modifiers, parse_quotes};
 use crate::geom::{FontCtx, Length};
 use crate::len_parse::{
-    css_box_offset, css_len, expand_sides, grid_areas_css, parse_aspect_ratio,
-    parse_grid_areas_template, parse_grid_template_areas, parse_grid_tracks, parse_num_f32,
-    parse_px_f32, specified_auto_tracks, specified_track_list, split_sides, CssF32,
+    css_box_offset, css_len, expand_sides, grid_areas_css, parse_aspect_ratio, parse_grid_area,
+    parse_grid_areas_template, parse_grid_auto_flow, parse_grid_template_areas, parse_grid_tracks,
+    parse_num_f32, parse_px_f32, specified_auto_tracks, specified_track_list, split_sides, CssF32,
     GridAreasTemplate,
 };
 use crate::shadow_parse::{
@@ -1242,15 +1242,26 @@ pub(crate) fn apply_flex_grid(
                 false
             }
         }
-        // Single-ident named form only (`grid-area: main`); the 4-value
-        // numeric form is a later batch.
-        "grid-area" => {
-            let name = v.trim();
-            if !name.contains(' ') && !name.contains('/') && !name.is_empty() {
-                style.grid_area = Some(name.to_string());
+        "grid-auto-flow" => match parse_grid_auto_flow(v) {
+            Some(flow) => {
+                style.grid_auto_flow_specified = flow;
+                true
             }
-            true
-        }
+            None => false,
+        },
+        // `<name>` fills all four lines. Up to four grid lines are
+        // `row-start / column-start / row-end / column-end`.
+        "grid-area" => match parse_grid_area(v) {
+            Some(g) => {
+                style.grid_area = g.area_name;
+                style.grid_row_start = g.row_start;
+                style.grid_row_end = g.row_end;
+                style.grid_column_start = g.column_start;
+                style.grid_column_end = g.column_end;
+                true
+            }
+            None => false,
+        },
         "column-width" => {
             match one_col_token(v).and_then(|t| parse_column_width_token(&t, fonts)) {
                 Some(ColWidth::Auto) => {

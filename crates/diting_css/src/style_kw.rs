@@ -653,8 +653,30 @@ pub(crate) fn border_style_kw(v: &str) -> BorderStyleKw {
     }
 }
 
+/// One node of a `min` / `max` / `clamp` track expression. `op` 0 is a
+/// length term (`percent` on the CSS 0–100 scale plus px). 1, 2, and 3 are
+/// min, max, and clamp; `kids` are indexes of the direct arguments.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MathNode {
+    pub op: u8,
+    pub n: u8,
+    pub kids: [u8; 8],
+    pub percent: f32,
+    pub px: f32,
+}
+
+impl MathNode {
+    pub const ZERO: Self = Self {
+        op: 0,
+        n: 0,
+        kids: [0; 8],
+        percent: 0.0,
+        px: 0.0,
+    };
+}
+
 /// One grid track sizing. `1fr` / `100px` / `25%` / `auto` / `minmax(a, b)`
-/// — repeat() expands away at parse time, so it never reaches this enum.
+/// — an integer `repeat()` expands away at parse time.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum GridTrack {
     Fr(f32),
@@ -665,12 +687,16 @@ pub enum GridTrack {
         percent: f32,
         px: f32,
     },
-    /// `min` / `max` / `clamp`. `op` is 0, 1, or 2. Each arg is
-    /// `(percent, px)` on the CSS 0–100 scale.
+    /// `min` / `max` / `clamp`, including nested calls. `root` indexes
+    /// `nodes`.
     Math {
-        op: u8,
-        n: u8,
-        args: [(f32, f32); 4],
+        root: u8,
+        nodes: [MathNode; 8],
+    },
+    /// `fit-content(<length-percentage>)`. A zero percent is a px limit.
+    FitContent {
+        percent: f32,
+        px: f32,
     },
     Auto,
     /// minmax(min, max); the two arguments are shallow (nested minmax is
@@ -694,12 +720,11 @@ pub enum TrackSize {
         percent: f32,
         px: f32,
     },
-    /// `min` / `max` / `clamp`. `op` is 0, 1, or 2. Each arg is
-    /// `(percent, px)` on the CSS 0–100 scale.
+    /// `min` / `max` / `clamp`, including nested calls. `root` indexes
+    /// `nodes`.
     Math {
-        op: u8,
-        n: u8,
-        args: [(f32, f32); 4],
+        root: u8,
+        nodes: [MathNode; 8],
     },
     Auto,
 }

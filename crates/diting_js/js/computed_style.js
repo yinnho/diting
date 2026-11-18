@@ -718,7 +718,7 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
           || kebab === 'font-synthesis' || kebab === '-webkit-text-stroke'
           || kebab === 'gap' || kebab === 'text-decoration'
           || kebab === 'place-content' || kebab === 'place-items' || kebab === 'place-self'
-          || kebab === 'grid';
+          || kebab === 'grid' || kebab === 'grid-area';
         if (!rebuilt) {
           if (_isComputedColorProp(kebab)) {
             const painted = _cssComputedColor(inlineVal);
@@ -1038,6 +1038,19 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
     if (kebab === 'gap') {
       const row = lookup('row-gap'), col = lookup('column-gap');
       if (row && col) return row === col ? row : row + ' ' + col;
+    }
+    if (kebab === 'grid-area') {
+      const rs = lookup('grid-row-start');
+      const cs = lookup('grid-column-start');
+      const re = lookup('grid-row-end');
+      const ce = lookup('grid-column-end');
+      if (!rs || !cs || !re || !ce) return 'auto';
+      const ident = rs === cs && cs === re && re === ce && rs !== 'auto'
+        && rs.indexOf(' ') < 0 && !/^-?\d/.test(rs);
+      if (ident) return rs;
+      const parts = [rs, cs, re, ce];
+      while (parts.length > 1 && parts[parts.length - 1] === 'auto') parts.pop();
+      return parts.join(' / ');
     }
     if (kebab === 'grid') {
       const parts = ['grid-template-rows', 'grid-template-columns', 'grid-template-areas', 'grid-auto-flow', 'grid-auto-rows', 'grid-auto-columns'].map((n) => lookup(n));

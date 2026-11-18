@@ -379,9 +379,80 @@ impl<C> FlowTree<C> {
             return None;
         };
         Some((
-            info.grid_template_rows(1.0),
-            info.grid_template_columns(1.0),
+            Self::chrome_track_px(info.grid_template_rows(1.0)),
+            Self::chrome_track_px(info.grid_template_columns(1.0)),
         ))
+    }
+
+    /// Chrome's used track list is LayoutUnit (1/64px) and at most six
+    /// significant digits. `100 / 3` is `33.3281px`, `10 / 3` is `3.32812px`.
+    fn chrome_track_px(raw: String) -> String {
+        let mut out = String::new();
+        let bytes = raw.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes[i].is_ascii_digit()
+                || (bytes[i] == b'.' && i + 1 < bytes.len() && bytes[i + 1].is_ascii_digit())
+            {
+                let start = i;
+                if bytes[i] == b'.' {
+                    i += 1;
+                }
+                while i < bytes.len() && (bytes[i].is_ascii_digit() || bytes[i] == b'.') {
+                    i += 1;
+                }
+                if bytes.get(i..i + 2) == Some(b"px") {
+                    let num: f64 = raw[start..i].parse().unwrap_or(0.0);
+                    let units = if num >= 0.0 {
+                        (num * 64.0).floor()
+                    } else {
+                        (num * 64.0).ceil()
+                    };
+                    out.push_str(&Self::chrome_sig6(units / 64.0));
+                    continue;
+                }
+                out.push_str(&raw[start..i]);
+                continue;
+            }
+            out.push(bytes[i] as char);
+            i += 1;
+        }
+        out
+    }
+
+    fn chrome_sig6(q: f64) -> String {
+        if q == 0.0 {
+            return "0".to_string();
+        }
+        let neg = q.is_sign_negative();
+        let abs = q.abs();
+        let exp = abs.log10().floor() as i32;
+        let scale = 10f64.powi(5 - exp);
+        let scaled = abs * scale;
+        let floor = scaled.floor();
+        let frac = scaled - floor;
+        let rounded = if (frac - 0.5).abs() < 1e-9 {
+            if (floor as i64) % 2 == 0 {
+                floor
+            } else {
+                floor + 1.0
+            }
+        } else if frac > 0.5 {
+            floor + 1.0
+        } else {
+            floor
+        };
+        let val = rounded / scale;
+        let decimals = (5 - exp).max(0) as usize;
+        let mut text = format!("{val:.decimals$}");
+        if text.contains('.') {
+            text = text.trim_end_matches('0').trim_end_matches('.').to_string();
+        }
+        if neg {
+            format!("-{text}")
+        } else {
+            text
+        }
     }
 
     /// Layout relative to the parent (rounded when rounding is on).
