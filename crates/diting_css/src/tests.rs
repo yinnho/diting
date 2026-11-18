@@ -223,6 +223,48 @@ fn grid_areas_shorthand_sets_rows_and_quotes() {
 }
 
 #[test]
+fn grid_track_zero_serializes_as_px() {
+    // Chrome's computed track list turns a bare zero into 0px, including
+    // inside minmax() and repeat(), and folds rem to px. 0fr and 0% stay.
+    let mut s = ComputedStyle::default();
+    apply_declarations(&mut s, "grid-template-columns: minmax(0, 1fr)");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("minmax(0px, 1fr)"));
+    apply_declarations(&mut s, "grid-template-columns: 0");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("0px"));
+    apply_declarations(&mut s, "grid-template-columns: 0.0");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("0px"));
+    apply_declarations(&mut s, "grid-template-columns: 0fr");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("0fr"));
+    apply_declarations(&mut s, "grid-template-columns: 0%");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("0%"));
+    apply_declarations(&mut s, "grid-template-columns: repeat(2, minmax(0, 1fr))");
+    assert_eq!(
+        s.grid_cols_specified.as_deref(),
+        Some("repeat(2, minmax(0px, 1fr))")
+    );
+    apply_declarations(&mut s, "grid-template-columns: repeat(4, 1fr)");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("repeat(4, 1fr)"));
+    apply_declarations(&mut s, "grid-template-columns: 11.5rem");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("184px"));
+    apply_declarations(&mut s, "grid-template-columns: minmax(0, 60rem)");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("minmax(0px, 960px)"));
+    apply_declarations(&mut s, "grid-template-columns: Min-Content");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("min-content"));
+    apply_declarations(&mut s, "grid-auto-rows: minmax(0, 1fr)");
+    assert_eq!(
+        s.grid_auto_rows_specified.as_deref(),
+        Some("minmax(0px, 1fr)")
+    );
+    apply_declarations(&mut s, "grid-auto-rows: 10px 0");
+    assert_eq!(s.grid_auto_rows_specified.as_deref(), Some("10px 0px"));
+    apply_declarations(&mut s, "grid-auto-rows: repeat(2, 10px)");
+    assert_eq!(s.grid_auto_rows_specified.as_deref(), Some("10px 0px"));
+    apply_declarations(&mut s, "grid: 100px / minmax(0, 1fr)");
+    assert_eq!(s.grid_rows_specified.as_deref(), Some("100px"));
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("minmax(0px, 1fr)"));
+}
+
+#[test]
 fn grid_repeat_expands_inline() {
     // The landing-page idiom: repeat(4, 1fr). Before this batch the
     // token failed to parse, the whole declaration dropped, and the
