@@ -1,10 +1,10 @@
 //! First-slice Chrome DevTools Protocol.
 //!
 //! Enough for Playwright `chromium.connectOverCDP` to connect, open a page,
-//! `goto`, `evaluate`, and `screenshot`. `/json/version` names this engine
-//! `diting`; the page's own user agent stays the Chrome 157 pin. This is
-//! not the 1,740-task driver matrix — a method outside the slice returns a
-//! protocol error naming itself.
+//! `goto`, `setContent`, `evaluate`, click, fill, and `screenshot`.
+//! `/json/version` names this engine `diting`; the page's own user agent
+//! stays the Chrome 157 pin. This is not the 1,740-task driver matrix — a
+//! method outside the slice returns a protocol error naming itself.
 //!
 //! The hub lock is never held across a session await. The session thread
 //! does not know about the hub, but an HTTP handler can hold `SESSIONS`
@@ -837,14 +837,105 @@ async fn runtime_forward(
         let hub = HUB.lock().await;
         page_of(&hub, session)?.session_id.clone()
     };
-    let result = send_command(&session_id, |reply| SessionCommand::CdpRuntime {
+    let mut result = send_command(&session_id, |reply| SessionCommand::CdpRuntime {
         method: method.to_string(),
         params: params.clone(),
         reply,
     })
     .await
     .map_err(session_msg)?;
-    Ok(Out::from_frames(vec![ok(id, Some(session), result)]))
+    let side = result
+        .as_object_mut()
+        .and_then(|obj| obj.remove(runtime::SIDE_KEY));
+    let mut frames = Vec::new();
+    if let Some(side) = side {
+        let hub = HUB.lock().await;
+        frames.extend(side_frames(session, &side, &hub));
+    }
+    frames.push(ok(id, Some(session), result));
+    Ok(Out::from_frames(frames))
+}
+
+/// Console events first, then the document.write load. Playwright's
+/// setContent clears lifecycle when the debug tag arrives and then waits
+/// for `load`. A load that lands first is wiped by that clear.
+fn side_frames(session: &str, side: &Value, hub: &Hub) -> Vec<String> {
+    let console = side
+        .get("console")
+        .and_then(|v| v.as_array())
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    let write_nav = side
+        .get("writeNav")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if console.is_empty() && !write_nav {
+        return Vec::new();
+    }
+    let Ok(page) = page_of(hub, session) else {
+        return Vec::new();
+    };
+    let asked = side
+        .get("contextId")
+        .and_then(|v| v.as_i64())
+        .filter(|id| *id > 0);
+    // The utility world is created after Playwright installs its console
+    // listener. The main world may have been announced before that, so a
+    // call with no context id is attributed to the latest isolated world.
+    let context_id = asked.unwrap_or_else(|| {
+        page.worlds
+            .iter()
+            .rev()
+            .find(|world| world.name.is_some())
+            .or_else(|| page.worlds.iter().find(|world| world.name.is_none()))
+            .map(|world| world.id)
+            .unwrap_or(1)
+    });
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs_f64())
+        .unwrap_or(0.0);
+    let mut frames = Vec::new();
+    for call in console {
+        let kind = call.get("type").and_then(|v| v.as_str()).unwrap_or("log");
+        let text = call.get("text").and_then(|v| v.as_str()).unwrap_or("");
+        frames.push(event(
+            Some(session),
+            "Runtime.consoleAPICalled",
+            json!({
+                "type": kind,
+                "args": [{ "type": "string", "value": text }],
+                "executionContextId": context_id,
+                "timestamp": timestamp,
+                "stackTrace": { "callFrames": [] },
+            }),
+        ));
+    }
+    if write_nav {
+        let frame_id = page.frame_id.clone();
+        let loader = loader_of(page);
+        frames.push(event(
+            Some(session),
+            "Page.lifecycleEvent",
+            json!({ "frameId": frame_id, "loaderId": loader, "name": "DOMContentLoaded" }),
+        ));
+        frames.push(event(
+            Some(session),
+            "Page.domContentEventFired",
+            json!({ "timestamp": timestamp }),
+        ));
+        frames.push(event(
+            Some(session),
+            "Page.lifecycleEvent",
+            json!({ "frameId": frame_id, "loaderId": loader, "name": "load" }),
+        ));
+        frames.push(event(
+            Some(session),
+            "Page.loadEventFired",
+            json!({ "timestamp": timestamp }),
+        ));
+    }
+    frames
 }
 
 async fn set_metrics(id: &Value, session: &str, params: &Value) -> Result<Out, String> {

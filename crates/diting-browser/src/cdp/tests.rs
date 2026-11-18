@@ -325,6 +325,96 @@ async fn connect_goto_eval_screenshot() {
         .await;
     assert_eq!(filled["result"]["value"], "new", "{filled}");
 
+    let frame_id = tree["frameTree"]["frame"]["id"]
+        .as_str()
+        .expect("frame id")
+        .to_string();
+    let wrote_at = client.events.len();
+    let wrote = client
+        .call(
+            38,
+            "Runtime.evaluate",
+            json!({
+                "expression": "document.open(); console.debug('--playwright--set--content--t--'); document.write('<p id=\"m\">SETCONTENT_OK</p>'); document.close(); 'wrote'",
+                "returnByValue": true,
+            }),
+            Some(&session),
+        )
+        .await;
+    assert_eq!(wrote["result"]["value"], "wrote", "{wrote}");
+    assert!(wrote.get("__ditingSide").is_none(), "{wrote}");
+    let batch = &client.events[wrote_at..];
+    let signal = batch
+        .iter()
+        .position(|event| {
+            event["method"] == "Runtime.consoleAPICalled"
+                && event["params"]["type"] == "debug"
+                && event["params"]["args"][0]["value"] == "--playwright--set--content--t--"
+                && event["params"]["executionContextId"].as_i64().unwrap_or(0) > 0
+        })
+        .expect("setContent console tag");
+    let load_at = batch
+        .iter()
+        .position(|event| {
+            event["method"] == "Page.lifecycleEvent"
+                && event["params"]["name"] == "load"
+                && event["params"]["frameId"] == frame_id
+        })
+        .expect("setContent load");
+    assert!(signal < load_at, "console tag must precede load: {batch:?}");
+    assert!(
+        batch
+            .iter()
+            .any(|event| event["method"] == "Page.lifecycleEvent"
+                && event["params"]["name"] == "DOMContentLoaded"),
+        "setContent did not emit DOMContentLoaded: {batch:?}"
+    );
+    assert!(
+        batch
+            .iter()
+            .all(|event| event["method"] != "Page.frameNavigated"),
+        "setContent must not replace the execution context"
+    );
+    let marker = client
+        .call(
+            39,
+            "Runtime.evaluate",
+            json!({
+                "expression": "document.getElementById('m').textContent",
+                "returnByValue": true,
+            }),
+            Some(&session),
+        )
+        .await;
+    assert_eq!(marker["result"]["value"], "SETCONTENT_OK", "{marker}");
+
+    let empty_at = client.events.len();
+    client
+        .call(
+            40,
+            "Runtime.evaluate",
+            json!({
+                "expression": "document.open(); console.debug('--playwright--set--content--empty--'); document.write(''); document.close();",
+                "returnByValue": true,
+            }),
+            Some(&session),
+        )
+        .await;
+    let empty = &client.events[empty_at..];
+    let empty_tag = empty.iter().position(|event| {
+        event["method"] == "Runtime.consoleAPICalled"
+            && event["params"]["args"][0]["value"] == "--playwright--set--content--empty--"
+    });
+    let empty_load = empty.iter().position(|event| {
+        event["method"] == "Page.lifecycleEvent" && event["params"]["name"] == "load"
+    });
+    assert!(
+        empty_tag
+            .zip(empty_load)
+            .is_some_and(|(tag, load)| tag < load),
+        "empty setContent still needs the tag before load: {empty:?}"
+    );
+
     #[cfg(feature = "screenshot")]
     {
         let metrics = client

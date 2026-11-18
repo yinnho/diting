@@ -131,11 +131,11 @@ pub struct JsState {
     // emitted as `Runtime.consoleAPICalled` events so console output is
     // visible to Playwright/Puppeteer instead of only the tracing log.
     pub pending_console_calls: Vec<(String, String, String)>,
-    /// Set when page JS fed `document.write()` — per HTML spec that parse
-    /// produces a fresh document whose `load` fires again (Playwright's
-    /// setContent waits on it). Drained by the CDP layer after the console
-    /// drain so the setContent tag message clears the frame's lifecycle
-    /// state before the new load events land.
+    /// Set when page JS called `document.open()` or `document.write()`. That
+    /// parse is a fresh document whose `load` fires again. Playwright's
+    /// setContent waits on it, including an empty write after open. Drained
+    /// by the CDP layer after the console drain so the setContent tag
+    /// clears the frame's lifecycle before the new load events land.
     pub pending_write_nav: std::cell::Cell<bool>,
     /// Dialog policy applied by `op_dialog` to subsequent window.confirm/
     /// prompt calls (alert has no answer). Default false = auto-dismiss, so
