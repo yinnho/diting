@@ -513,6 +513,53 @@ fn columns_stylesheet_matches_chrome() {
 }
 
 #[test]
+fn transform_origin_z_matches_chrome() {
+    // Chrome 157 keeps a non-zero z and drops 0px. x/y percentages resolve
+    // against the border box; display:none keeps the specified spelling.
+    // `top 10px` is invalid. `center left` is x=left, y=center.
+    let mut rt = setup_runtime(
+        "<html><head><style>\
+         #a { width: 100px; height: 40px; transform-origin: 10px 20px 5px }\
+         #b { width: 100px; height: 40px; transform-origin: 10px 20px 0px }\
+         #c { width: 100px; height: 40px; transform-origin: 50% 50% 10px }\
+         #d { width: 100px; height: 40px; transform-origin: left top 5px }\
+         #e { display: none; width: 100px; height: 40px; transform-origin: 50% 25% 10px }\
+         #f { display: none; transform-origin: 10px 20px 1em }\
+         #g { width: 100px; height: 40px; transform-origin: top 10px }\
+         #h { width: 100px; height: 40px; transform-origin: center left 5px }\
+         #i { font-size: 20px; width: 100px; height: 40px; transform-origin: 1em 2em 0.5em }\
+         #j { width: 100px; height: 40px; transform-origin: 10px 20px -3px }\
+         #k { width: 100px; height: 40px; transform-origin: 10px top 8px }\
+         </style></head><body>\
+         <div id='a'></div><div id='b'></div><div id='c'></div><div id='d'></div>\
+         <div id='e'></div><div id='f'></div><div id='g'></div><div id='h'></div>\
+         <div id='i'></div><div id='j'></div><div id='k'></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"JSON.stringify((() => {
+              const g = (id) => getComputedStyle(document.getElementById(id)).transformOrigin;
+              return { a: g('a'), b: g('b'), c: g('c'), d: g('d'), e: g('e'),
+                       f: g('f'), g: g('g'), h: g('h'), i: g('i'), j: g('j'), k: g('k') };
+            })())"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["a"], serde_json::json!("10px 20px 5px"));
+    assert_eq!(v["b"], serde_json::json!("10px 20px"));
+    assert_eq!(v["c"], serde_json::json!("50px 20px 10px"));
+    assert_eq!(v["d"], serde_json::json!("0px 0px 5px"));
+    assert_eq!(v["e"], serde_json::json!("50% 25% 10px"));
+    assert_eq!(v["f"], serde_json::json!("10px 20px 16px"));
+    assert_eq!(v["g"], serde_json::json!("50px 20px"));
+    assert_eq!(v["h"], serde_json::json!("0px 20px 5px"));
+    assert_eq!(v["i"], serde_json::json!("20px 40px 10px"));
+    assert_eq!(v["j"], serde_json::json!("10px 20px -3px"));
+    assert_eq!(v["k"], serde_json::json!("10px 0px 8px"));
+}
+
+#[test]
 fn gap_grid_place_and_marker_shorthands_match_chrome() {
     // Chrome 157: gap is row then column, collapsed when equal. grid is
     // rows / columns / areas / auto-flow / auto-rows / auto-columns.

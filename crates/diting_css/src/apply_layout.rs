@@ -266,13 +266,15 @@ pub(crate) fn apply_effects(
             style.scale_prop = parse_scale_prop(v);
             style.scale_prop.is_some()
         }
-        // transform-origin (#244): keywords normalize to percentages; the
-        // pivot itself resolves at collect time (layout mod), this only
-        // stores the pair.
-        "transform-origin" => {
-            style.transform_origin = parse_transform_origin(v, fonts);
-            style.transform_origin.is_some()
-        }
+        // transform-origin (#244): keywords normalize to percentages. The
+        // 2D pivot resolves x/y at collect time; z is stored for the CSSOM.
+        "transform-origin" => match parse_transform_origin(v, fonts) {
+            Some(origin) => {
+                style.transform_origin = Some(origin);
+                true
+            }
+            None => false,
+        },
         _ => return None,
     })
 }

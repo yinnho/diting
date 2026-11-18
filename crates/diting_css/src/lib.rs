@@ -68,12 +68,12 @@ pub use sheet::{
     ContainerCondition, ContainerFeature, ContainerRule, ContainerType, ParsedRule,
 };
 pub use style_kw::{
-    column_count_css, column_width_css, deco_line_css, deco_style_css, deco_thick_css,
-    outline_px_css, outline_style_css, overflow_name, AlignContentMode, AlignMode, BorderCollapse,
-    BorderStyle, BoxSizing, ClearSide, DecoStyle, DecoThick, Display, FlexDirection, FlexWrapMode,
-    FloatSide, GridTrack, JustifyMode, ListStyleType, ObjectFit, ObjectPositionPart, OutlineStyle,
-    Overflow, PositionMode, TableLayout, TextDecorations, TextOverflow, TrackSize, VerticalAlign,
-    WebkitBoxKind, WhiteSpace,
+    append_origin_z, column_count_css, column_width_css, deco_line_css, deco_style_css,
+    deco_thick_css, outline_px_css, outline_style_css, overflow_name, AlignContentMode, AlignMode,
+    BorderCollapse, BorderStyle, BoxSizing, ClearSide, DecoStyle, DecoThick, Display,
+    FlexDirection, FlexWrapMode, FloatSide, GridTrack, JustifyMode, ListStyleType, ObjectFit,
+    ObjectPositionPart, OutlineStyle, Overflow, PositionMode, TableLayout, TextDecorations,
+    TextOverflow, TrackSize, VerticalAlign, WebkitBoxKind, WhiteSpace,
 };
 pub use supports::supports_declaration;
 pub use supports_cond::supports_condition_applies;

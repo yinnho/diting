@@ -672,7 +672,7 @@ fn computed_color_spacing(
         "padding-inline-start" => Some(side_css_used(&s.padding.left, cb_inline)),
         "padding-inline-end" => Some(side_css_used(&s.padding.right, cb_inline)),
         // No border box (display:none, mock layout): Chrome keeps the
-        // specified form and omits a zero z, so the initial is "50% 50%".
+        // specified x/y and omits a zero z, so the initial is "50% 50%".
         // A laid-out box overwrites this with used px in `used_geometry`.
         "transform-origin" => Some({
             let spell = |l: &Length| match l {
@@ -680,10 +680,12 @@ fn computed_color_spacing(
                 Length::Percent(p) => format!("{}%", format_number(*p)),
                 _ => "50%".to_string(),
             };
-            let (x, y) = s
-                .transform_origin
-                .unwrap_or((Length::Percent(50.0), Length::Percent(50.0)));
-            format!("{} {}", spell(&x), spell(&y))
+            let (x, y, z) = s.transform_origin.unwrap_or((
+                Length::Percent(50.0),
+                Length::Percent(50.0),
+                Length::Px(0.0),
+            ));
+            diting_css::append_origin_z(format!("{} {}", spell(&x), spell(&y)), &z)
         }),
         _ => return None,
     })
@@ -1230,10 +1232,9 @@ pub(crate) struct PlacedBox {
     pub cb: [f32; 4],
 }
 
-/// Used `transform-origin` and the four insets, for the snapshot keys the
-/// percentage spelling cannot answer. `transform_origin` is `Some` only
-/// when the element has a border box — Chrome resolves percentages against
-/// that box and drops a zero z (`50px 20px`, not `50px 20px 0px`).
+/// Used `transform-origin` and the four insets. `transform_origin` is `Some`
+/// only with a border box. Percentages resolve against that box; a zero z
+/// is omitted.
 #[cfg(feature = "screenshot")]
 pub(crate) struct UsedGeometry {
     pub transform_origin: Option<String>,
@@ -1253,19 +1254,24 @@ pub(crate) fn used_geometry(
 ) -> UsedGeometry {
     use diting_css::Length;
     let transform_origin = origin_box.map(|(w, h)| {
-        let (x, y) = s
-            .transform_origin
-            .unwrap_or((Length::Percent(50.0), Length::Percent(50.0)));
+        let (x, y, z) = s.transform_origin.unwrap_or((
+            Length::Percent(50.0),
+            Length::Percent(50.0),
+            Length::Px(0.0),
+        ));
         let px = |l: &Length, basis: f32| match l {
             Length::Px(v) => *v,
             Length::Percent(p) => p / 100.0 * basis,
             Length::Calc { percent, px } => percent / 100.0 * basis + px,
             _ => basis / 2.0,
         };
-        format!(
-            "{}px {}px",
-            format_number(px(&x, w)),
-            format_number(px(&y, h))
+        diting_css::append_origin_z(
+            format!(
+                "{}px {}px",
+                format_number(px(&x, w)),
+                format_number(px(&y, h))
+            ),
+            &z,
         )
     });
     let (left, top, right, bottom) = inset_sides(s, cb_inline, cb_block, placed);
