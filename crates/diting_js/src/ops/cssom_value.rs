@@ -162,6 +162,12 @@ pub(crate) const COMPUTED_STYLE_PROPS: &[&str] = &[
     "column-gap",
     "column-width",
     "column-count",
+    "grid-template-rows",
+    "grid-template-columns",
+    "grid-template-areas",
+    "grid-auto-flow",
+    "grid-auto-rows",
+    "grid-auto-columns",
     "justify-content",
     "justify-items",
     "justify-self",
@@ -826,6 +832,20 @@ fn computed_radius_layout(
     })
 }
 
+#[cfg(feature = "screenshot")]
+fn grid_specified(s: &diting_css::ComputedStyle, prop: &str) -> Option<String> {
+    let (slot, initial) = match prop {
+        "grid-template-rows" => (&s.grid_rows_specified, "none"),
+        "grid-template-columns" => (&s.grid_cols_specified, "none"),
+        "grid-template-areas" => (&s.grid_areas_specified, "none"),
+        "grid-auto-flow" => (&s.grid_auto_flow_specified, "row"),
+        "grid-auto-rows" => (&s.grid_auto_rows_specified, "auto"),
+        "grid-auto-columns" => (&s.grid_auto_cols_specified, "auto"),
+        _ => return None,
+    };
+    Some(slot.clone().unwrap_or_else(|| initial.to_string()))
+}
+
 /// `computed_style_value` slice `flex-wrap` … `rotate`; outer `None` =
 /// not this slice's property, the caller tries the next one.
 #[cfg(feature = "screenshot")]
@@ -871,6 +891,12 @@ fn computed_flex_grid(
         // shorthand is row then column (CSS gap grammar).
         "column-width" => Some(diting_css::column_width_css(s.column_width)),
         "column-count" => Some(diting_css::column_count_css(s.column_count)),
+        "grid-template-rows"
+        | "grid-template-columns"
+        | "grid-template-areas"
+        | "grid-auto-flow"
+        | "grid-auto-rows"
+        | "grid-auto-columns" => grid_specified(s, prop),
         "row-gap" | "column-gap" => {
             let slot = if prop == "row-gap" {
                 &s.row_gap
