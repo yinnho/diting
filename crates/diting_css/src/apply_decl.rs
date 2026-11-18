@@ -251,6 +251,10 @@ css_wide_longhands! {
     "text-decoration-style" => text_decoration_style, false;
     "text-decoration-color" => text_decoration_color, false;
     "text-decoration-thickness" => text_decoration_thickness, false;
+    "outline-style" => outline_style, false;
+    "outline-color" => outline_color, false;
+    "outline-width" => outline_width, false;
+    "outline-offset" => outline_offset, false;
     "text-overflow" => text_overflow, false;
     "line-clamp" => line_clamp, false;
     "-webkit-line-clamp" => line_clamp, false;
@@ -341,6 +345,7 @@ fn css_wide_expand(name: &str) -> Option<&'static [&'static str]> {
             "text-decoration-color",
             "text-decoration-thickness",
         ],
+        "outline" => &["outline-style", "outline-color", "outline-width"],
         "list-style" => &["list-style-type"],
         // Logical shorthands (#244) expand to their logical longhands (which
         // css_wide_longhands maps onto the physical slots).

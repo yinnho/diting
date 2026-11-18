@@ -2120,7 +2120,7 @@ fn text_decoration_grammar() {
             pierce: false
         })
     );
-    // Shorthand style/color/thickness legs parse-and-drop.
+    // Style, color, and thickness are stored with the line.
     assert!(apply_one(
         &mut s,
         "text-decoration",
@@ -2165,6 +2165,58 @@ fn text_decoration_grammar() {
     ));
     assert_eq!(s.text_decoration_style, Some(DecoStyle::Wavy));
     assert_eq!(s.text_decoration_color, Some(Color(255, 0, 0, 255)));
+}
+
+#[test]
+fn outline_grammar_matches_chrome() {
+    let f = FontCtx::default();
+    let mut s = ComputedStyle::default();
+    assert!(apply_one(&mut s, "outline", "2px dashed blue", &f));
+    assert_eq!(s.outline_style, Some(OutlineStyle::Dashed));
+    assert_eq!(s.outline_color, Some(Color(0, 0, 255, 255)));
+    assert_eq!(s.outline_width, Some(Length::Px(2.0)));
+    // A repeated leg drops the whole declaration; the previous one stays.
+    assert!(!apply_one(&mut s, "outline", "solid dashed", &f));
+    assert_eq!(s.outline_style, Some(OutlineStyle::Dashed));
+    assert!(!apply_one(&mut s, "outline", "red blue", &f));
+    assert!(!apply_one(&mut s, "outline", "1px 2px", &f));
+    assert!(!apply_one(&mut s, "outline-color", "invert", &f));
+    assert!(!apply_one(&mut s, "outline-width", "-1px", &f));
+    assert!(!apply_one(&mut s, "outline-width", "10%", &f));
+    assert!(!apply_one(&mut s, "outline-offset", "10%", &f));
+    assert!(!apply_one(&mut s, "outline-style", "wavy", &f));
+    // hidden computes to none. auto stays. Omitted legs reset to initial.
+    assert!(apply_one(&mut s, "outline", "hidden", &f));
+    assert!(s.outline_style.is_none());
+    assert!(s.outline_color.is_none());
+    assert!(s.outline_width.is_none());
+    assert!(apply_one(&mut s, "outline-style", "auto", &f));
+    assert_eq!(s.outline_style, Some(OutlineStyle::Auto));
+    assert!(apply_one(&mut s, "outline-width", "calc(4px + 1px)", &f));
+    assert_eq!(s.outline_width, Some(Length::Px(5.0)));
+    assert!(apply_one(&mut s, "outline-offset", "-2px", &f));
+    assert_eq!(s.outline_offset, Some(Length::Px(-2.0)));
+    let wide = FontCtx {
+        own: 20.0,
+        ..FontCtx::default()
+    };
+    assert!(apply_one(&mut s, "outline-width", "2em", &wide));
+    assert_eq!(s.outline_width, Some(Length::Px(40.0)));
+    // The shorthand resets width/style/color and leaves the offset alone.
+    assert!(apply_one(&mut s, "outline", "solid", &f));
+    assert_eq!(s.outline_style, Some(OutlineStyle::Solid));
+    assert!(s.outline_width.is_none());
+    assert_eq!(s.outline_offset, Some(Length::Px(-2.0)));
+    assert!(apply_declarations(&mut s, "outline: initial"));
+    assert!(s.outline_style.is_none());
+    assert_eq!(s.outline_offset, Some(Length::Px(-2.0)));
+    // Sub-pixel lengths snap the way Chrome 157 spells them.
+    assert_eq!(outline_px_css(Some(Length::Px(1.6)), "3px"), "1px");
+    assert_eq!(outline_px_css(Some(Length::Px(2.01)), "3px"), "2px");
+    assert_eq!(outline_px_css(Some(Length::Px(0.0)), "3px"), "0px");
+    assert_eq!(outline_px_css(Some(Length::Px(-0.4)), "0px"), "-1px");
+    assert_eq!(outline_px_css(Some(Length::Px(-2.1)), "0px"), "-2px");
+    assert_eq!(outline_px_css(None, "3px"), "3px");
 }
 
 #[test]

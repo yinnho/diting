@@ -10,8 +10,8 @@ use crate::sheet::ContainerType;
 use crate::style_kw::{
     AlignContentMode, AlignMode, BorderCollapse, BorderStyle, BoxSizing, ClearSide, DecoStyle,
     DecoThick, Display, FlexDirection, FlexWrapMode, FloatSide, GridTrack, JustifyMode,
-    ListStyleType, ObjectFit, ObjectPositionPart, Overflow, PositionMode, TableLayout,
-    TextDecorations, TextOverflow, VerticalAlign, WebkitBoxKind, WhiteSpace,
+    ListStyleType, ObjectFit, ObjectPositionPart, OutlineStyle, Overflow, PositionMode,
+    TableLayout, TextDecorations, TextOverflow, VerticalAlign, WebkitBoxKind, WhiteSpace,
 };
 use crate::text_align::{TextAlign, TextAlignLast, TextDirection, TextTransform};
 use crate::transition::{add_len, mul_len, AnimationSpec, TransitionSpec};
@@ -379,6 +379,17 @@ pub struct ComputedStyle {
     pub text_decoration_color: Option<Color>,
     /// `text-decoration-thickness`. `None` is the initial `auto`.
     pub text_decoration_thickness: Option<DecoThick>,
+    /// `outline-style`. `None` is the initial `none` (`hidden` computes to
+    /// the same keyword).
+    pub outline_style: Option<OutlineStyle>,
+    /// Explicit `outline-color`. `None` is currentcolor, which the snapshot
+    /// omits so the shorthand can follow the used color.
+    pub outline_color: Option<Color>,
+    /// `outline-width`. `None` is the initial `medium` (3px).
+    pub outline_width: Option<Length>,
+    /// `outline-offset`. `None` is the initial `0px`. The `outline` shorthand
+    /// does not reset this.
+    pub outline_offset: Option<Length>,
     /// Custom properties (`--*`), which DO inherit: the var() substitution
     /// source. Values are stored raw (author tokens) — !important stripped at
     /// insertion; resolution to colors/lengths happens at use sites. The map
@@ -627,6 +638,10 @@ impl ComputedStyle {
         self.text_decoration_style = None;
         self.text_decoration_color = None;
         self.text_decoration_thickness = None;
+        self.outline_style = None;
+        self.outline_color = None;
+        self.outline_width = None;
+        self.outline_offset = None;
         self.custom = Default::default();
         if let Some(pair) = self.pseudos.as_mut() {
             if let Some(before) = pair.before.as_mut() {
