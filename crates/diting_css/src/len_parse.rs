@@ -5,7 +5,7 @@
 
 use crate::calc::{eval_math_call, eval_math_call_with};
 use crate::geom::{parse_css_length, resolve_len, CssLength, FontCtx, Length, Sides};
-use crate::style_kw::{GridTrack, TrackSize};
+use crate::style_kw::{GridTrack, MathNode, TrackSize};
 
 /// Length arm helper for `apply_one`: parse + fold em/rem against the font
 /// context; calc() bodies route through the evaluator (same folding per term).
@@ -153,6 +153,9 @@ pub(super) fn next_track_token(v: &str) -> Option<(&str, &str)> {
 /// `min-content`/`max-content` approximate to `auto` until the track
 /// machinery learns them.
 pub(super) fn parse_grid_track_token(tok: &str, fonts: &FontCtx) -> Option<GridTrack> {
+    if let Some(track) = track_fit_content(tok, fonts) {
+        return Some(track);
+    }
     if let Some(inner) = paren_fn_inner(tok, "minmax") {
         let (a, b) = split_first_top_comma(inner)?;
         return Some(GridTrack::MinMax {
@@ -165,7 +168,7 @@ pub(super) fn parse_grid_track_token(tok: &str, fonts: &FontCtx) -> Option<GridT
         TrackSize::Px(px) => GridTrack::Px(px),
         TrackSize::Percent(p) => GridTrack::Percent(p),
         TrackSize::Calc { percent, px } => GridTrack::Calc { percent, px },
-        TrackSize::Math { op, n, args } => GridTrack::Math { op, n, args },
+        TrackSize::Math { root, nodes } => GridTrack::Math { root, nodes },
         TrackSize::Auto => GridTrack::Auto,
     })
 }
@@ -189,6 +192,13 @@ pub(super) fn parse_track_size(tok: &str, fonts: &FontCtx) -> Option<TrackSize> 
         return Some(sz);
     }
     if let Some(px) = track_px(tok, fonts) {
+        // ch/ex are already px here. Layout stores the 1/64px unit so a
+        // neighboring fr sees the same size Chrome does (`9.6` → `9.59375`).
+        let px = if strip_unit(tok, "ch").is_some() || strip_unit(tok, "ex").is_some() {
+            (px * 64.0).floor() / 64.0
+        } else {
+            px
+        };
         return Some(TrackSize::Px(px));
     }
     if let Some(p) = tok.strip_suffix('%') {
@@ -235,40 +245,100 @@ fn track_calc_css(percent: f32, px: f32) -> String {
 }
 
 /// `min` / `max` / `clamp` that still contains a percentage. Pure lengths
-/// fold in `track_px`. Arguments stay in source order; `em` becomes px.
+/// fold in `track_px`. Nested calls stay nested. Arguments stay in source
+/// order; `em` becomes px.
 fn track_math_size(tok: &str, fonts: &FontCtx) -> Option<TrackSize> {
+    if !tok.contains('%') || math_fn_op(tok).is_none() {
+        return None;
+    }
+    let mut nodes = Vec::new();
+    let root = push_math(&mut nodes, tok, fonts)?;
+    if nodes.len() > 8 {
+        return None;
+    }
+    let mut arr = [MathNode::ZERO; 8];
+    for (i, node) in nodes.into_iter().enumerate() {
+        arr[i] = node;
+    }
+    Some(TrackSize::Math { root, nodes: arr })
+}
+
+fn math_fn_op(tok: &str) -> Option<u8> {
     let head = tok.split('(').next()?.trim();
-    let op = if head.eq_ignore_ascii_case("min") {
-        0
+    if head.eq_ignore_ascii_case("min") {
+        Some(1)
     } else if head.eq_ignore_ascii_case("max") {
-        1
+        Some(2)
     } else if head.eq_ignore_ascii_case("clamp") {
-        2
+        Some(3)
     } else {
+        None
+    }
+}
+
+fn push_math(nodes: &mut Vec<MathNode>, tok: &str, fonts: &FontCtx) -> Option<u8> {
+    if let Some(op) = math_fn_op(tok) {
+        let name = match op {
+            1 => "min",
+            2 => "max",
+            _ => "clamp",
+        };
+        let inner = paren_fn_inner(tok, name)?;
+        let src = split_top_commas(inner);
+        if src.is_empty() || src.len() > 8 || (op == 3 && src.len() != 3) {
+            return None;
+        }
+        let mut kids = [0u8; 8];
+        for (i, arg) in src.iter().enumerate() {
+            kids[i] = push_math(nodes, arg, fonts)?;
+        }
+        let idx = nodes.len();
+        if idx > u8::MAX as usize {
+            return None;
+        }
+        nodes.push(MathNode {
+            op,
+            n: src.len() as u8,
+            kids,
+            percent: 0.0,
+            px: 0.0,
+        });
+        return Some(idx as u8);
+    }
+    let (percent, px) = math_arg(tok, fonts)?;
+    let idx = nodes.len();
+    nodes.push(MathNode {
+        op: 0,
+        n: 0,
+        kids: [0; 8],
+        percent,
+        px,
+    });
+    Some(idx as u8)
+}
+
+fn track_fit_content(tok: &str, fonts: &FontCtx) -> Option<GridTrack> {
+    let inner = paren_fn_inner(tok, "fit-content")?;
+    let arg = inner.trim();
+    if arg.is_empty() || arg.contains(',') {
         return None;
+    }
+    let (percent, px) = if let Some(sz) = track_calc_size(arg, fonts) {
+        match sz {
+            TrackSize::Percent(p) => (p, 0.0),
+            TrackSize::Calc { percent, px } => (percent, px),
+            TrackSize::Px(px) => (0.0, px),
+            _ => return None,
+        }
+    } else if let Some(px) = track_px(arg, fonts) {
+        (0.0, px)
+    } else if unitless_zero(arg) {
+        (0.0, 0.0)
+    } else {
+        let p = arg.strip_suffix('%').and_then(|p| p.css_f32())?;
+        (p, 0.0)
     };
-    if !tok.contains('%') {
-        return None;
-    }
-    let name = match op {
-        0 => "min",
-        1 => "max",
-        _ => "clamp",
-    };
-    let inner = paren_fn_inner(tok, name)?;
-    let src = split_top_commas(inner);
-    if src.is_empty() || src.len() > 4 || (op == 2 && src.len() != 3) {
-        return None;
-    }
-    let mut args = [(0.0f32, 0.0f32); 4];
-    for (i, arg) in src.iter().enumerate() {
-        args[i] = math_arg(arg, fonts)?;
-    }
-    Some(TrackSize::Math {
-        op,
-        n: src.len() as u8,
-        args,
-    })
+    Some(GridTrack::FitContent { percent, px })
 }
 
 fn math_arg(arg: &str, fonts: &FontCtx) -> Option<(f32, f32)> {
@@ -288,17 +358,32 @@ fn math_arg(arg: &str, fonts: &FontCtx) -> Option<(f32, f32)> {
         .map(|p| (p, 0.0))
 }
 
-fn math_css(op: u8, n: u8, args: [(f32, f32); 4]) -> String {
-    let name = match op {
-        0 => "min",
-        1 => "max",
+fn math_tree_css(nodes: &[MathNode], i: usize) -> String {
+    let node = nodes.get(i).copied().unwrap_or(MathNode::ZERO);
+    if node.op == 0 {
+        return term_css((node.percent, node.px));
+    }
+    let name = match node.op {
+        1 => "min",
+        2 => "max",
         _ => "clamp",
     };
-    let body = (0..n)
-        .map(|i| term_css(args[i as usize]))
+    let body = (0..node.n)
+        .map(|k| math_tree_css(nodes, node.kids[k as usize] as usize))
         .collect::<Vec<_>>()
         .join(", ");
     format!("{name}({body})")
+}
+
+fn fit_content_css(percent: f32, px: f32) -> String {
+    let inner = if percent == 0.0 {
+        format!("{}px", css_num(px))
+    } else if px == 0.0 {
+        format!("{}%", css_num(percent))
+    } else {
+        track_calc_css(percent, px)
+    };
+    format!("fit-content({inner})")
 }
 
 fn term_css((percent, px): (f32, f32)) -> String {
@@ -371,6 +456,13 @@ fn track_px(tok: &str, fonts: &FontCtx) -> Option<f32> {
     if let Some(n) = strip_unit(tok, "vmax") {
         return Some(n.css_f32()? * fonts.viewport_w.max(fonts.viewport_h) / 100.0);
     }
+    // Times at the default size: 1ch is 0.6em (9.6px), 1ex is 8.272px.
+    if let Some(n) = strip_unit(tok, "ch") {
+        return Some(n.css_f32()? * fonts.own * 0.6);
+    }
+    if let Some(n) = strip_unit(tok, "ex") {
+        return Some(n.css_f32()? * fonts.own * (8.272 / 16.0));
+    }
     let head = tok.split('(').next()?.trim();
     if !matches!(
         head.to_ascii_lowercase().as_str(),
@@ -407,14 +499,44 @@ struct NamedTracks {
     tracks: Vec<GridTrack>,
     names: Vec<Vec<String>>,
     css: String,
+    layout: Vec<LaidTrack>,
 }
 
+/// Layout pieces of a normalized track list. Used when the list contains
+/// `repeat(auto-fill)` or `repeat(auto-fit)`, which cannot be expanded
+/// until the grid container's size is known.
+pub fn grid_layout_tracks(css: &str) -> Option<Vec<LaidTrack>> {
+    Some(parse_named_tracks(css, &FontCtx::default())?.layout)
+}
+
+enum RepKind {
+    Times(usize),
+    Fill,
+    Fit,
+}
+
+// `GridTrack` carries a fixed math-node array, so every piece is large.
+#[allow(clippy::large_enum_variant)]
 enum TrackPiece {
     Names(Vec<String>),
     Single(GridTrack, String),
     Repeat {
-        count: usize,
+        kind: RepKind,
         inner_css: String,
+        tracks: Vec<GridTrack>,
+        names: Vec<Vec<String>>,
+    },
+}
+
+/// One piece of a track list as layout sees it. Integer repeats are already
+/// expanded to [`LaidTrack::One`]. `auto-fill` / `auto-fit` stay one piece.
+// `GridTrack` carries a fixed math-node array, so every piece is large.
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Debug)]
+pub enum LaidTrack {
+    One(GridTrack),
+    Auto {
+        fill: bool,
         tracks: Vec<GridTrack>,
         names: Vec<Vec<String>>,
     },
@@ -436,10 +558,18 @@ fn parse_named_tracks(v: &str, fonts: &FontCtx) -> Option<NamedTracks> {
         let (tok, tail) = next_track_token(rest)?;
         if let Some(inner) = paren_fn_inner(tok, "repeat") {
             let (count, list) = split_first_top_comma(inner)?;
-            let count = repeat_count(count)?;
+            let kind = if let Some(n) = repeat_count(count) {
+                RepKind::Times(n)
+            } else {
+                match count.trim().to_ascii_lowercase().as_str() {
+                    "auto-fill" => RepKind::Fill,
+                    "auto-fit" => RepKind::Fit,
+                    _ => return None,
+                }
+            };
             let inner = parse_named_tracks(list, fonts)?;
             pieces.push(TrackPiece::Repeat {
-                count,
+                kind,
                 inner_css: inner.css,
                 tracks: inner.tracks,
                 names: inner.names,
@@ -461,6 +591,7 @@ fn expand_track_pieces(pieces: &[TrackPiece]) -> Option<NamedTracks> {
     let mut tracks = Vec::new();
     let mut names = vec![Vec::new()];
     let mut css = String::new();
+    let mut layout = Vec::new();
     let mut saw_track = false;
     let mut prev_names = false;
     for piece in pieces {
@@ -477,19 +608,46 @@ fn expand_track_pieces(pieces: &[TrackPiece]) -> Option<NamedTracks> {
             }
             TrackPiece::Single(track, track_css) => {
                 tracks.push(*track);
+                layout.push(LaidTrack::One(*track));
                 names.push(Vec::new());
                 push_css(&mut css, track_css);
                 saw_track = true;
                 prev_names = false;
             }
             TrackPiece::Repeat {
-                count,
+                kind,
                 inner_css,
                 tracks: inner_tracks,
                 names: inner_names,
             } => {
-                push_css(&mut css, &format!("repeat({count}, {inner_css})"));
-                for _ in 0..*count {
+                let (label, times) = match kind {
+                    RepKind::Times(n) => (n.to_string(), Some(*n)),
+                    RepKind::Fill => ("auto-fill".to_string(), None),
+                    RepKind::Fit => ("auto-fit".to_string(), None),
+                };
+                push_css(&mut css, &format!("repeat({label}, {inner_css})"));
+                if let Some(count) = times {
+                    for _ in 0..count {
+                        if let Some(first) = inner_names.first() {
+                            if let Some(slot) = names.last_mut() {
+                                slot.extend(first.iter().cloned());
+                            }
+                        }
+                        for (i, track) in inner_tracks.iter().enumerate() {
+                            tracks.push(*track);
+                            layout.push(LaidTrack::One(*track));
+                            let next = inner_names.get(i + 1).cloned().unwrap_or_default();
+                            names.push(next);
+                        }
+                    }
+                } else if inner_tracks.is_empty() {
+                    return None;
+                } else {
+                    layout.push(LaidTrack::Auto {
+                        fill: matches!(kind, RepKind::Fill),
+                        tracks: inner_tracks.clone(),
+                        names: inner_names.clone(),
+                    });
                     if let Some(first) = inner_names.first() {
                         if let Some(slot) = names.last_mut() {
                             slot.extend(first.iter().cloned());
@@ -509,7 +667,12 @@ fn expand_track_pieces(pieces: &[TrackPiece]) -> Option<NamedTracks> {
     if !saw_track {
         return None;
     }
-    Some(NamedTracks { tracks, names, css })
+    Some(NamedTracks {
+        tracks,
+        names,
+        css,
+        layout,
+    })
 }
 
 fn push_css(out: &mut String, piece: &str) {
@@ -689,6 +852,9 @@ pub(crate) fn specified_auto_tracks(v: &str, fonts: &FontCtx) -> Option<String> 
 }
 
 fn specified_track_token(tok: &str, fonts: &FontCtx) -> Option<String> {
+    if let Some(GridTrack::FitContent { percent, px }) = track_fit_content(tok, fonts) {
+        return Some(fit_content_css(percent, px));
+    }
     if let Some(inner) = paren_fn_inner(tok, "repeat") {
         let (count, list) = split_first_top_comma(inner)?;
         let count = repeat_count(count)?;
@@ -727,7 +893,7 @@ fn specified_size(tok: &str, fonts: &FontCtx) -> Option<String> {
     }
     if let Some(sz) = track_math_size(tok, fonts) {
         return Some(match sz {
-            TrackSize::Math { op, n, args } => math_css(op, n, args),
+            TrackSize::Math { root, nodes } => math_tree_css(&nodes, root as usize),
             TrackSize::Px(px) => format!("{}px", css_num(px)),
             _ => return None,
         });
@@ -1173,4 +1339,124 @@ pub(crate) fn font_size_px(
         // is the parent font-size, same as Em here.
         CssLength::Ch(n) | CssLength::Ex(n) => n * 0.5 * parent_fs,
     }
+}
+
+/// `grid-auto-flow`. `Some(None)` is the initial `row`. `None` is invalid.
+pub(crate) fn parse_grid_auto_flow(v: &str) -> Option<Option<String>> {
+    let mut dense = false;
+    let mut column = false;
+    let mut saw_axis = false;
+    let mut saw = false;
+    for tok in v.split_whitespace() {
+        saw = true;
+        match tok.to_ascii_lowercase().as_str() {
+            "dense" if !dense => dense = true,
+            "row" if !saw_axis => saw_axis = true,
+            "column" if !saw_axis => {
+                saw_axis = true;
+                column = true;
+            }
+            _ => return None,
+        }
+    }
+    if !saw {
+        return None;
+    }
+    let css = if column && dense {
+        Some("column dense".to_string())
+    } else if column {
+        Some("column".to_string())
+    } else if dense {
+        Some("dense".to_string())
+    } else {
+        None
+    };
+    Some(css)
+}
+
+/// One `grid-area` value. A lone custom-ident is an area name and fills
+/// all four lines. Anything else is up to four grid lines.
+pub(crate) struct GridAreaLines {
+    pub row_start: Option<String>,
+    pub column_start: Option<String>,
+    pub row_end: Option<String>,
+    pub column_end: Option<String>,
+    pub area_name: Option<String>,
+}
+
+pub(crate) fn parse_grid_area(v: &str) -> Option<GridAreaLines> {
+    let parts: Vec<&str> = v.split('/').map(str::trim).collect();
+    if parts.is_empty() || parts.len() > 4 || parts.iter().any(|p| p.is_empty()) {
+        return None;
+    }
+    if parts.len() == 1 {
+        if let Some(name) = area_ident(parts[0]) {
+            return Some(GridAreaLines {
+                row_start: Some(name.clone()),
+                column_start: Some(name.clone()),
+                row_end: Some(name.clone()),
+                column_end: Some(name.clone()),
+                area_name: Some(name),
+            });
+        }
+    }
+    let mut lines = [None, None, None, None];
+    for (i, part) in parts.iter().enumerate() {
+        lines[i] = Some(parse_grid_line(part)?);
+    }
+    Some(GridAreaLines {
+        row_start: lines[0].clone(),
+        column_start: lines[1].clone(),
+        row_end: lines[2].clone(),
+        column_end: lines[3].clone(),
+        area_name: None,
+    })
+}
+
+fn area_ident(tok: &str) -> Option<String> {
+    if tok.split_whitespace().count() != 1 {
+        return None;
+    }
+    let (name, rest) = take_custom_ident(tok)?;
+    if !rest.is_empty() || reserved_line_name(&name) {
+        return None;
+    }
+    if name.eq_ignore_ascii_case("auto") || name.eq_ignore_ascii_case("span") {
+        return None;
+    }
+    Some(name)
+}
+
+fn parse_grid_line(part: &str) -> Option<String> {
+    let toks: Vec<&str> = part.split_whitespace().collect();
+    match toks.as_slice() {
+        ["auto"] => Some("auto".to_string()),
+        [n] if grid_line_number(n).is_some() => Some(grid_line_number(n)?.to_string()),
+        ["span", n] => {
+            let n = grid_line_number(n)?;
+            if n <= 0 {
+                return None;
+            }
+            Some(format!("span {n}"))
+        }
+        [name] => area_ident(name),
+        _ => None,
+    }
+}
+
+fn grid_line_number(tok: &str) -> Option<i32> {
+    let digits = tok.strip_prefix('+').unwrap_or(tok);
+    if digits.is_empty() || digits == "-" {
+        return None;
+    }
+    let neg = digits.starts_with('-');
+    let body = digits.strip_prefix('-').unwrap_or(digits);
+    if body.is_empty() || !body.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let n: i32 = body.parse().ok()?;
+    if n == 0 {
+        return None;
+    }
+    Some(if neg { -n } else { n })
 }

@@ -35,7 +35,7 @@ mod computed;
 mod font_shorthand;
 mod geom;
 mod len_parse;
-pub use len_parse::explicit_track_line_names;
+pub use len_parse::{explicit_track_line_names, grid_layout_tracks, LaidTrack};
 mod media;
 mod shadow_parse;
 mod sheet;
@@ -73,8 +73,8 @@ pub use style_kw::{
     deco_line_css, deco_style_css, deco_thick_css, justify_mode_css, outline_px_css,
     outline_style_css, overflow_name, AlignContentMode, AlignMode, BorderCollapse, BorderStyle,
     BoxSizing, ClearSide, DecoStyle, DecoThick, Display, FlexDirection, FlexWrapMode, FloatSide,
-    GridTrack, JustifyMode, ListStyleType, ObjectFit, ObjectPositionPart, OutlineStyle, Overflow,
-    PositionMode, TableLayout, TextDecorations, TextOverflow, TrackSize, VerticalAlign,
+    GridTrack, JustifyMode, ListStyleType, MathNode, ObjectFit, ObjectPositionPart, OutlineStyle,
+    Overflow, PositionMode, TableLayout, TextDecorations, TextOverflow, TrackSize, VerticalAlign,
     WebkitBoxKind, WhiteSpace,
 };
 pub use supports::supports_declaration;

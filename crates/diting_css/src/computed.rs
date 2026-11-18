@@ -243,6 +243,12 @@ pub struct ComputedStyle {
     /// Named area an item is placed into (`grid-area: <name>`); resolves to
     /// the area's implicit `<name>-start`/`<name>-end` grid lines.
     pub grid_area: Option<String>,
+    /// Computed `grid-row` / `grid-column` lines. `None` is `auto`.
+    /// A number is the line (`2`), `span N` spans tracks.
+    pub grid_row_start: Option<String>,
+    pub grid_row_end: Option<String>,
+    pub grid_column_start: Option<String>,
+    pub grid_column_end: Option<String>,
     // --- positioning + size clamps (batch 2d), non-inherited ---
     pub position: Option<PositionMode>,
     /// Inset offsets (top/right/bottom/left): px or %.

@@ -488,6 +488,54 @@ fn grid_template_none_and_slash_clear_areas() {
 }
 
 #[test]
+fn grid_rest_specified_matches_chrome() {
+    let mut s = ComputedStyle::default();
+    apply_declarations(&mut s, "grid-auto-flow: dense column");
+    assert_eq!(s.grid_auto_flow_specified.as_deref(), Some("column dense"));
+    apply_declarations(&mut s, "grid-auto-flow: row dense");
+    assert_eq!(s.grid_auto_flow_specified.as_deref(), Some("dense"));
+    apply_declarations(&mut s, "grid-auto-flow: row");
+    assert_eq!(s.grid_auto_flow_specified, None);
+    apply_declarations(&mut s, "grid-auto-flow: column dense row");
+    assert_eq!(s.grid_auto_flow_specified, None);
+    apply_declarations(&mut s, "grid-template-columns: fit-content(40px)");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("fit-content(40px)"));
+    apply_declarations(&mut s, "grid-template-columns: fit-content(0)");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("fit-content(0px)"));
+    apply_declarations(&mut s, "grid-template-columns: 1ch");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("9.6px"));
+    apply_declarations(&mut s, "grid-template-columns: 1ex");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("8.272px"));
+    apply_declarations(
+        &mut s,
+        "grid-template-columns: min(50%, 40px, 30%, 80px, 10px)",
+    );
+    assert_eq!(
+        s.grid_cols_specified.as_deref(),
+        Some("min(50%, 40px, 30%, 80px, 10px)")
+    );
+    apply_declarations(&mut s, "grid-template-columns: min(min(50%, 40px), 20px)");
+    assert_eq!(
+        s.grid_cols_specified.as_deref(),
+        Some("min(min(50%, 40px), 20px)")
+    );
+    apply_declarations(
+        &mut s,
+        "grid-template-columns: min(10px, 20px, 30px, 40px, 5px)",
+    );
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("5px"));
+    apply_declarations(&mut s, "grid-area: 2 / 1 / 3 / 2");
+    assert_eq!(s.grid_area, None);
+    assert_eq!(s.grid_row_start.as_deref(), Some("2"));
+    assert_eq!(s.grid_column_start.as_deref(), Some("1"));
+    assert_eq!(s.grid_row_end.as_deref(), Some("3"));
+    assert_eq!(s.grid_column_end.as_deref(), Some("2"));
+    apply_declarations(&mut s, "grid-area: main");
+    assert_eq!(s.grid_area.as_deref(), Some("main"));
+    assert_eq!(s.grid_row_start.as_deref(), Some("main"));
+}
+
+#[test]
 fn grid_repeat_expands_inline() {
     // The landing-page idiom: repeat(4, 1fr). Before this batch the
     // token failed to parse, the whole declaration dropped, and the
@@ -520,11 +568,13 @@ fn grid_repeat_expands_inline() {
         ]),
     );
 
-    // auto-fill needs container geometry the cascade doesn't have:
-    // reject the declaration rather than half-parse.
+    // auto-fill stays written out. The used count needs the container.
     let mut s = ComputedStyle::default();
     apply_declarations(&mut s, "grid-template-columns: repeat(auto-fill, 100px)");
-    assert_eq!(s.grid_template_columns, None);
+    assert_eq!(
+        s.grid_cols_specified.as_deref(),
+        Some("repeat(auto-fill, 100px)")
+    );
 }
 
 #[test]

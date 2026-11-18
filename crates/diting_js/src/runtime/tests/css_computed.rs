@@ -1599,6 +1599,97 @@ fn grid_template_reset_matches_chrome() {
 }
 
 #[test]
+fn grid_rest_matches_chrome() {
+    // The leftover grid computed values: auto-flow order, fit-content on an
+    // empty grid, auto-fill/auto-fit counts, ch/ex, nested min, three-way
+    // fr at 1/64px, and numeric grid-area.
+    let mut rt = setup_runtime(
+        "<html><head><style>body { margin: 0 }</style></head><body>\
+         <div id='a' style='grid-auto-flow: dense column'></div>\
+         <div id='b' style='grid-auto-flow: row dense'></div>\
+         <div id='c' style='grid-template-columns: fit-content(40px)'></div>\
+         <div id='d' style='display:grid;width:200px;grid-template-columns: fit-content(40px) 1fr'></div>\
+         <div id='e' style='grid-template-columns: repeat(auto-fill, 100px)'></div>\
+         <div id='f' style='display:grid;width:200px;grid-template-columns: repeat(auto-fill, 100px)'></div>\
+         <div id='g' style='display:grid;width:250px;grid-template-columns: repeat(auto-fill, 100px)'></div>\
+         <div id='h' style='display:grid;width:200px;grid-template-columns: repeat(auto-fit, 100px)'></div>\
+         <div id='i' style='display:grid;width:350px;grid-template-columns: repeat(auto-fill, minmax(100px, 1fr))'></div>\
+         <div id='j' style='display:grid;width:200px;grid-template-columns: repeat(auto-fill, [a] 40px [b])'></div>\
+         <div id='k' style='grid-template-columns: 1ch'></div>\
+         <div id='l' style='grid-template-columns: 1ex'></div>\
+         <div id='m' style='display:grid;width:200px;grid-template-columns: 1ch 1fr'></div>\
+         <div id='n' style='display:grid;width:200px;grid-template-columns: min(min(50%, 40px), 80px)'></div>\
+         <div id='o' style='display:grid;width:60px;grid-template-columns: min(min(50%, 40px), 20px)'></div>\
+         <div id='p' style='display:grid;width:100px;grid-template-columns: 1fr 1fr 1fr'></div>\
+         <div id='q' style='display:grid;width:10px;grid-template-columns: 1fr 1fr 1fr'></div>\
+         <div id='r' style='grid-area:2/1/3/2'></div>\
+         <div id='s' style='grid-area: span 2 / span 3'></div>\
+         <div id='t' style='grid-area: main'></div>\
+         <div id='u' style='grid-area: auto / 1 / span 2 / auto'></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"JSON.stringify((() => {
+              const cs = (id) => getComputedStyle(document.getElementById(id));
+              const ids = 'abcdefghijklmnopqrstu'.split('');
+              const o = {};
+              for (const id of ids) {
+                const s = cs(id);
+                o[id] = s.grid + ' ## ' + s.gridArea;
+              }
+              return o;
+            })())"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    let grid = |id: &str| v[id].as_str().unwrap().split(" ## ").next().unwrap();
+    let area = |id: &str| v[id].as_str().unwrap().split(" ## ").nth(1).unwrap();
+    assert_eq!(grid("a"), "none / none / none / column dense / auto / auto");
+    assert_eq!(grid("b"), "none / none / none / dense / auto / auto");
+    assert_eq!(
+        grid("c"),
+        "none / fit-content(40px) / none / row / auto / auto"
+    );
+    assert_eq!(grid("d"), "none / 0px 200px / none / row / auto / auto");
+    assert_eq!(
+        grid("e"),
+        "none / repeat(auto-fill, 100px) / none / row / auto / auto"
+    );
+    assert_eq!(grid("f"), "none / 100px 100px / none / row / auto / auto");
+    assert_eq!(grid("g"), "none / 100px 100px / none / row / auto / auto");
+    assert_eq!(grid("h"), "none / 0px 0px / none / row / auto / auto");
+    assert_eq!(
+        grid("i"),
+        "none / 116.656px 116.656px 116.656px / none / row / auto / auto"
+    );
+    assert_eq!(
+        grid("j"),
+        "none / [a] 40px [b a] 40px [b a] 40px [b a] 40px [b a] 40px [b] / none / row / auto / auto"
+    );
+    assert_eq!(grid("k"), "none / 9.6px / none / row / auto / auto");
+    assert_eq!(grid("l"), "none / 8.272px / none / row / auto / auto");
+    assert_eq!(
+        grid("m"),
+        "none / 9.59375px 190.406px / none / row / auto / auto"
+    );
+    assert_eq!(grid("n"), "none / 40px / none / row / auto / auto");
+    assert_eq!(grid("o"), "none / 20px / none / row / auto / auto");
+    assert_eq!(
+        grid("p"),
+        "none / 33.3281px 33.3281px 33.3281px / none / row / auto / auto"
+    );
+    assert_eq!(
+        grid("q"),
+        "none / 3.32812px 3.32812px 3.32812px / none / row / auto / auto"
+    );
+    assert_eq!(area("r"), "2 / 1 / 3 / 2");
+    assert_eq!(area("s"), "span 2 / span 3");
+    assert_eq!(area("t"), "main");
+    assert_eq!(area("u"), "auto / 1 / span 2");
+}
+
+#[test]
 fn text_decoration_shorthand_matches_chrome() {
     // Chrome 157 omits solid, currentcolor, and auto thickness. An explicit
     // color or a non-solid style stays. Line keywords come out as
