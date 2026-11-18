@@ -17,7 +17,17 @@ if (typeof TextEncoder === 'undefined') {
         if (c < 0x80) buf.push(c);
         else if (c < 0x800) { buf.push(0xC0|(c>>6), 0x80|(c&0x3F)); }
         else if (c < 0xD800 || c >= 0xE000) { buf.push(0xE0|(c>>12), 0x80|((c>>6)&0x3F), 0x80|(c&0x3F)); }
-        else { c = 0x10000 + (((c & 0x3FF) << 10) | (str.charCodeAt(++i) & 0x3FF)); buf.push(0xF0|(c>>18), 0x80|((c>>12)&0x3F), 0x80|((c>>6)&0x3F), 0x80|(c&0x3F)); }
+        else {
+          // WHATWG: a high surrogate pairs with the next low surrogate.
+          // A lone surrogate encodes as U+FFFD (EF BF BD), not as a
+          // code point built from a missing partner.
+          const next = str.charCodeAt(i + 1);
+          if (c <= 0xDBFF && next >= 0xDC00 && next <= 0xDFFF) {
+            c = 0x10000 + (((c & 0x3FF) << 10) | (next & 0x3FF));
+            i++;
+            buf.push(0xF0|(c>>18), 0x80|((c>>12)&0x3F), 0x80|((c>>6)&0x3F), 0x80|(c&0x3F));
+          } else buf.push(0xEF, 0xBF, 0xBD);
+        }
       }
       return new Uint8Array(buf);
     }

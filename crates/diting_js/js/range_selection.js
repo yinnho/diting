@@ -3,11 +3,15 @@
 // Split out of bootstrap.js wholesale (god-file ratchet, pure move): top level only
 // declares bindings; every bootstrap helper it names is touched at call time.
 
-// Live Range over the real DOM tree. dom/ranges/* tests are pure boundary-point
-// algorithms (no layout, no editing engine), so a property-storing Range with
-// correct tree-order comparison passes them. Mutating ops (extract/delete/
-// insert/surround) are kept minimal: they do not throw, but do not rewrite the
-// tree (that is the editing mega-bucket, out of scope).
+// Live Range over the real DOM tree. Boundary comparison stays a property
+// store plus the Rust tree-order ops. extract/clone/surround rewrite the
+// tree for the partial-text and whole-child cases the platform probes use.
+if (!globalThis.__diting_ownerDocs) {
+  Object.defineProperty(globalThis, "__diting_ownerDocs", {
+    value: new WeakMap(), writable: true, enumerable: false, configurable: true,
+  });
+}
+const _ownerDocs = globalThis.__diting_ownerDocs;
 // (刀90) raw cross-tree base/extent for Selection.toString — kept in a
 // module WeakMap, not an own property: Chrome instances carry zero own keys
 // and the engine's native slot only takes scalar values (an array leaks
@@ -50,6 +54,87 @@ function _rngCmp(nA, oA, nB, oB) {
 function _rngCheckOffset(n, o) {
   if (n && n.nodeType === 10) throw new DOMException("Range boundary cannot be a DocumentType", "InvalidNodeTypeError");
   if (o < 0 || o > _rngNodeLength(n)) throw new DOMException("Range offset out of bounds", "IndexSizeError");
+}
+function _rngKidList(n) {
+  const kids = n.childNodes;
+  const out = [];
+  for (let i = 0; i < kids.length; i++) out.push(kids[i]);
+  return out;
+}
+// Copy (or move) the range's contents into a fragment. Same-container
+// covers selectNode / selectNodeContents. The two-text-node case covers a
+// range that starts mid-way through one element and ends mid-way through
+// the next sibling.
+function _rngContents(range, extract) {
+  const sc = range._sc, ec = range._ec;
+  const doc = (sc && sc.ownerDocument) || globalThis.document;
+  const frag = doc.createDocumentFragment();
+  if (!sc || !ec) return frag;
+  let so = range._so, eo = range._eo;
+  if (_rngCmp(sc, so, ec, eo) > 0) { const t = so; so = eo; eo = t; }
+  if (_rngCmp(sc, so, ec, eo) === 0) return frag;
+  if (_rngSame(sc, ec)) {
+    if (sc.nodeType === 3 || sc.nodeType === 4) {
+      const data = sc.data || "";
+      frag.appendChild(doc.createTextNode(data.slice(so, eo)));
+      if (extract) {
+        sc.data = data.slice(0, so) + data.slice(eo);
+        range.setStart(sc, so);
+        range.setEnd(sc, so);
+      }
+      return frag;
+    }
+    const kids = _rngKidList(sc).slice(so, eo);
+    for (const n of kids) frag.appendChild(extract ? n : n.cloneNode(true));
+    if (extract) { range.setStart(sc, so); range.setEnd(sc, so); }
+    return frag;
+  }
+  if ((sc.nodeType === 3 || sc.nodeType === 4) && (ec.nodeType === 3 || ec.nodeType === 4)
+      && sc.parentNode && ec.parentNode && sc.parentNode.parentNode === ec.parentNode.parentNode) {
+    const root = sc.parentNode.parentNode;
+    const startData = sc.data || "";
+    const endData = ec.data || "";
+    const midStart = startData.slice(so);
+    const midEnd = endData.slice(0, eo);
+    const startClone = sc.parentNode.cloneNode(false);
+    if (midStart) startClone.appendChild(doc.createTextNode(midStart));
+    if (startClone.childNodes.length) frag.appendChild(startClone);
+    const children = _rngKidList(root);
+    const sameNode = (a, b) => a === b || (!!a && !!b && a._nid === b._nid);
+    const i0 = children.findIndex((n) => sameNode(n, sc.parentNode));
+    const i1 = children.findIndex((n) => sameNode(n, ec.parentNode));
+    for (let i = i0 + 1; i < i1; i++) frag.appendChild(extract ? children[i] : children[i].cloneNode(true));
+    const endClone = ec.parentNode.cloneNode(false);
+    if (midEnd) endClone.appendChild(doc.createTextNode(midEnd));
+    if (endClone.childNodes.length) frag.appendChild(endClone);
+    if (extract) {
+      sc.data = startData.slice(0, so);
+      ec.data = endData.slice(eo);
+      range.setStart(sc, so);
+      range.setEnd(sc, so);
+    }
+    return frag;
+  }
+  return frag;
+}
+if (typeof Document !== "undefined") {
+  const _createElement = Document.prototype.createElement;
+  Document.prototype.createElement = function (tag) {
+    const el = _createElement.apply(this, arguments);
+    if (el && this !== globalThis.document) _ownerDocs.set(el, this);
+    return el;
+  };
+  Document.prototype.adoptNode = function (node) {
+    if (!node) return null;
+    if (node.parentNode) node.parentNode.removeChild(node);
+    _ownerDocs.set(node, this);
+    return node;
+  };
+  const mark = globalThis.__diting_markNative;
+  if (typeof mark === "function") {
+    mark(Document.prototype.createElement);
+    mark(Document.prototype.adoptNode);
+  }
 }
 // (刀90) Selection.toString text extraction — Chrome's Selection uses a
 // layout-flavored plain text (block boundaries emit '\n'), unlike
@@ -306,11 +391,16 @@ globalThis.Range = class Range {
     if (!_rngSame(sc, ec) && (ec.nodeType === 3 || ec.nodeType === 4)) s += (ec.data || "").slice(0, this._eo);
     return s;
   }
-  cloneContents() { return (globalThis.document || document).createDocumentFragment(); }
-  extractContents() { return (globalThis.document || document).createDocumentFragment(); }
-  deleteContents() {}
+  cloneContents() { return _rngContents(this, false); }
+  extractContents() { return _rngContents(this, true); }
+  deleteContents() { _rngContents(this, true); }
   insertNode(node) { if (node && this._sc && this._sc.insertBefore) { const kids = this._sc.childNodes; this._sc.insertBefore(node, kids[this._so] || null); } }
-  surroundContents(node) { this.insertNode(node); }
+  surroundContents(node) {
+    if (!node) return;
+    const frag = this.extractContents();
+    node.appendChild(frag);
+    this.insertNode(node);
+  }
   detach() {}
   getBoundingClientRect() { return new DOMRect(); }
   getClientRects() { return []; }
