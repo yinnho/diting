@@ -415,6 +415,70 @@ async fn connect_goto_eval_screenshot() {
         "empty setContent still needs the tag before load: {empty:?}"
     );
 
+    client
+        .call(
+            41,
+            "Page.navigate",
+            json!({
+                "url": "data:text/html,<div style=\"height:2000px\"></div><button id=b style=\"width:80px;height:30px\">B</button>"
+            }),
+            Some(&session),
+        )
+        .await;
+    client
+        .call(
+            45,
+            "Emulation.setDeviceMetricsOverride",
+            json!({ "width": 800, "height": 600, "deviceScaleFactor": 1, "mobile": false }),
+            Some(&session),
+        )
+        .await;
+    let far = client
+        .call(
+            42,
+            "Runtime.evaluate",
+            json!({
+                "expression": "document.getElementById('b')",
+                "returnByValue": false,
+            }),
+            Some(&session),
+        )
+        .await;
+    let far_id = far["result"]["objectId"]
+        .as_str()
+        .expect("button object")
+        .to_string();
+    client
+        .call(
+            43,
+            "DOM.scrollIntoViewIfNeeded",
+            json!({ "objectId": far_id }),
+            Some(&session),
+        )
+        .await;
+    let placed = client
+        .call(
+            44,
+            "Runtime.evaluate",
+            json!({
+                "expression": "var r = document.getElementById('b').getBoundingClientRect(); JSON.stringify({top: r.top, height: r.height, sy: window.scrollY, vh: window.innerHeight})",
+                "returnByValue": true,
+            }),
+            Some(&session),
+        )
+        .await;
+    let placed: Value = serde_json::from_str(placed["result"]["value"].as_str().unwrap_or("{}"))
+        .unwrap_or(Value::Null);
+    let top = placed["top"].as_f64().unwrap_or(-1.0);
+    let height = placed["height"].as_f64().unwrap_or(0.0);
+    let scroll_y = placed["sy"].as_f64().unwrap_or(0.0);
+    let vh = placed["vh"].as_f64().unwrap_or(0.0);
+    let center = top + height / 2.0;
+    assert!(
+        height > 0.0 && scroll_y > 100.0 && center >= 0.0 && center <= vh,
+        "off-screen button was not scrolled into view: {placed}"
+    );
+
     #[cfg(feature = "screenshot")]
     {
         let metrics = client
