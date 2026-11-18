@@ -311,6 +311,34 @@ function _cssExpand4(raw) {
   return [t, r, b, l];
 }
 // One border edge in Chrome's computed order: width, style, color.
+function _columnsString(width, count) {
+  const w = !width || width === 'auto';
+  const n = !count || count === 'auto';
+  if (w && n) return 'auto';
+  if (w) return count;
+  if (n) return width;
+  return width + ' ' + count;
+}
+function _parseColumns(raw) {
+  let width = '', count = '';
+  for (const t of String(raw).trim().split(/\s+/)) {
+    if (!t || t.toLowerCase() === 'auto') continue;
+    if (/^\d+(?:\.\d+)?$/.test(t)) count = t;
+    else width = t;
+  }
+  return { width: width || 'auto', count: count || 'auto' };
+}
+function _fontSynthesisBits(weight, style, small) {
+  const bits = [];
+  if (weight !== 'none') bits.push('weight');
+  if (style !== 'none') bits.push('style');
+  if (small !== 'none') bits.push('small-caps');
+  return bits.length ? bits.join(' ') : 'none';
+}
+function _emphasisStyle(style) {
+  if (!style) return '';
+  return style.toLowerCase().startsWith('filled ') ? style.slice(7) : style;
+}
 function _parseBorderEdge(raw) {
   const styles = { none: 1, hidden: 1, dotted: 1, dashed: 1, solid: 1, double: 1, groove: 1, ridge: 1, inset: 1, outset: 1 };
   const widths = { thin: '1px', medium: '3px', thick: '5px' };
@@ -662,7 +690,9 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
           || kebab === 'border-block-start' || kebab === 'border-block-end'
           || kebab === 'border-inline-start' || kebab === 'border-inline-end'
           || kebab === 'column-rule' || kebab === 'row-rule'
-          || kebab === 'scroll-margin' || kebab === 'scroll-padding';
+          || kebab === 'scroll-margin' || kebab === 'scroll-padding'
+          || kebab === 'text-emphasis' || kebab === 'text-wrap' || kebab === 'columns'
+          || kebab === 'font-synthesis' || kebab === '-webkit-text-stroke';
         if (!rebuilt) {
           if (_isComputedColorProp(kebab)) {
             const painted = _cssComputedColor(inlineVal);
@@ -858,6 +888,83 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
         lookup(kebab + '-top'), lookup(kebab + '-right'),
         lookup(kebab + '-bottom'), lookup(kebab + '-left')
       );
+    }
+    if (kebab === 'text-emphasis') {
+      const specified = !pseudoName && target.getPropertyValue ? target.getPropertyValue(kebab) : '';
+      let style = '', color = '';
+      if (specified && !_CSS_WIDE_KW.test(specified)) {
+        const shapes = { none: 1, dot: 1, circle: 1, 'double-circle': 1, triangle: 1, sesame: 1 };
+        const fills = { filled: 1, open: 1 };
+        const parts = [];
+        for (const p of specified.trim().split(/\s+/)) {
+          const low = p.toLowerCase();
+          if (shapes[low] || fills[low]) parts.push(low);
+          else color = _cssComputedColor(p) || p;
+        }
+        style = _emphasisStyle(parts.join(' '));
+      }
+      if (!style) style = _emphasisStyle(lookup('text-emphasis-style'));
+      if (!color) color = lookup('text-emphasis-color');
+      if (style && color) return style + ' ' + color;
+    }
+    if (kebab === 'text-wrap') {
+      const modes = { wrap: 1, nowrap: 1 };
+      const styles = { auto: 1, balance: 1, pretty: 1, stable: 1 };
+      let mode = '', tws = '';
+      const specified = !pseudoName && target.getPropertyValue ? target.getPropertyValue(kebab) : '';
+      if (specified && !_CSS_WIDE_KW.test(specified)) {
+        for (const p of specified.trim().toLowerCase().split(/\s+/)) {
+          if (modes[p]) mode = p;
+          else if (styles[p]) tws = p;
+        }
+      }
+      if (!mode) mode = lookup('text-wrap-mode');
+      if (!tws) tws = lookup('text-wrap-style');
+      if (tws && tws !== 'auto') return tws;
+      if (mode) return mode;
+    }
+    if (kebab === 'columns') {
+      const specified = !pseudoName && target.getPropertyValue ? target.getPropertyValue(kebab) : '';
+      if (specified && !_CSS_WIDE_KW.test(specified)) {
+        const parsed = _parseColumns(specified);
+        return _columnsString(parsed.width, parsed.count);
+      }
+      return _columnsString(lookup('column-width'), lookup('column-count'));
+    }
+    if (kebab === 'font-synthesis') {
+      const specified = !pseudoName && target.getPropertyValue ? target.getPropertyValue(kebab) : '';
+      if (specified && !_CSS_WIDE_KW.test(specified)) {
+        const low = specified.trim().toLowerCase();
+        if (low === 'none') return 'none';
+        const on = new Set(low.split(/\s+/));
+        return _fontSynthesisBits(on.has('weight') ? 'auto' : 'none', on.has('style') ? 'auto' : 'none', on.has('small-caps') ? 'auto' : 'none');
+      }
+      return _fontSynthesisBits(lookup('font-synthesis-weight'), lookup('font-synthesis-style'), lookup('font-synthesis-small-caps'));
+    }
+    if (kebab === '-webkit-text-stroke') {
+      const specified = !pseudoName && target.getPropertyValue ? target.getPropertyValue(kebab) : '';
+      let width = '', color = '';
+      if (specified && !_CSS_WIDE_KW.test(specified)) {
+        const widths = { thin: '1px', medium: '3px', thick: '5px' };
+        for (const p of specified.trim().split(/\s+/)) {
+          const low = p.toLowerCase();
+          if (widths[low]) width = widths[low];
+          else if (/^(?:0|-?[\d.]+)(?:px|em|rem|%)$/.test(low)) width = low === '0' ? '0px' : p;
+          else color = _cssComputedColor(p) || p;
+        }
+      }
+      if (!width) width = lookup('-webkit-text-stroke-width');
+      if (!color) color = lookup('-webkit-text-stroke-color');
+      if (width && color) return width + ' ' + color;
+    }
+    if (kebab === 'offset') {
+      const path = lookup('offset-path'), dist = lookup('offset-distance'), rot = lookup('offset-rotate');
+      if (path && dist && rot) return path + ' ' + dist + ' ' + rot;
+    }
+    if (kebab === 'mask' || kebab === '-webkit-mask') {
+      const img = lookup(kebab === 'mask' ? 'mask-image' : '-webkit-mask-image');
+      if (!img || img === 'none') return 'none';
+      return img;
     }
     if (kebab === 'outline') {
       // Cascade doesn't store outline longhands. An authored shorthand is
