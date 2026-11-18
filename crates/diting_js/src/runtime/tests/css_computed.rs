@@ -560,6 +560,63 @@ fn transform_origin_z_matches_chrome() {
 }
 
 #[test]
+fn sticky_percent_uses_scrollport_content_box() {
+    // Chrome 157: sticky percentages resolve against the nearest scrollport's
+    // content box (width for left/right, height for top/bottom). No element
+    // scroller means the viewport. Unset stays auto. Relative still uses the
+    // parent's content height, which is a different basis.
+    let mut rt = setup_runtime(
+        "<html><head><style>body{margin:0}\
+         #root { position: sticky; top: 10%; left: 10%; width: 20px; height: 20px }\
+         #both { position: sticky; top: 10%; bottom: 20%; width: 20px; height: 20px }\
+         #px { position: sticky; top: 8px; width: 20px; height: 20px }\
+         #sc { width: 250px; height: 300px; overflow: auto }\
+         #d { position: sticky; top: 10%; left: 20%; height: 20px }\
+         #cb { width: 250px; height: 300px; overflow: auto; padding: 20px; border: 10px solid #000 }\
+         #a { position: sticky; top: 10%; left: 10%; height: 20px }\
+         #bb { width: 250px; height: 300px; overflow: auto; padding: 20px;\
+               border: 10px solid #000; box-sizing: border-box }\
+         #b { position: sticky; top: 10%; left: 10%; height: 20px }\
+         #nest { width: 400px; height: 400px; overflow: auto }\
+         #mid { width: 180px; height: 120px; overflow: auto }\
+         #n { position: sticky; top: 10%; left: 10%; height: 20px }\
+         #rel { position: relative; top: 10%; height: 20px }\
+         #host { width: 400px; height: 200px }\
+         </style></head><body>\
+         <div id='root'></div><div id='both'></div><div id='px'></div>\
+         <div id='sc'><div id='d'></div></div>\
+         <div id='cb'><div id='a'></div></div>\
+         <div id='bb'><div id='b'></div></div>\
+         <div id='nest'><div id='mid'><div id='n'></div></div></div>\
+         <div id='host'><div id='rel'></div></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"
+            __diting_setViewport(800, 600, false, undefined);
+            const g = (id) => {
+              const c = getComputedStyle(document.getElementById(id));
+              return [c.top, c.left, c.right, c.bottom].join(' ');
+            };
+            JSON.stringify({
+              root: g('root'), both: g('both'), px: g('px'), d: g('d'),
+              a: g('a'), b: g('b'), n: g('n'), rel: g('rel')
+            })"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["root"], serde_json::json!("60px 80px auto auto"));
+    assert_eq!(v["both"], serde_json::json!("60px auto auto 120px"));
+    assert_eq!(v["px"], serde_json::json!("8px auto auto auto"));
+    assert_eq!(v["d"], serde_json::json!("30px 50px auto auto"));
+    assert_eq!(v["a"], serde_json::json!("30px 25px auto auto"));
+    assert_eq!(v["b"], serde_json::json!("24px 19px auto auto"));
+    assert_eq!(v["n"], serde_json::json!("12px 18px auto auto"));
+    assert_eq!(v["rel"], serde_json::json!("20px 0px 0px -20px"));
+}
+
+#[test]
 fn gap_grid_place_and_marker_shorthands_match_chrome() {
     // Chrome 157: gap is row then column, collapsed when equal. grid is
     // rows / columns / areas / auto-flow / auto-rows / auto-columns.

@@ -605,6 +605,74 @@ pub(crate) fn is_element_scroller(
     }
 }
 
+/// Content-box size of the nearest element scrollport. Sticky percentage
+/// insets resolve against that box (Chrome's getComputedStyle). No element
+/// scroller means the viewport, not the document height.
+#[cfg(feature = "screenshot")]
+pub(crate) fn sticky_scrollport(
+    dom: &DomTree,
+    rects: &HashMap<NodeId, [f32; 4]>,
+    styles: &HashMap<NodeId, diting_css::ComputedStyle>,
+    nid: NodeId,
+    viewport: (f32, f32),
+) -> (f32, f32) {
+    let mut cur = dom.get_node(nid).and_then(|nd| nd.parent);
+    while let Some(p) = cur {
+        if is_element_scroller(dom, rects, styles, p) {
+            return scrollport_content(dom, rects, styles, p);
+        }
+        cur = dom.get_node(p).and_then(|nd| nd.parent);
+    }
+    viewport
+}
+
+/// Border box minus border and padding. Vertical padding percentages use
+/// the inline containing block, same as CSS.
+#[cfg(feature = "screenshot")]
+fn scrollport_content(
+    dom: &DomTree,
+    rects: &HashMap<NodeId, [f32; 4]>,
+    styles: &HashMap<NodeId, diting_css::ComputedStyle>,
+    id: NodeId,
+) -> (f32, f32) {
+    use diting_css::Length;
+    let Some(st) = styles.get(&id) else {
+        return (0.0, 0.0);
+    };
+    let Some(&[_, _, w, h]) = rects.get(&id) else {
+        return (0.0, 0.0);
+    };
+    let (bt, br, bb, bl) = if st.border_style.is_some() {
+        (
+            px_len(&st.border_width.top),
+            px_len(&st.border_width.right),
+            px_len(&st.border_width.bottom),
+            px_len(&st.border_width.left),
+        )
+    } else {
+        (0.0, 0.0, 0.0, 0.0)
+    };
+    let cb_w = super::cssom_value::cb_inline_for(dom, rects, styles, id, 8).unwrap_or(w);
+    let pad = |l: &Option<Length>| match l {
+        Some(Length::Px(v)) => *v,
+        Some(Length::Percent(p)) => p * cb_w / 100.0,
+        Some(Length::Calc { percent, px }) => percent * cb_w / 100.0 + px,
+        _ => 0.0,
+    };
+    (
+        (w - bl - br - pad(&st.padding.left) - pad(&st.padding.right)).max(0.0),
+        (h - bt - bb - pad(&st.padding.top) - pad(&st.padding.bottom)).max(0.0),
+    )
+}
+
+#[cfg(feature = "screenshot")]
+fn px_len(l: &Option<diting_css::Length>) -> f32 {
+    match l {
+        Some(diting_css::Length::Px(v)) => *v,
+        _ => 0.0,
+    }
+}
+
 /// The sticky shift map for the CURRENT read (sticky v2): one [dx, dy]
 /// per node inside a shifted subtree — sticky boxes AND element-scroller
 /// contents. A sticky's value is its constraint shift composed over
