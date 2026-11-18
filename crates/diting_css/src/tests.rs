@@ -297,6 +297,35 @@ fn grid_track_em_uses_element_font() {
 }
 
 #[test]
+fn grid_track_percent_calc_stays_symbolic() {
+    // Chrome keeps a percent+px calc, percent term first. A zero px term
+    // drops. `+` without whitespace is invalid. em inside the calc folds.
+    let fonts = FontCtx {
+        own: 20.0,
+        ..FontCtx::default()
+    };
+    let mut s = ComputedStyle::default();
+    apply_declarations(&mut s, "grid-template-columns: calc(10px + 50%)");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("calc(50% + 10px)"));
+    apply_declarations(&mut s, "grid-template-columns: calc(50% - 10px)");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("calc(50% - 10px)"));
+    apply_declarations(&mut s, "grid-template-columns: calc(50% + 0px)");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("50%"));
+    apply_declarations(&mut s, "grid-template-columns: calc(0% + 10px)");
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("calc(0% + 10px)"));
+    let mut bare = ComputedStyle::default();
+    apply_declarations(&mut bare, "grid-template-columns: calc(50%+10px)");
+    assert_eq!(bare.grid_cols_specified, None);
+    apply_declarations_with(&mut s, "grid-template-columns: calc(1em + 50%)", &fonts);
+    assert_eq!(s.grid_cols_specified.as_deref(), Some("calc(50% + 20px)"));
+    apply_declarations(&mut s, "grid-template-columns: minmax(0, calc(50% + 10px))");
+    assert_eq!(
+        s.grid_cols_specified.as_deref(),
+        Some("minmax(0px, calc(50% + 10px))")
+    );
+}
+
+#[test]
 fn grid_repeat_expands_inline() {
     // The landing-page idiom: repeat(4, 1fr). Before this batch the
     // token failed to parse, the whole declaration dropped, and the

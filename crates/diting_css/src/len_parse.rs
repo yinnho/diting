@@ -3,7 +3,7 @@
 //! Callers still see these names on the crate root. This module names the
 //! length model, the math evaluator, and the grid-track keywords it fills.
 
-use crate::calc::eval_math_call;
+use crate::calc::{eval_math_call, eval_math_call_with};
 use crate::geom::{parse_css_length, resolve_len, CssLength, FontCtx, Length, Sides};
 use crate::style_kw::{GridTrack, TrackSize};
 
@@ -181,6 +181,7 @@ pub(super) fn parse_grid_track_token(tok: &str, fonts: &FontCtx) -> Option<GridT
         TrackSize::Fr(f) => GridTrack::Fr(f),
         TrackSize::Px(px) => GridTrack::Px(px),
         TrackSize::Percent(p) => GridTrack::Percent(p),
+        TrackSize::Calc { percent, px } => GridTrack::Calc { percent, px },
         TrackSize::Auto => GridTrack::Auto,
     })
 }
@@ -197,6 +198,9 @@ pub(super) fn parse_track_size(tok: &str, fonts: &FontCtx) -> Option<TrackSize> 
     if let Some(fr) = strip_unit(tok, "fr") {
         return fr.css_f32().map(TrackSize::Fr);
     }
+    if let Some(sz) = track_calc_size(tok, fonts) {
+        return Some(sz);
+    }
     if let Some(px) = track_px(tok, fonts) {
         return Some(TrackSize::Px(px));
     }
@@ -210,9 +214,56 @@ pub(super) fn parse_track_size(tok: &str, fonts: &FontCtx) -> Option<TrackSize> 
     None
 }
 
+/// `calc()` that mixes a percentage with px. Chrome keeps it symbolic
+/// (`calc(50% + 10px)`, percent term first) until the track is used.
+/// `+`/`-` without surrounding whitespace is invalid. A zero px term
+/// collapses to the percentage; a zero percent term stays `calc(0% + Npx)`.
+fn track_calc_size(tok: &str, fonts: &FontCtx) -> Option<TrackSize> {
+    let head = tok.split('(').next()?.trim();
+    if !head.eq_ignore_ascii_case("calc") || !tok.contains('%') || !calc_ops_spaced(tok) {
+        return None;
+    }
+    let Length::Px(px) = eval_math_call_with(tok, fonts, Some(0.0))? else {
+        return None;
+    };
+    let Length::Px(full) = eval_math_call_with(tok, fonts, Some(100.0))? else {
+        return None;
+    };
+    let percent = full - px;
+    if px == 0.0 {
+        Some(TrackSize::Percent(percent))
+    } else {
+        Some(TrackSize::Calc { percent, px })
+    }
+}
+
+fn track_calc_css(percent: f32, px: f32) -> String {
+    if px == 0.0 {
+        format!("{}%", css_num(percent))
+    } else if px < 0.0 {
+        format!("calc({}% - {}px)", css_num(percent), css_num(-px))
+    } else {
+        format!("calc({}% + {}px)", css_num(percent), css_num(px))
+    }
+}
+
+/// `+` and `-` that join terms need whitespace. A sign after `(` is fine.
+fn calc_ops_spaced(tok: &str) -> bool {
+    let b = tok.as_bytes();
+    for i in 0..b.len() {
+        if b[i] != b'+' && b[i] != b'-' {
+            continue;
+        }
+        let prev = if i == 0 { b'(' } else { b[i - 1] };
+        if !prev.is_ascii_whitespace() && prev != b'(' {
+            return false;
+        }
+    }
+    true
+}
+
 /// Absolute track length: px, em against this element's font, rem against
 /// the root, viewport units, and a calc/min/max/clamp that is all lengths.
-/// A percent calc stays unresolved and is rejected here.
 fn track_px(tok: &str, fonts: &FontCtx) -> Option<f32> {
     if let Some(n) = strip_unit(tok, "px") {
         return n.css_f32();
@@ -322,6 +373,14 @@ fn specified_size(tok: &str, fonts: &FontCtx) -> Option<String> {
     }
     if let Some(fr) = strip_unit(tok, "fr") {
         return Some(format!("{}fr", css_num(fr.css_f32()?)));
+    }
+    if let Some(sz) = track_calc_size(tok, fonts) {
+        return Some(match sz {
+            TrackSize::Percent(p) => format!("{}%", css_num(p)),
+            TrackSize::Calc { percent, px } => track_calc_css(percent, px),
+            TrackSize::Px(px) => format!("{}px", css_num(px)),
+            _ => return None,
+        });
     }
     if let Some(px) = track_px(tok, fonts) {
         return Some(format!("{}px", css_num(px)));

@@ -629,6 +629,34 @@ pub(crate) fn resolve_sizing_keywords(
 /// diting_css track → taffy track: `1fr` maps to minmax(auto, 1fr), a px
 /// track is fixed, a % track is fixed percent (taffy resolves it against
 /// the grid container's content box), `auto` sizes to content.
+/// Pack `calc(percent% + px)` into the opaque handle taffy stores on a
+/// track. The low 3 bits are a tag, so the px word loses them; integer
+/// pixels are exact. [`unpack_track_calc`] is the inverse.
+pub(crate) fn pack_track_calc(percent: f32, px: f32) -> *const () {
+    let px_bits = px.to_bits() & !7;
+    let mut bits = ((percent.to_bits() as u64) << 32) | u64::from(px_bits);
+    bits &= !7;
+    if bits == 0 {
+        bits = 8;
+    }
+    bits as *const ()
+}
+
+pub(crate) fn unpack_track_calc(ptr: *const ()) -> (f32, f32) {
+    let bits = ptr as u64;
+    let percent = f32::from_bits((bits >> 32) as u32);
+    let px = f32::from_bits((bits as u32) & !7);
+    (percent, px)
+}
+
+fn calc_track(percent: f32, px: f32) -> diting_taffy::style::TrackSizingFunction {
+    let ptr = pack_track_calc(percent, px);
+    diting_taffy::style::TrackSizingFunction {
+        min: diting_taffy::style::MinTrackSizingFunction::calc(ptr),
+        max: diting_taffy::style::MaxTrackSizingFunction::calc(ptr),
+    }
+}
+
 fn to_grid_track(track: GridTrack) -> diting_taffy::style::GridTemplateComponent<String> {
     use diting_taffy::style::{
         MaxTrackSizingFunction, MinTrackSizingFunction, TrackSizingFunction,
@@ -646,6 +674,7 @@ fn to_grid_track(track: GridTrack) -> diting_taffy::style::GridTemplateComponent
             let tsf: TrackSizingFunction = percent(p / 100.0);
             tsf.into()
         }
+        GridTrack::Calc { percent, px } => calc_track(percent, px).into(),
         GridTrack::Auto => TrackSizingFunction::AUTO.into(),
         GridTrack::MinMax { min, max } => {
             // min-side fr is invalid CSS; treat it as auto like the spec's
@@ -653,12 +682,18 @@ fn to_grid_track(track: GridTrack) -> diting_taffy::style::GridTemplateComponent
             let t_min: MinTrackSizingFunction = match min {
                 diting_css::TrackSize::Px(px) => length(px),
                 diting_css::TrackSize::Percent(p) => percent(p / 100.0),
+                diting_css::TrackSize::Calc { percent, px } => {
+                    diting_taffy::style::MinTrackSizingFunction::calc(pack_track_calc(percent, px))
+                }
                 _ => MinTrackSizingFunction::AUTO,
             };
             let t_max: MaxTrackSizingFunction = match max {
                 diting_css::TrackSize::Px(px) => length(px),
                 diting_css::TrackSize::Percent(p) => percent(p / 100.0),
                 diting_css::TrackSize::Fr(f) => fr(f),
+                diting_css::TrackSize::Calc { percent, px } => {
+                    diting_taffy::style::MaxTrackSizingFunction::calc(pack_track_calc(percent, px))
+                }
                 _ => MaxTrackSizingFunction::AUTO,
             };
             let tsf: TrackSizingFunction = minmax(t_min, t_max);
