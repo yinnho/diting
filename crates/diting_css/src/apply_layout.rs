@@ -775,9 +775,10 @@ pub(crate) fn apply_flex_grid(
                     style.row_gap = Some(*one);
                     true
                 }
-                [Some(c), Some(r)] => {
-                    style.column_gap = Some(*c);
-                    style.row_gap = Some(*r);
+                // CSS gap is <row-gap> <column-gap>, not column then row.
+                [Some(row), Some(col)] => {
+                    style.row_gap = Some(*row);
+                    style.column_gap = Some(*col);
                     true
                 }
                 // One invalid component invalidates the whole declaration

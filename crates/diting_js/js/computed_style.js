@@ -692,7 +692,8 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
           || kebab === 'column-rule' || kebab === 'row-rule'
           || kebab === 'scroll-margin' || kebab === 'scroll-padding'
           || kebab === 'text-emphasis' || kebab === 'text-wrap' || kebab === 'columns'
-          || kebab === 'font-synthesis' || kebab === '-webkit-text-stroke';
+          || kebab === 'font-synthesis' || kebab === '-webkit-text-stroke'
+          || kebab === 'gap';
         if (!rebuilt) {
           if (_isComputedColorProp(kebab)) {
             const painted = _cssComputedColor(inlineVal);
@@ -965,6 +966,34 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
       const img = lookup(kebab === 'mask' ? 'mask-image' : '-webkit-mask-image');
       if (!img || img === 'none') return 'none';
       return img;
+    }
+    if (kebab === 'gap') {
+      const row = lookup('row-gap'), col = lookup('column-gap');
+      if (row && col) return row === col ? row : row + ' ' + col;
+    }
+    if (kebab === 'grid') {
+      const parts = ['grid-template-rows', 'grid-template-columns', 'grid-template-areas', 'grid-auto-flow', 'grid-auto-rows', 'grid-auto-columns'].map((n) => lookup(n));
+      if (parts.every(Boolean)) return parts.join(' / ');
+    }
+    if (kebab === 'place-content') {
+      const a = lookup('align-content'), j = lookup('justify-content');
+      if (a && j) return a === j ? a : a + ' ' + j;
+    }
+    if (kebab === 'place-items') {
+      const a = lookup('align-items'), j = lookup('justify-items');
+      if (a && j) return a === j ? a : a + ' ' + j;
+    }
+    if (kebab === 'place-self') {
+      const a = lookup('align-self'), j = lookup('justify-self');
+      if (a && j) return a === j ? a : a + ' ' + j;
+    }
+    if (kebab === 'border-image') {
+      const src = lookup('border-image-source');
+      if (!src || src === 'none') return 'none';
+    }
+    if (kebab === 'marker') {
+      const s = lookup('marker-start'), m = lookup('marker-mid'), e = lookup('marker-end');
+      if (s && m && e) return s === m && m === e ? s : '';
     }
     if (kebab === 'outline') {
       // Cascade doesn't store outline longhands. An authored shorthand is

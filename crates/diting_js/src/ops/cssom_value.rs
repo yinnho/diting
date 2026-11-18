@@ -152,6 +152,8 @@ pub(crate) const COMPUTED_STYLE_PROPS: &[&str] = &[
     "flex-grow",
     "flex-shrink",
     "flex-basis",
+    "row-gap",
+    "column-gap",
     "justify-content",
     "align-items",
     "opacity",
@@ -853,6 +855,26 @@ fn computed_flex_grid(
             Some(Length::Calc { .. }) => return Some(None),
             Some(Length::Auto) => "auto".into(),
         }),
+        // Gap longhands. None is the initial `normal`, not 0px. The
+        // shorthand is row then column (CSS gap grammar).
+        "row-gap" | "column-gap" => {
+            let slot = if prop == "row-gap" {
+                &s.row_gap
+            } else {
+                &s.column_gap
+            };
+            Some(match slot {
+                None => "normal".into(),
+                Some(Length::Px(v)) => format!("{}px", format_number(*v)),
+                Some(Length::Percent(p)) => format!("{}%", format_number(*p)),
+                Some(Length::Calc { percent, px }) => format!(
+                    "calc({}% + {}px)",
+                    format_number(*percent),
+                    format_number(*px)
+                ),
+                _ => "normal".into(),
+            })
+        }
         "justify-content" => Some(
             match s.justify_content {
                 Some(JustifyMode::FlexStart) => "flex-start",
