@@ -451,6 +451,12 @@ fn text_decoration_shorthand_matches_chrome() {
          <div id='g' style='text-decoration-style: dotted'></div>\
          <div id='k' style='text-decoration-thickness: 2px'></div>\
          <div id='l' style='color: blue; text-decoration: underline'></div>\
+         <style>\
+         #sa { text-decoration: underline red }\
+         #sb { text-decoration: underline wavy blue }\
+         #sc { text-decoration: dotted }\
+         </style>\
+         <div id='sa'></div><div id='sb'></div><div id='sc'></div>\
          </body></html>",
     );
     let out = rt
@@ -459,7 +465,8 @@ fn text_decoration_shorthand_matches_chrome() {
             JSON.stringify({
               z: g('z'), a: g('a'), b: g('b'), c: g('c'), d: g('d'),
               e: g('e'), f: g('f'), s: g('g'), k: g('k'), l: g('l'),
-              lc: getComputedStyle(document.getElementById('l')).textDecorationColor
+              lc: getComputedStyle(document.getElementById('l')).textDecorationColor,
+              sa: g('sa'), sb: g('sb'), sc: g('sc')
             })"#,
         )
         .unwrap();
@@ -475,6 +482,9 @@ fn text_decoration_shorthand_matches_chrome() {
     assert_eq!(v["k"], serde_json::json!("2px"));
     assert_eq!(v["l"], serde_json::json!("underline"));
     assert_eq!(v["lc"], serde_json::json!("rgb(0, 0, 255)"));
+    assert_eq!(v["sa"], serde_json::json!("underline rgb(255, 0, 0)"));
+    assert_eq!(v["sb"], serde_json::json!("underline wavy rgb(0, 0, 255)"));
+    assert_eq!(v["sc"], serde_json::json!("dotted"));
 }
 
 #[test]

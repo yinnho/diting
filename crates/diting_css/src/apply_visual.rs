@@ -18,8 +18,9 @@ use crate::len_parse::{
     split_sides, CssF32,
 };
 use crate::style_kw::{
-    border_style_kw, parse_text_decoration, BorderCollapse, BorderStyle, BorderStyleKw, Display,
-    TableLayout, VerticalAlign, WebkitBoxKind,
+    border_style_kw, parse_text_decoration, parse_text_decoration_shorthand, BorderCollapse,
+    BorderStyle, BorderStyleKw, DecoStyle, DecoThick, Display, TableLayout, VerticalAlign,
+    WebkitBoxKind,
 };
 use crate::text_align::{TextAlign, TextAlignLast, TextDirection, TextTransform};
 use crate::ua::parse_list_style_type;
@@ -152,12 +153,66 @@ pub(crate) fn apply_paint_text(
             }
             None => false,
         },
-        "text-decoration" => match parse_text_decoration(v, true) {
-            Some(d) => {
-                style.text_decoration_line = Some(d);
+        "text-decoration" => match parse_text_decoration_shorthand(v, _fonts) {
+            Some(spec) => {
+                style.text_decoration_line = Some(spec.line);
+                style.text_decoration_style = spec.style;
+                style.text_decoration_color = spec.color;
+                style.text_decoration_thickness = spec.thick;
                 true
             }
             None => false,
+        },
+        "text-decoration-style" => match v.trim().to_ascii_lowercase().as_str() {
+            "solid" => {
+                style.text_decoration_style = None;
+                true
+            }
+            "double" => {
+                style.text_decoration_style = Some(DecoStyle::Double);
+                true
+            }
+            "dotted" => {
+                style.text_decoration_style = Some(DecoStyle::Dotted);
+                true
+            }
+            "dashed" => {
+                style.text_decoration_style = Some(DecoStyle::Dashed);
+                true
+            }
+            "wavy" => {
+                style.text_decoration_style = Some(DecoStyle::Wavy);
+                true
+            }
+            _ => false,
+        },
+        "text-decoration-color" => {
+            if v.eq_ignore_ascii_case("currentcolor") {
+                style.text_decoration_color = None;
+                true
+            } else {
+                parse_color(v)
+                    .map(|c| style.text_decoration_color = Some(c))
+                    .is_some()
+            }
+        }
+        "text-decoration-thickness" => match v.trim().to_ascii_lowercase().as_str() {
+            "auto" => {
+                style.text_decoration_thickness = None;
+                true
+            }
+            "from-font" => {
+                style.text_decoration_thickness = Some(DecoThick::FromFont);
+                true
+            }
+            _ => match parse_css_length(v) {
+                Some(len) => {
+                    style.text_decoration_thickness =
+                        Some(DecoThick::Len(resolve_len(len, _fonts)));
+                    true
+                }
+                None => false,
+            },
         },
         "color" => color::parse_color_with_scheme(v, scheme_dark_of(style))
             .map(|(c, m)| {

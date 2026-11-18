@@ -2152,7 +2152,19 @@ fn text_decoration_grammar() {
     );
     assert!(!apply_one(&mut s, "text-decoration", "sideways", &f));
     assert!(!apply_one(&mut s, "text-decoration-line", "wavy", &f));
-    assert!(!apply_one(&mut s, "text-decoration", "solid", &f));
+    // Style alone is a real shorthand: the line resets to none, solid is
+    // the initial style.
+    assert!(apply_one(&mut s, "text-decoration", "solid", &f));
+    assert!(s.text_decoration_line.unwrap().is_empty());
+    assert!(s.text_decoration_style.is_none());
+    assert!(apply_one(
+        &mut s,
+        "text-decoration",
+        "underline wavy red",
+        &f
+    ));
+    assert_eq!(s.text_decoration_style, Some(DecoStyle::Wavy));
+    assert_eq!(s.text_decoration_color, Some(Color(255, 0, 0, 255)));
 }
 
 #[test]

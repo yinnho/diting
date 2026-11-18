@@ -248,6 +248,9 @@ css_wide_longhands! {
     "table-layout" => table_layout, false;
     "vertical-align" => vertical_align, false;
     "text-decoration-line" => text_decoration_line, false;
+    "text-decoration-style" => text_decoration_style, false;
+    "text-decoration-color" => text_decoration_color, false;
+    "text-decoration-thickness" => text_decoration_thickness, false;
     "text-overflow" => text_overflow, false;
     "line-clamp" => line_clamp, false;
     "-webkit-line-clamp" => line_clamp, false;
@@ -332,7 +335,12 @@ fn css_wide_expand(name: &str) -> Option<&'static [&'static str]> {
         "font" => &["font-size", "font-weight", "font-family", "line-height"],
         "flex" => &["flex-grow", "flex-shrink", "flex-basis"],
         "overflow" => &["overflow-x", "overflow-y"],
-        "text-decoration" => &["text-decoration-line"],
+        "text-decoration" => &[
+            "text-decoration-line",
+            "text-decoration-style",
+            "text-decoration-color",
+            "text-decoration-thickness",
+        ],
         "list-style" => &["list-style-type"],
         // Logical shorthands (#244) expand to their logical longhands (which
         // css_wide_longhands maps onto the physical slots).

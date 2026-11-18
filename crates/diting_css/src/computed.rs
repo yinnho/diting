@@ -8,10 +8,10 @@ use crate::content::{ContentValue, PseudoPair};
 use crate::geom::{Color, Length, LineHeightSpec, Sides, SvgPaint, Transform2D};
 use crate::sheet::ContainerType;
 use crate::style_kw::{
-    AlignContentMode, AlignMode, BorderCollapse, BorderStyle, BoxSizing, ClearSide, Display,
-    FlexDirection, FlexWrapMode, FloatSide, GridTrack, JustifyMode, ListStyleType, ObjectFit,
-    ObjectPositionPart, Overflow, PositionMode, TableLayout, TextDecorations, TextOverflow,
-    VerticalAlign, WebkitBoxKind, WhiteSpace,
+    AlignContentMode, AlignMode, BorderCollapse, BorderStyle, BoxSizing, ClearSide, DecoStyle,
+    DecoThick, Display, FlexDirection, FlexWrapMode, FloatSide, GridTrack, JustifyMode,
+    ListStyleType, ObjectFit, ObjectPositionPart, Overflow, PositionMode, TableLayout,
+    TextDecorations, TextOverflow, VerticalAlign, WebkitBoxKind, WhiteSpace,
 };
 use crate::text_align::{TextAlign, TextAlignLast, TextDirection, TextTransform};
 use crate::transition::{add_len, mul_len, AnimationSpec, TransitionSpec};
@@ -372,6 +372,13 @@ pub struct ComputedStyle {
     /// `Some(empty set)` is meaningful: `text-decoration: none` on a u/s/a
     /// clears the UA decoration.
     pub text_decoration_line: Option<TextDecorations>,
+    /// `text-decoration-style`. `None` is the initial `solid`.
+    pub text_decoration_style: Option<DecoStyle>,
+    /// Explicit `text-decoration-color`. `None` is currentcolor, which the
+    /// shorthand omits even after it resolves to the used color.
+    pub text_decoration_color: Option<Color>,
+    /// `text-decoration-thickness`. `None` is the initial `auto`.
+    pub text_decoration_thickness: Option<DecoThick>,
     /// Custom properties (`--*`), which DO inherit: the var() substitution
     /// source. Values are stored raw (author tokens) — !important stripped at
     /// insertion; resolution to colors/lengths happens at use sites. The map
@@ -617,6 +624,9 @@ impl ComputedStyle {
         self.mask_image = None;
         self.clip_path = None;
         self.text_decoration_line = None;
+        self.text_decoration_style = None;
+        self.text_decoration_color = None;
+        self.text_decoration_thickness = None;
         self.custom = Default::default();
         if let Some(pair) = self.pseudos.as_mut() {
             if let Some(before) = pair.before.as_mut() {
