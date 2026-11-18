@@ -1056,9 +1056,12 @@ globalThis.getComputedStyle = (el, pseudoElt) => {
       if (s && m && e) return s === m && m === e ? s : '';
     }
     if (kebab === 'outline') {
-      // Cascade doesn't store outline longhands. An authored shorthand is
-      // reordered to Chrome's "color style width".
-      if (!pseudoName && target.getPropertyValue) {
+      // A screenshot snapshot carries the cascaded longhands, stylesheet
+      // included. Without one, an authored shorthand is reordered to
+      // Chrome's "color style width".
+      const snap = snapshot.rendered;
+      const cascaded = snap && Object.prototype.hasOwnProperty.call(snap, 'outline-style');
+      if (!cascaded && !pseudoName && target.getPropertyValue) {
         const specified = target.getPropertyValue('outline');
         if (specified && !_CSS_WIDE_KW.test(specified)) {
           const styles = { none: 1, hidden: 1, dotted: 1, dashed: 1, solid: 1, double: 1, groove: 1, ridge: 1, inset: 1, outset: 1 };

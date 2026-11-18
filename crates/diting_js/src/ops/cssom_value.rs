@@ -90,6 +90,10 @@ pub(crate) const COMPUTED_STYLE_PROPS: &[&str] = &[
     "text-decoration-style",
     "text-decoration-color",
     "text-decoration-thickness",
+    "outline-style",
+    "outline-width",
+    "outline-color",
+    "outline-offset",
     "font-size",
     "font-weight",
     "text-align",
@@ -316,6 +320,11 @@ fn computed_box(
         }
         // Absent when the color is currentcolor.
         "text-decoration-color" => s.text_decoration_color.as_ref().map(cssom_color),
+        "outline-style" => Some(diting_css::outline_style_css(s.outline_style).into()),
+        "outline-width" => Some(diting_css::outline_px_css(s.outline_width, "3px")),
+        "outline-offset" => Some(diting_css::outline_px_css(s.outline_offset, "0px")),
+        // Absent when the color is currentcolor.
+        "outline-color" => s.outline_color.as_ref().map(cssom_color),
         "float" => Some(
             match s.float_side {
                 Some(FloatSide::Left) => "left",

@@ -66,6 +66,88 @@ fn border_and_outline_shorthands_match_chrome() {
 }
 
 #[test]
+fn outline_stylesheet_matches_chrome() {
+    // Stylesheet outline used to fall through to the initial
+    // "rgb(0, 0, 0) none 3px". Chrome 157 expands the shorthand and snaps
+    // a non-zero sub-pixel length to ±1px, then truncates toward zero.
+    let mut rt = setup_runtime(
+        "<html><head><style>\
+         #sa { outline: 2px dashed blue }\
+         #sb { color: blue; outline: solid }\
+         #sc { outline-style: dotted }\
+         #sd { outline-width: thick }\
+         #se { outline-color: red }\
+         #sf { outline-offset: 4px }\
+         #sg { outline: 2px }\
+         #sh { font-size: 20px; outline-width: 2em }\
+         #si { outline-style: auto }\
+         #sj { outline-style: hidden }\
+         #sk { outline: thin dotted green }\
+         #sl { outline: 2px solid red; outline-width: 5px }\
+         #sm { outline-width: calc(4px + 1px) }\
+         #sn { color: green; outline: none }\
+         #so { outline: rgb(0, 0, 255) }\
+         #sp { outline-color: transparent; outline-style: solid }\
+         #sq { outline-width: 1.6px }\
+         #sr { outline-offset: -0.4px }\
+         #ss { outline-offset: -2px }\
+         </style></head><body>\
+         <div id='sa'></div><div id='sb'></div><div id='sc'></div>\
+         <div id='sd'></div><div id='se'></div><div id='sf'></div>\
+         <div id='sg'></div><div id='sh'></div><div id='si'></div>\
+         <div id='sj'></div><div id='sk'></div><div id='sl'></div>\
+         <div id='sm'></div><div id='sn'></div><div id='so'></div>\
+         <div id='sp'></div><div id='sq'></div><div id='sr'></div>\
+         <div id='ss'></div>\
+         </body></html>",
+    );
+    let out = rt
+        .evaluate(
+            r#"JSON.stringify((() => {
+              const g = (id) => {
+                const cs = getComputedStyle(document.getElementById(id));
+                return { o: cs.outline, s: cs.outlineStyle, w: cs.outlineWidth,
+                         c: cs.outlineColor, f: cs.outlineOffset };
+              };
+              return { sa: g('sa'), sb: g('sb'), sc: g('sc'), sd: g('sd'),
+                       se: g('se'), sf: g('sf'), sg: g('sg'), sh: g('sh'),
+                       si: g('si'), sj: g('sj'), sk: g('sk'), sl: g('sl'),
+                       sm: g('sm'), sn: g('sn'), so: g('so'), sp: g('sp'),
+                       sq: g('sq'), sr: g('sr'), ss: g('ss') };
+            })())"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(v["sa"]["o"], serde_json::json!("rgb(0, 0, 255) dashed 2px"));
+    assert_eq!(v["sb"]["o"], serde_json::json!("rgb(0, 0, 255) solid 3px"));
+    assert_eq!(v["sc"]["o"], serde_json::json!("rgb(0, 0, 0) dotted 3px"));
+    assert_eq!(v["sc"]["s"], serde_json::json!("dotted"));
+    assert_eq!(v["sd"]["w"], serde_json::json!("5px"));
+    assert_eq!(v["sd"]["o"], serde_json::json!("rgb(0, 0, 0) none 5px"));
+    assert_eq!(v["se"]["c"], serde_json::json!("rgb(255, 0, 0)"));
+    assert_eq!(v["se"]["o"], serde_json::json!("rgb(255, 0, 0) none 3px"));
+    assert_eq!(v["sf"]["f"], serde_json::json!("4px"));
+    assert_eq!(v["sf"]["o"], serde_json::json!("rgb(0, 0, 0) none 3px"));
+    assert_eq!(v["sg"]["o"], serde_json::json!("rgb(0, 0, 0) none 2px"));
+    assert_eq!(v["sh"]["w"], serde_json::json!("40px"));
+    assert_eq!(v["si"]["s"], serde_json::json!("auto"));
+    assert_eq!(v["si"]["o"], serde_json::json!("rgb(0, 0, 0) auto 3px"));
+    assert_eq!(v["sj"]["s"], serde_json::json!("none"));
+    assert_eq!(v["sk"]["o"], serde_json::json!("rgb(0, 128, 0) dotted 1px"));
+    assert_eq!(v["sl"]["o"], serde_json::json!("rgb(255, 0, 0) solid 5px"));
+    assert_eq!(v["sm"]["w"], serde_json::json!("5px"));
+    assert_eq!(v["sn"]["o"], serde_json::json!("rgb(0, 128, 0) none 3px"));
+    assert_eq!(v["so"]["o"], serde_json::json!("rgb(0, 0, 255) none 3px"));
+    assert_eq!(
+        v["sp"]["o"],
+        serde_json::json!("rgba(0, 0, 0, 0) solid 3px")
+    );
+    assert_eq!(v["sq"]["w"], serde_json::json!("1px"));
+    assert_eq!(v["sr"]["f"], serde_json::json!("-1px"));
+    assert_eq!(v["ss"]["f"], serde_json::json!("-2px"));
+}
+
+#[test]
 fn font_flex_list_background_shorthands_match_chrome() {
     // Chrome 157 computed shorthands: list-style is "position image type",
     // an unset animation is "none", an unset transition is "all". Authored

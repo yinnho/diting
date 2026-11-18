@@ -18,12 +18,24 @@ use crate::len_parse::{
     split_sides, CssF32,
 };
 use crate::style_kw::{
-    border_style_kw, parse_text_decoration, parse_text_decoration_shorthand, BorderCollapse,
-    BorderStyle, BorderStyleKw, DecoStyle, DecoThick, Display, TableLayout, VerticalAlign,
-    WebkitBoxKind,
+    border_style_kw, parse_outline_offset_kw, parse_outline_shorthand, parse_outline_style_kw,
+    parse_outline_width_kw, parse_text_decoration, parse_text_decoration_shorthand, BorderCollapse,
+    BorderStyle, BorderStyleKw, DecoStyle, DecoThick, Display, OutlineStyleParse,
+    OutlineWidthParse, TableLayout, VerticalAlign, WebkitBoxKind,
 };
 use crate::text_align::{TextAlign, TextAlignLast, TextDirection, TextTransform};
 use crate::ua::parse_list_style_type;
+
+/// One parenthesis-aware token, lowercased. A second token rejects the
+/// longhand (`outline-style: dotted solid` is invalid).
+fn one_token(v: &str) -> Option<String> {
+    let toks = split_sides(v);
+    if toks.len() == 1 {
+        Some(toks[0].to_ascii_lowercase())
+    } else {
+        None
+    }
+}
 
 /// `apply_one` family: display, table and list layout keywords, vertical-align.
 /// `None` = not this family's property; the caller tries the next one.
@@ -196,6 +208,54 @@ pub(crate) fn apply_paint_text(
                     .is_some()
             }
         }
+        "outline" => match parse_outline_shorthand(v, _fonts) {
+            Some(spec) => {
+                style.outline_style = spec.style;
+                style.outline_color = spec.color;
+                style.outline_width = spec.width;
+                true
+            }
+            None => false,
+        },
+        "outline-style" => match one_token(v).and_then(|t| parse_outline_style_kw(&t)) {
+            Some(OutlineStyleParse::NoneKw) => {
+                style.outline_style = None;
+                true
+            }
+            Some(OutlineStyleParse::Set(s)) => {
+                style.outline_style = Some(s);
+                true
+            }
+            None => false,
+        },
+        "outline-color" => match one_token(v) {
+            Some(t) if t == "currentcolor" => {
+                style.outline_color = None;
+                true
+            }
+            Some(t) => parse_color(&t)
+                .map(|c| style.outline_color = Some(c))
+                .is_some(),
+            None => false,
+        },
+        "outline-width" => match one_token(v).and_then(|t| parse_outline_width_kw(&t, _fonts)) {
+            Some(OutlineWidthParse::Medium) => {
+                style.outline_width = None;
+                true
+            }
+            Some(OutlineWidthParse::Px(px)) => {
+                style.outline_width = Some(Length::Px(px));
+                true
+            }
+            None => false,
+        },
+        "outline-offset" => match one_token(v).and_then(|t| parse_outline_offset_kw(&t, _fonts)) {
+            Some(px) => {
+                style.outline_offset = Some(Length::Px(px));
+                true
+            }
+            None => false,
+        },
         "text-decoration-thickness" => match v.trim().to_ascii_lowercase().as_str() {
             "auto" => {
                 style.text_decoration_thickness = None;

@@ -5,7 +5,7 @@
 
 use crate::color::parse_color;
 use crate::geom::{parse_css_length, resolve_len, FontCtx, Length};
-use crate::len_parse::split_sides;
+use crate::len_parse::{css_len, split_sides};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PositionMode {
@@ -186,6 +186,183 @@ pub fn deco_thick_css(thick: Option<DecoThick>) -> String {
         Some(DecoThick::Len(Length::Percent(p))) => format!("{p}%"),
         _ => "auto".into(),
     }
+}
+
+/// `outline-style`. `None` on the computed slot is the initial `none`.
+/// `hidden` computes to that same keyword.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutlineStyle {
+    Solid,
+    Dashed,
+    Dotted,
+    Double,
+    Groove,
+    Ridge,
+    Inset,
+    Outset,
+    Auto,
+}
+
+pub(crate) enum OutlineStyleParse {
+    /// `none` or `hidden`.
+    NoneKw,
+    Set(OutlineStyle),
+}
+
+pub(crate) enum OutlineWidthParse {
+    /// Keyword `medium`, the initial width.
+    Medium,
+    Px(f32),
+}
+
+pub(crate) fn parse_outline_style_kw(t: &str) -> Option<OutlineStyleParse> {
+    Some(match t.trim().to_ascii_lowercase().as_str() {
+        "none" | "hidden" => OutlineStyleParse::NoneKw,
+        "solid" => OutlineStyleParse::Set(OutlineStyle::Solid),
+        "dashed" => OutlineStyleParse::Set(OutlineStyle::Dashed),
+        "dotted" => OutlineStyleParse::Set(OutlineStyle::Dotted),
+        "double" => OutlineStyleParse::Set(OutlineStyle::Double),
+        "groove" => OutlineStyleParse::Set(OutlineStyle::Groove),
+        "ridge" => OutlineStyleParse::Set(OutlineStyle::Ridge),
+        "inset" => OutlineStyleParse::Set(OutlineStyle::Inset),
+        "outset" => OutlineStyleParse::Set(OutlineStyle::Outset),
+        "auto" => OutlineStyleParse::Set(OutlineStyle::Auto),
+        _ => return None,
+    })
+}
+
+/// A width token: `thin`/`medium`/`thick` or a non-negative length. Percents
+/// and negatives are not outline widths.
+pub(crate) fn parse_outline_width_kw(t: &str, fonts: &FontCtx) -> Option<OutlineWidthParse> {
+    match t.trim().to_ascii_lowercase().as_str() {
+        "thin" => Some(OutlineWidthParse::Px(1.0)),
+        "medium" => Some(OutlineWidthParse::Medium),
+        "thick" => Some(OutlineWidthParse::Px(5.0)),
+        other => match css_len(other, fonts) {
+            Some(Length::Px(v)) if v.is_finite() && v >= 0.0 => Some(OutlineWidthParse::Px(v)),
+            _ => None,
+        },
+    }
+}
+
+/// `outline-offset` is a length and may be negative. Percents drop.
+pub(crate) fn parse_outline_offset_kw(t: &str, fonts: &FontCtx) -> Option<f32> {
+    match css_len(t.trim(), fonts) {
+        Some(Length::Px(v)) if v.is_finite() => Some(v),
+        _ => None,
+    }
+}
+
+pub fn outline_style_css(style: Option<OutlineStyle>) -> &'static str {
+    match style {
+        Some(OutlineStyle::Solid) => "solid",
+        Some(OutlineStyle::Dashed) => "dashed",
+        Some(OutlineStyle::Dotted) => "dotted",
+        Some(OutlineStyle::Double) => "double",
+        Some(OutlineStyle::Groove) => "groove",
+        Some(OutlineStyle::Ridge) => "ridge",
+        Some(OutlineStyle::Inset) => "inset",
+        Some(OutlineStyle::Outset) => "outset",
+        Some(OutlineStyle::Auto) => "auto",
+        None => "none",
+    }
+}
+
+/// Chrome 157 computed outline lengths at device scale 1: a non-zero value
+/// thinner than 1px becomes ±1px, otherwise the px truncates toward zero.
+pub fn outline_px_css(len: Option<Length>, initial: &str) -> String {
+    match len {
+        Some(Length::Px(v)) => format!("{}px", snap_outline_px(v)),
+        _ => initial.to_string(),
+    }
+}
+
+fn snap_outline_px(v: f32) -> i64 {
+    if !v.is_finite() || v == 0.0 {
+        return 0;
+    }
+    let t = v.trunc() as i64;
+    if t == 0 {
+        if v > 0.0 {
+            1
+        } else {
+            -1
+        }
+    } else {
+        t
+    }
+}
+
+/// One `outline` shorthand. Omitted legs stay at their initials (`none`,
+/// currentcolor, `medium`). A repeated leg invalidates the declaration.
+pub(crate) struct ParsedOutline {
+    pub style: Option<OutlineStyle>,
+    pub color: Option<crate::geom::Color>,
+    pub width: Option<Length>,
+}
+
+pub(crate) fn parse_outline_shorthand(v: &str, fonts: &FontCtx) -> Option<ParsedOutline> {
+    let mut style = None;
+    let mut color = None;
+    let mut width = None;
+    let mut saw_style = false;
+    let mut saw_color = false;
+    let mut saw_width = false;
+    let mut saw = false;
+    for tok in split_sides(v) {
+        let t = tok.to_ascii_lowercase();
+        if let Some(st) = parse_outline_style_kw(&t) {
+            if saw_style {
+                return None;
+            }
+            style = match st {
+                OutlineStyleParse::NoneKw => None,
+                OutlineStyleParse::Set(s) => Some(s),
+            };
+            saw_style = true;
+            saw = true;
+            continue;
+        }
+        if let Some(w) = parse_outline_width_kw(&t, fonts) {
+            if saw_width {
+                return None;
+            }
+            width = match w {
+                OutlineWidthParse::Medium => None,
+                OutlineWidthParse::Px(px) => Some(Length::Px(px)),
+            };
+            saw_width = true;
+            saw = true;
+            continue;
+        }
+        if t == "currentcolor" {
+            if saw_color {
+                return None;
+            }
+            color = None;
+            saw_color = true;
+            saw = true;
+            continue;
+        }
+        if let Some(c) = parse_color(&t) {
+            if saw_color {
+                return None;
+            }
+            color = Some(c);
+            saw_color = true;
+            saw = true;
+            continue;
+        }
+        return None;
+    }
+    if !saw {
+        return None;
+    }
+    Some(ParsedOutline {
+        style,
+        color,
+        width,
+    })
 }
 
 /// `text-decoration-style`. `None` on the style slot is the initial `solid`.
