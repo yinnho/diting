@@ -107,7 +107,7 @@ class Node {
     if (c.nodeType === 11 && c.nodeName === '#document-fragment' && !(c instanceof globalThis.ShadowRoot)) {
       const kids = Array.from(c.childNodes);
       for (const k of kids) this.appendChild(k);
-      if (globalThis.__mutationObservers?.length) {
+      if (kids.length && globalThis.__mutationObservers?.length) {
         const k0 = kids[0], k1 = kids[kids.length - 1];
         globalThis.__notifyMutation('childList', this._nid, kids.map(k => k._nid), [],
           null, null, k0.previousSibling ? k0.previousSibling._nid : null, k1.nextSibling ? k1.nextSibling._nid : null);
