@@ -3590,6 +3590,75 @@ fn module_eval_guard(ms: &str) -> ModuleEvalGuard {
     ModuleEvalGuard(guard)
 }
 
+/// Vite lists every chunk as its own `<script type=module>`, entry last.
+/// Serial fetch inside the module-phase deadline skipped that entry
+/// (AdaptTable RTL: the table never mounted). Parallel download keeps the
+/// entry body, and a fresh eval budget runs it after the slow siblings.
+#[tokio::test(flavor = "current_thread")]
+async fn parallel_module_scripts_still_run_the_entry_past_a_slow_sibling() {
+    let _net = net_test_guard();
+    let _deadline = script_deadline_guard("2000");
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        for _ in 0..8 {
+            let Ok((mut stream, _)) = listener.accept() else {
+                return;
+            };
+            std::thread::spawn(move || {
+                use std::io::{Read, Write};
+                let mut buf = [0u8; 2048];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let path = String::from_utf8_lossy(&buf[..n])
+                    .lines()
+                    .next()
+                    .and_then(|l| l.split_whitespace().nth(1))
+                    .unwrap_or("/")
+                    .to_string();
+                if path == "/slow-a.js" || path == "/slow-b.js" {
+                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                }
+                let (ctype, body) = match path.as_str() {
+                    "/slow-a.js" => (
+                        "application/javascript",
+                        "globalThis.__seen=(globalThis.__seen?globalThis.__seen+',':'')+'a';",
+                    ),
+                    "/slow-b.js" => (
+                        "application/javascript",
+                        "globalThis.__seen=(globalThis.__seen?globalThis.__seen+',':'')+'b';",
+                    ),
+                    "/entry.js" => (
+                        "application/javascript",
+                        "globalThis.__seen=(globalThis.__seen?globalThis.__seen+',':'')+'entry';",
+                    ),
+                    _ => (
+                        "text/html",
+                        "<html><body>\
+                         <script type=\"module\" src=\"/slow-a.js\"></script>\
+                         <script type=\"module\" src=\"/slow-b.js\"></script>\
+                         <script type=\"module\" src=\"/entry.js\"></script>\
+                         </body></html>",
+                    ),
+                };
+                let resp = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: {ctype}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = stream.write_all(resp.as_bytes());
+            });
+        }
+    });
+    let mut p = test_page();
+    p.navigate(&format!("http://127.0.0.1:{port}/"))
+        .await
+        .unwrap();
+    assert_eq!(
+        p.evaluate("globalThis.__seen"),
+        serde_json::json!("a,b,entry"),
+        "the entry module must run after its slow siblings, in document order"
+    );
+}
+
 /// Regression (weixin article pages; v0.3.1 Windows report P1-3): when
 /// the classic script phase overran its deadline, the exec watchdog's
 /// terminate_execution stayed pending past its phase — the module phase
