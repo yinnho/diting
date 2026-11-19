@@ -219,6 +219,16 @@ fn rendered_text(page: &mut crate::page::Page, selector: Option<&str>) -> String
              var probe=a.trim().slice(0,80);if(probe&&b.indexOf(probe)<0)b+='\\n'+a;\
              addFrames(child,depth+1);}}\
              addFrames(document,0);\
+             var links=document.querySelectorAll('nav a, aside a');\
+             var lim=links.length<400?links.length:400;var extra=[];\
+             for(var k=0;k<lim;k++){var t=(links[k].textContent||'').replace(/[ \\t\\n\\r\\f]+/g,' ').trim();\
+             if(t.length>1&&t.length<80&&b.indexOf(t)<0)extra.push(t);}\
+             if(extra.length)b+='\\n'+extra.join('\\n');\
+             var feet=document.querySelectorAll('footer');\
+             var fm=feet.length<3?feet.length:3;\
+             for(var f=0;f<fm;f++){var ft=(feet[f].textContent||'').replace(/[ \\t\\n\\r\\f]+/g,' ').trim();\
+             if(!ft)continue;var head=ft.slice(0,60);var tail=ft.slice(Math.max(0,ft.length-60));\
+             if(b.indexOf(head)<0||(tail!==head&&b.indexOf(tail)<0))b+='\\n'+ft;}\
              var nodes=document.querySelectorAll('article.markdown-body,.markdown-body,#readme,#js_content,article,main,.theme-doc-markdown');\
              if(nodes.length>8)nodes=Array.prototype.slice.call(nodes,0,8);\
              for(var i=0;i<nodes.length;i++){var a=nodes[i].innerText||'';var probe=a.trim().slice(0,80);\
