@@ -280,11 +280,11 @@ impl Page {
 
     /// Pump the event loop until pending work settles: dynamic external
     /// script fetches land and execute, inflight XHR/fetch resolve, and
-    /// timers tick. Bounded twice over — a 500ms fast path for pages with
-    /// nothing pending, and `DITING_DYNAMIC_SCRIPT_SETTLE_MS`
-    /// (default 3s) while a dynamic script fetch or an ES `import()` is
-    /// still in flight, so normal pages and unrelated fetches retain the
-    /// fast path (upstream a6bb741).
+    /// timers tick. A page with nothing pending leaves on the 500ms fast
+    /// path (upstream a6bb741). `DITING_DYNAMIC_SCRIPT_SETTLE_MS`
+    /// (default 3s) still caps a dynamic script or stylesheet fetch. A
+    /// live ES `import()` keeps the loop turning until that graph
+    /// finishes; the same number is only its sync-spin watchdog budget.
     pub(super) async fn settle_pending_work(&mut self) {
         let Some(js) = self.js.as_mut() else { return };
         let dynamic_settle_ms = std::env::var("DITING_DYNAMIC_SCRIPT_SETTLE_MS")
@@ -305,13 +305,34 @@ impl Page {
         let settle_wd = js.arm_watchdog_pump(std::time::Duration::from_millis(
             dynamic_settle_ms + JsRuntime::WATCHDOG_HEADROOM_MS,
         ));
+        let spin_wall =
+            std::time::Duration::from_millis(dynamic_settle_ms + JsRuntime::WATCHDOG_HEADROOM_MS);
         let started = tokio::time::Instant::now();
         let deadline = started + tokio::time::Duration::from_millis(500);
         let dynamic_deadline = started + tokio::time::Duration::from_millis(dynamic_settle_ms);
         let mut idle_count = 0u32;
         loop {
             let now = tokio::time::Instant::now();
-            if now >= deadline && (now >= dynamic_deadline || !js.has_pending_module_load()) {
+            // ES import() only. A dead <link rel=stylesheet> re-fetch also
+            // bumps the dynamic-script counter; treating that as "keep
+            // pumping" held navigation until the 30s deadline (#203).
+            let import_pending = js.has_pending_dynamic_imports();
+            if import_pending {
+                // The armed wall is for a poll that never returns (a sync
+                // spin). Each yield slides it forward, so a route import()
+                // that keeps the loop turning is not killed at 3s+5s while
+                // its graph is still evaluating.
+                settle_wd.push_deadline(spin_wall);
+            }
+            // 500ms fast path when nothing is in flight. A dynamic script
+            // fetch still stops at `dynamic_settle_ms`. A live import() does
+            // not: Angular's component route downloads the sidenav graph,
+            // then starts the examples import only after that graph
+            // evaluates, and the 3s cap returned the toolbar first.
+            if now >= deadline
+                && !import_pending
+                && (now >= dynamic_deadline || !js.has_pending_module_load())
+            {
                 break;
             }
             let result =

@@ -168,8 +168,14 @@ const EMPTY_TEXT_GRACE_MS: u64 = 6_000;
 const SHORT_TEXT_CHARS: usize = 1_200;
 /// A title-only shell. Doc sites (EUI, PrimeNG) used to be read after the
 /// app painted; giving up on the first empty sample is what made them
-/// regress. Anything longer than a title is a finished short page.
+/// regress. Anything longer than a title is a finished short page, unless
+/// an Angular `router-outlet` is still empty — the toolbar alone crosses
+/// this line (Angular Material's is ~246 chars) before the route mounts.
 const SHELL_BYTES: usize = 200;
+/// Extra grace while that outlet is empty and a module or timer can still
+/// fill it. The 6s short-text grace returns the toolbar if the examples
+/// import starts during the gap after the sidenav graph evaluates.
+const ROUTE_SHELL_GRACE_MS: u64 = 15_000;
 /// `settle_quiet` window. A 3s delayed paint is still pending; a 5s
 /// heartbeat is not, so the grace does not idle out on analytics timers.
 const SOON_WORK_MS: u64 = 3_500;
@@ -211,20 +217,46 @@ fn page_has_soon_work(page: &mut crate::page::Page) -> bool {
     }
 }
 
+/// Angular inserts the routed component as the next element sibling of
+/// `<router-outlet>`. Every outlet still empty means the shell has
+/// painted and the route has not. No outlet at all is not this case.
+fn router_outlet_unfilled(page: &mut crate::page::Page) -> bool {
+    page.evaluate(
+        "(function(){\
+            var list=document.querySelectorAll('router-outlet');\
+            if(!list.length) return false;\
+            for(var i=0;i<list.length;i++){\
+                var n=list[i].nextElementSibling;\
+                if(n && n.tagName!=='ROUTER-OUTLET') return false;\
+            }\
+            return true;\
+        })()",
+    )
+    .as_bool()
+    .unwrap_or(false)
+}
+
 async fn wait_for_rendered_text(page: &mut crate::page::Page, selector: Option<&str>) -> String {
-    let deadline =
-        std::time::Instant::now() + std::time::Duration::from_millis(EMPTY_TEXT_GRACE_MS);
+    let started = std::time::Instant::now();
     loop {
         // Keep this string. A second innerText walk of the same document
         // (GitHub, WHATWG) is what pushes the response past the client
         // read timeout after the navigation deadline already fired.
         let text = rendered_text(page, selector);
-        if !rendered_text_is_short(&text) || std::time::Instant::now() >= deadline {
+        let unfilled = router_outlet_unfilled(page);
+        let soon = page_has_soon_work(page);
+        let grace = if unfilled && soon {
+            std::time::Duration::from_millis(ROUTE_SHELL_GRACE_MS)
+        } else {
+            std::time::Duration::from_millis(EMPTY_TEXT_GRACE_MS)
+        };
+        if !rendered_text_is_short(&text) || started.elapsed() >= grace {
             return text;
         }
         // Title-only shells keep pumping for the whole grace. A probe that
         // fails on a wedged realm must not look like "nothing is coming".
-        if text.len() >= SHELL_BYTES && !page_has_soon_work(page) {
+        // A toolbar past SHELL_BYTES with an empty outlet is still that shell.
+        if text.len() >= SHELL_BYTES && !soon && !unfilled {
             return text;
         }
         page.pump_event_loop_slice(250).await;

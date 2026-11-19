@@ -3386,6 +3386,51 @@ async fn parser_import_map_before_first_module_controls_resolution() {
     );
 }
 
+/// A route `import()` whose module is still evaluating past the 3s
+/// settle cap must land before navigate returns. The cap used to cut
+/// the pump while the graph was in flight, and the toolbar was read
+/// as the page (Angular Material's table examples).
+#[tokio::test(flavor = "current_thread")]
+async fn dynamic_import_past_the_settle_cap_still_lands() {
+    let _g = net_test_guard();
+    let port = local_http_server_typed(vec![
+        (
+            "/",
+            200,
+            "text/html",
+            r#"<html><body>
+                <script type="module">
+                    window.__ready = "shell";
+                    setTimeout(() => {
+                        import("./slow.js").then(m => { window.__ready = m.msg; });
+                    }, 0);
+                </script>
+            </body></html>"#
+                .into(),
+        ),
+        (
+            "/slow.js",
+            200,
+            "application/javascript",
+            "await new Promise(r => setTimeout(r, 4000)); export const msg = \"landed\";".into(),
+        ),
+    ]);
+    let mut p = test_page();
+    let started = std::time::Instant::now();
+    p.navigate(&format!("http://127.0.0.1:{port}/"))
+        .await
+        .unwrap();
+    assert_eq!(
+        p.evaluate("window.__ready"),
+        serde_json::json!("landed"),
+        "import() still evaluating at the 3s cap must finish"
+    );
+    assert!(
+        started.elapsed() >= std::time::Duration::from_millis(4000),
+        "the module's 4s wait must have actually elapsed"
+    );
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn later_import_map_adds_unrelated_rule_without_rebinding_resolved_rule() {
     let _g = net_test_guard();
