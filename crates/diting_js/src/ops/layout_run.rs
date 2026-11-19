@@ -403,10 +403,29 @@ pub(crate) fn ensure_layout_run(gs: &JsState, dom: &DomTree, epoch: u64) {
             .borrow()
             .as_ref()
             .is_some_and(|(e, _)| *e == epoch);
-        if !fresh {
-            let run = layout_run_all(gs, dom, false);
-            *gs.style_cache.borrow_mut() = Some((epoch, run.2));
+        if fresh {
+            return;
         }
+        // Fetch pages stay Mock: scrollHeight is the synthetic grid, and
+        // there is no box tree to refresh. Angular's first CD still reads
+        // scrollHeight from ngAfterViewInit between node inserts and class
+        // writes. Each of those used to rebuild this cascade (a 4k-rule
+        // sheet, a few hundred milliseconds, dozens of times in one turn).
+        // The watchdog then killed the turn before the menu @for inserted.
+        // One cascade is enough to answer getComputedStyle for the tree
+        // that existed then. Past a modest size, later invalidations keep
+        // that map (or stay cold) instead of rebuilding. Small documents
+        // still rebuild, so a class change stays visible to getComputedStyle.
+        const MOCK_CASCADE_FREEZE: usize = 600;
+        if gs.mock_cascade_done.get() && dom.len() > MOCK_CASCADE_FREEZE {
+            if let Some((_, styles)) = gs.style_cache.borrow_mut().take() {
+                *gs.style_cache.borrow_mut() = Some((epoch, styles));
+            }
+            return;
+        }
+        let run = layout_run_all(gs, dom, false);
+        gs.mock_cascade_done.set(true);
+        *gs.style_cache.borrow_mut() = Some((epoch, run.2));
         return;
     }
     let stale = gs.layout_cache.borrow().as_ref().map(|(e, _)| *e == epoch) != Some(true);
