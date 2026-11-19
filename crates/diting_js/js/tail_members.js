@@ -707,10 +707,19 @@
       if (options !== undefined && options !== null && typeof options !== 'object') throw badOptions;
       const opts = options && typeof options === 'object' ? options : {};
       const o = Object.create(Policy.prototype);
-      slots.set(o, {
+      const fnOrNull = (k) => (typeof opts[k] === 'function' ? opts[k] : null);
+      const rec = {
         name: String(name),
-        parse: typeof opts.createParserOptions === 'function' ? opts.createParserOptions : null,
-      });
+        parse: fnOrNull('createParserOptions'),
+        html: fnOrNull('createHTML'),
+        script: fnOrNull('createScript'),
+        url: fnOrNull('createScriptURL'),
+      };
+      slots.set(o, rec);
+      // html_insert.js (after the stub fill) reads this to implement
+      // createHTML/createScript/createScriptURL. The ladder stubs return
+      // undefined and would wipe Vue's static markup.
+      Object.defineProperty(o, Symbol.for('diting.tt.policy'), { value: rec });
       return o;
     }, 'createPolicy', 1), writable: true, enumerable: true, configurable: true });
     def(Policy.prototype, 'name', { get: pin(function () {
