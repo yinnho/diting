@@ -190,6 +190,22 @@ impl JsRuntime {
         self.state.borrow().dynamic_script_fetches.get() > 0
     }
 
+    /// An ES `import()` whose graph is still loading or evaluating. The
+    /// module loader's fetches are not `__inflightFetches` and not the
+    /// classic `<script src>` counter, so a settle probe that only looks
+    /// at those two reports a SPA shell as quiet while the route chunk is
+    /// still on the wire (Arco's `/vue/component/table`).
+    pub fn has_pending_dynamic_imports(&self) -> bool {
+        self.runtime.has_pending_dynamic_imports()
+    }
+
+    /// Classic dynamic scripts and ES `import()` graphs. Either one means
+    /// the page still owes a chunk; a shell read before it lands is the
+    /// nav, not the document.
+    pub fn has_pending_module_load(&self) -> bool {
+        self.has_pending_dynamic_scripts() || self.has_pending_dynamic_imports()
+    }
+
     /// Drain queued console calls (level, message, page URL at log time)
     /// captured by `op_console_msg`. The CDP layer turns each into a
     /// `Runtime.consoleAPICalled` event.
