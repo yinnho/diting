@@ -138,9 +138,29 @@ pub(crate) async fn maybe_bypass_byte_waf(page: &mut crate::page::Page) -> Resul
 /// empty. crates.io (an Ember SPA) returns from navigation with a bare shell
 /// — body.innerText "" — and renders its ~5k chars a few seconds later; the
 /// extraction ran in between and answered 200 with an empty body, which an
-/// agent can only treat as a failure. The grace is spent only while the text
-/// is empty, so a page that already has text pays nothing.
+/// agent can only treat as a failure. A long body returns at once. A short
+/// shell keeps pumping only while a timer or fetch can still land inside
+/// the next few seconds (quotes.toscrape.com `?delay=3000` paints after
+/// load). A finished shell, or a page whose next timer is further out,
+/// pays nothing.
 const EMPTY_TEXT_GRACE_MS: u64 = 6_000;
+/// Bytes. ASCII pages under this are "short"; a longer body is done.
+const SHORT_TEXT_BYTES: usize = 1_200;
+/// `settle_quiet` window. A 3s delayed paint is still pending; a 5s
+/// heartbeat is not, so the grace does not idle out on analytics timers.
+const SOON_WORK_MS: u64 = 3_500;
+
+fn page_has_soon_work(page: &mut crate::page::Page) -> bool {
+    // Missing probe reads as "nothing pending" so a realm without the
+    // helper does not sit out the whole grace.
+    let expr = format!(
+        "globalThis.__diting_settle_quiet&&globalThis.__diting_settle_quiet({SOON_WORK_MS})"
+    );
+    match page.evaluate(&expr).as_bool() {
+        Some(quiet) => !quiet,
+        None => false,
+    }
+}
 
 async fn wait_for_rendered_text(page: &mut crate::page::Page, selector: Option<&str>) -> String {
     let deadline =
@@ -150,7 +170,8 @@ async fn wait_for_rendered_text(page: &mut crate::page::Page, selector: Option<&
         // (GitHub, WHATWG) is what pushes the response past the client
         // read timeout after the navigation deadline already fired.
         let text = rendered_text(page, selector);
-        if !text.trim().is_empty() || std::time::Instant::now() >= deadline {
+        let short = text.len() < SHORT_TEXT_BYTES;
+        if !short || std::time::Instant::now() >= deadline || !page_has_soon_work(page) {
             return text;
         }
         page.pump_event_loop_slice(250).await;
@@ -183,6 +204,13 @@ fn rendered_text(page: &mut crate::page::Page, selector: Option<&str>) -> String
             // contain, and put document.title on the front when the heading
             // never made it into the rendered text (example.com's h1).
             "(function(){var b=document.body?document.body.innerText:'';\
+             function addFrames(doc,depth){if(!doc||depth>3)return;\
+             var frames=doc.querySelectorAll('iframe');var n=frames.length<8?frames.length:8;\
+             for(var i=0;i<n;i++){var child=null;try{child=frames[i].contentDocument;}catch(e){}\
+             if(!child||!child.body)continue;var a=child.body.innerText||'';\
+             var probe=a.trim().slice(0,80);if(probe&&b.indexOf(probe)<0)b+='\\n'+a;\
+             addFrames(child,depth+1);}}\
+             addFrames(document,0);\
              var nodes=document.querySelectorAll('article.markdown-body,.markdown-body,#readme,#js_content');\
              for(var i=0;i<nodes.length;i++){var a=nodes[i].innerText||'';var probe=a.trim().slice(0,80);\
              if(probe&&b.indexOf(probe)<0)b+='\\n'+a;}\
