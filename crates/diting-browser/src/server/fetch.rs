@@ -319,7 +319,19 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                 page.inner
                     .set_layout_policy(diting::diting_browser::LayoutPolicy::OnDemand);
             }
-            page.goto(&req.url).await?;
+            // GitHub-class pages commit the document and then keep scripts
+            // running past the navigation deadline. The live document is the
+            // page; dropping it turns a finished read into a 500. A deadline
+            // before commit is still a hard error.
+            if let Err(e) = page.goto(&req.url).await {
+                if !e.to_string().contains("document committed") {
+                    return Err(e.into());
+                }
+                tracing::warn!(
+                    url = %req.url,
+                    "fetch: navigation deadline after the document committed; reading the live page"
+                );
+            }
 
             // Auto-bypass Cloudflare Turnstile challenge if detected.
             if req.auto_bypass_challenge {
