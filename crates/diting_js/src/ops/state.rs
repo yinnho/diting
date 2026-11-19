@@ -204,6 +204,10 @@ pub struct JsState {
             std::collections::HashMap<diting_dom::NodeId, diting_css::ComputedStyle>,
         )>,
     >,
+    /// Mock cascade already ran once in this realm. A grown tree must not
+    /// rebuild it on every later scrollHeight (see `ensure_layout_run`).
+    #[cfg(feature = "screenshot")]
+    pub(super) mock_cascade_done: std::cell::Cell<bool>,
     /// Memoized diting-layout run for the live DOM tree, keyed by the
     /// tree's epoch (see DomTree::epoch): element rects, the paint order,
     /// and the cascaded ComputedStyle per element. Filled on the first
@@ -538,6 +542,8 @@ impl JsState {
             layout_policy: crate::LayoutPolicy::OnDemand,
             #[cfg(feature = "screenshot")]
             style_cache: std::cell::RefCell::new(None),
+            #[cfg(feature = "screenshot")]
+            mock_cascade_done: std::cell::Cell::new(false),
             // Memoized diting-layout rects for the live DOM tree, keyed by
             // the tree's epoch (see DomTree::epoch). Filled on the first
             // `layout_rect` op after each mutation; backs getBoundingClientRect.
