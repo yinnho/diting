@@ -11,6 +11,23 @@ use crate::{
 };
 use anyhow::{Context, Result};
 
+/// `/fetch` read ceiling. Interactive navigation stays at 30s so a hung
+/// CDP session cannot wedge the dispatcher. This path holds no session
+/// lock, and the dynamic-column client waits 100s. Angular Material's
+/// autocomplete page commits, then spends the rest of a ~50s debug-engine
+/// load on the module compile and the lazy route wave; the 30s ceiling
+/// cancels that work and the live read is the title shell.
+const FETCH_NAV_TIMEOUT_MS: u64 = 60_000;
+
+/// Page-scoped navigation ceiling for one `/fetch`. `None` leaves the
+/// process default, so an explicit `DITING_NAV_TIMEOUT_MS` still wins.
+fn fetch_nav_timeout_override(env_nav_timeout: Option<&str>) -> Option<u64> {
+    match env_nav_timeout.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(_) => None,
+        None => Some(FETCH_NAV_TIMEOUT_MS),
+    }
+}
+
 /// Check if the current page is a Cloudflare challenge.
 fn is_cloudflare_challenge(page: &mut crate::page::Page) -> bool {
     let title_val = page.evaluate("document.title");
@@ -419,6 +436,11 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             let browser = build_browser(req.use_proxy, &req.url, req.tls_fingerprint.as_deref())?;
             inject_cookies(&browser, &req.cookies, &req.url);
             let mut page = browser.new_page().await?;
+            if let Some(ms) =
+                fetch_nav_timeout_override(std::env::var("DITING_NAV_TIMEOUT_MS").ok().as_deref())
+            {
+                page.inner.set_navigation_timeout(Some(ms));
+            }
             // Geometry facts are the caller's opt-in. The page stays Mock
             // until then, so scrollHeight is the synthetic grid.
             if req.layout {
@@ -808,7 +830,16 @@ pub fn do_eval(req: EvalRequest) -> Result<EvalResponse> {
 
 #[cfg(test)]
 mod tests {
-    use super::{collapse_whitespace, rendered_text_is_short};
+    use super::{collapse_whitespace, fetch_nav_timeout_override, rendered_text_is_short};
+
+    #[test]
+    fn fetch_read_extends_the_nav_ceiling_unless_the_operator_set_one() {
+        assert_eq!(fetch_nav_timeout_override(None), Some(60_000));
+        assert_eq!(fetch_nav_timeout_override(Some("")), Some(60_000));
+        assert_eq!(fetch_nav_timeout_override(Some("   ")), Some(60_000));
+        assert_eq!(fetch_nav_timeout_override(Some("30000")), None);
+        assert_eq!(fetch_nav_timeout_override(Some(" 45000 ")), None);
+    }
 
     #[test]
     fn chinese_nav_shell_is_still_short() {
