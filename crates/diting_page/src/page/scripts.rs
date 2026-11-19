@@ -24,6 +24,18 @@ pub(super) fn module_eval_budget_from(raw: Option<&str>) -> u64 {
     raw.and_then(|s| s.parse().ok()).unwrap_or(10_000)
 }
 
+fn resolve_module_specifier(src: &str, base_url: &str) -> String {
+    if src.starts_with("http://") || src.starts_with("https://") || src.starts_with("data:") {
+        src.to_string()
+    } else {
+        Url::parse(base_url)
+            .ok()
+            .and_then(|base| base.join(src).ok())
+            .map(|u| u.to_string())
+            .unwrap_or_else(|| src.to_string())
+    }
+}
+
 /// Engine-side init hook: `DITING_INIT_SCRIPT=<path>` runs its file
 /// contents before any page script on every navigation (same slot as CDP
 /// preloads) — the pre-hydration instrumentation point for debugging apps
@@ -897,11 +909,59 @@ impl Page {
             }
         }
 
-        // Module phase runs on its own deadline: modules load async (their
-        // eval is separately bounded by DITING_MODULE_EVAL_TIMEOUT_MS)
-        // and must not inherit a budget already consumed by the classic
-        // phase — on pages whose inline scripts legitimately take most of
-        // the deadline, the app's entry module never got a chance to load.
+        // Module scripts download in parallel, then evaluate in document
+        // order. A Vite page lists every chunk as its own <script
+        // type=module>, entry last. The old loop fetched each one inside
+        // the same 10s that also evaluated it, so the entry was skipped
+        // once the deadline passed (AdaptTable's RTL demos: 0 table
+        // headers). Classic scripts already split the two phases (#79).
+        let mut module_sources: std::collections::HashMap<String, Result<String, String>> =
+            std::collections::HashMap::new();
+        let mut network_urls: Vec<String> = Vec::new();
+        for script in &module_scripts {
+            let Some(src) = script.src.as_deref() else {
+                continue;
+            };
+            let full_url = resolve_module_specifier(src, &script.base_url);
+            if !subresource_allowed(self.url.as_ref(), &full_url) {
+                module_sources.insert(
+                    full_url.clone(),
+                    Err(format!("blocked cross-scheme module src {full_url}")),
+                );
+                continue;
+            }
+            if self.url_blocked(&full_url) {
+                module_sources.insert(
+                    full_url.clone(),
+                    Err(format!("blocked by Network.setBlockedURLs: {full_url}")),
+                );
+                continue;
+            }
+            if let Some(body) = decode_data_uri(&full_url) {
+                module_sources.insert(full_url, Ok(String::from_utf8_lossy(&body).into_owned()));
+                continue;
+            }
+            if full_url.starts_with("http://") || full_url.starts_with("https://") {
+                network_urls.push(full_url);
+            } else {
+                module_sources.insert(
+                    full_url.clone(),
+                    Err(format!("unsupported module url {full_url}")),
+                );
+            }
+        }
+        network_urls.sort();
+        network_urls.dedup();
+        let referrer = self.url.as_ref().map(|u| u.to_string());
+        module_sources.extend(
+            prefetch_module_sources(
+                self.http_client.clone(),
+                network_urls,
+                referrer,
+                script_deadline_ms,
+            )
+            .await,
+        );
         let module_deadline =
             tokio::time::Instant::now() + tokio::time::Duration::from_millis(script_deadline_ms);
         for module_script in &module_scripts {
@@ -912,27 +972,31 @@ impl Page {
                 break;
             }
             if let Some(ref src) = module_script.src {
-                let full_url = if src.starts_with("http://")
-                    || src.starts_with("https://")
-                    || src.starts_with("data:")
-                {
-                    src.clone()
-                } else {
-                    Url::parse(&module_script.base_url)
-                        .ok()
-                        .and_then(|base| base.join(src).ok())
-                        .map(|u| u.to_string())
-                        .unwrap_or_else(|| src.clone())
-                };
-
+                let full_url = resolve_module_specifier(src, &module_script.base_url);
                 tracing::info!("Loading ES module: {}", full_url);
+                let Some(source) = module_sources.get(&full_url) else {
+                    tracing::warn!(
+                        "ES module skipped ({}): not downloaded before the fetch deadline",
+                        full_url
+                    );
+                    continue;
+                };
+                let source = match source {
+                    Ok(code) => code.clone(),
+                    Err(e) => {
+                        tracing::warn!("ES module error ({}): {}", full_url, e);
+                        continue;
+                    }
+                };
                 if let Some(js) = &mut self.js {
-                    match js.load_module(&full_url, module_eval_budget_ms()).await {
+                    match js
+                        .load_module_from_source(&full_url, source, module_eval_budget_ms())
+                        .await
+                    {
                         Ok(()) => {
                             tracing::info!("ES module loaded: {}", full_url);
-                            // Module loads ride js.load_module's own fetches,
-                            // which surface as their own Fetch rows; this row
-                            // is just the success marker, no outbound set.
+                            // The prefetch already did the wire fetch. This
+                            // row is the success marker, no outbound set.
                             self.record_network_event(
                                 &full_url,
                                 "GET",
@@ -1014,4 +1078,71 @@ impl Page {
         // lands before the navigation call returns.
         self.settle_pending_work().await;
     }
+}
+
+/// Download external module-script sources together. The deadline keeps
+/// bodies that already arrived and drops the rest; one hung URL must not
+/// throw away the entry chunk that finished beside it.
+async fn prefetch_module_sources(
+    client: std::sync::Arc<diting_net::HttpClient>,
+    urls: Vec<String>,
+    referrer: Option<String>,
+    budget_ms: u64,
+) -> std::collections::HashMap<String, Result<String, String>> {
+    let total = urls.len();
+    if total == 0 {
+        return std::collections::HashMap::new();
+    }
+    let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_millis(budget_ms);
+    let fetches = urls.into_iter().map(|url| {
+        let client = client.clone();
+        let referrer = referrer.clone();
+        async move {
+            let result = match Url::parse(&url) {
+                Ok(spec) => match client
+                    .fetch_with_callbacks(
+                        &spec,
+                        None,
+                        diting_net::ResourceType::ModuleScript,
+                        referrer.as_deref(),
+                    )
+                    .await
+                {
+                    Ok(resp) if (200..=299).contains(&resp.status) => {
+                        Ok(diting_net::decode_non_html(&resp.body, resp.content_type()))
+                    }
+                    Ok(resp) => Err(format!("Module {url} returned HTTP {}", resp.status)),
+                    Err(e) => Err(format!("Module fetch failed ({url}): {e}")),
+                },
+                Err(e) => Err(format!("Invalid module URL {url}: {e}")),
+            };
+            (url, result)
+        }
+    });
+    use futures::StreamExt as _;
+    let mut stream = std::pin::pin!(futures::stream::iter(fetches).buffer_unordered(16));
+    let mut out = std::collections::HashMap::with_capacity(total);
+    let mut cut = false;
+    loop {
+        if tokio::time::Instant::now() >= deadline {
+            cut = true;
+            break;
+        }
+        match tokio::time::timeout(tokio::time::Duration::from_millis(50), stream.next()).await {
+            Ok(Some((url, result))) => {
+                out.insert(url, result);
+            }
+            Ok(None) => break,
+            Err(_) => {}
+        }
+    }
+    if cut {
+        tracing::warn!(
+            "execute_scripts: module fetch deadline reached after {}/{} bodies arrived; \
+             arrived modules still execute on a fresh budget",
+            out.len(),
+            total
+        );
+    }
+    out
 }

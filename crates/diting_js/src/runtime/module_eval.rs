@@ -22,7 +22,6 @@ fn panic_payload_message(payload: Box<dyn std::any::Any + Send>) -> String {
 
 impl JsRuntime {
     pub async fn load_module(&mut self, url: &str, budget_ms: u64) -> Result<(), String> {
-        let budget = tokio::time::Duration::from_millis(budget_ms);
         let specifier =
             url::Url::parse(url).map_err(|e| format!("Invalid module URL {}: {}", url, e))?;
 
@@ -56,6 +55,23 @@ impl JsRuntime {
             }
         };
 
+        self.load_module_from_source(url, source_code, budget_ms)
+            .await
+    }
+
+    /// Evaluate module source the page already fetched. The specifier stays
+    /// the real script URL so its imports resolve against that file, not an
+    /// inline fragment. Parser `<script type=module>` tags are downloaded
+    /// in parallel first; this is the ordered eval half.
+    pub async fn load_module_from_source(
+        &mut self,
+        url: &str,
+        source_code: String,
+        budget_ms: u64,
+    ) -> Result<(), String> {
+        let budget = tokio::time::Duration::from_millis(budget_ms);
+        let specifier =
+            url::Url::parse(url).map_err(|e| format!("Invalid module URL {}: {}", url, e))?;
         // Bound the graph fetch: submodules resolve recursively through the
         // module loader, so a slow import chain must not hang page load.
         let module_id = match tokio::time::timeout(
