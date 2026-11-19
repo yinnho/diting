@@ -2053,6 +2053,51 @@ fn chrome157_create_parser_options() {
     );
 }
 
+/// A policy's createHTML callback has to come back as text. Vue writes that
+/// return straight into `<template>.innerHTML` for hoisted static markup
+/// (TDesign's example TOC). A stub that returns undefined clears the template.
+#[test]
+fn trusted_html_policy_round_trips_into_template() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let v = rt
+        .evaluate(
+            r##"
+        const err = (fn) => { try { fn(); return 'ok'; } catch (e) { return e.name + ': ' + e.message; } };
+        const p = trustedTypes.createPolicy('vue', { createHTML: (s) => s });
+        const bare = trustedTypes.createPolicy('bare');
+        const html = '<nav class="toc"><a href="#可排序的表格">可排序的表格</a></nav>';
+        const trusted = p.createHTML(html);
+        const tpl = document.createElement('template');
+        tpl.innerHTML = trusted;
+        const host = document.createElement('div');
+        host.appendChild(tpl.content);
+        const names = Object.getOwnPropertyNames(TrustedTypePolicy.prototype);
+        ({
+          type: Object.prototype.toString.call(trusted),
+          str: String(trusted),
+          is: trusted instanceof TrustedHTML,
+          moved: host.innerHTML === html && tpl.content.childNodes.length === 0,
+          missing: err(() => bare.createHTML('x')),
+          bad: err(() => p.createHTML && trustedTypes.createPolicy('n', { createHTML: () => 1 }).createHTML('x')),
+          order: names.slice(names.indexOf('constructor')),
+        })
+        "##,
+        )
+        .unwrap();
+    assert_eq!(
+        v,
+        serde_json::json!({
+            "type": "[object TrustedHTML]",
+            "str": "<nav class=\"toc\"><a href=\"#可排序的表格\">可排序的表格</a></nav>",
+            "is": true,
+            "moved": true,
+            "missing": "TypeError: Failed to execute 'createHTML' on 'TrustedTypePolicy': Policy bare's TrustedTypePolicyOptions did not specify a 'createHTML' member.",
+            "bad": "TypeError: Failed to execute 'createHTML' on 'TrustedTypePolicy': Policy returned a non-string value.",
+            "order": ["constructor", "createParserOptions"],
+        })
+    );
+}
+
 /// Chrome 157 animation triggers. Behaviors are none, pause, play, and reset.
 /// Each Animation is kept once. ranges is one empty list.
 #[test]

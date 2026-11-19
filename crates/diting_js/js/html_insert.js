@@ -246,4 +246,43 @@
     mark(parseHTML);
     Object.defineProperty(Document, 'parseHTML', { value: parseHTML, writable: true, enumerable: true, configurable: true });
   }
+
+  // The ladder stub's createHTML returns undefined. Vue assigns that
+  // straight to <template>.innerHTML, which clears hoisted static markup
+  // (TDesign's example list). The policy record is stamped in tail_members.
+  const Policy = globalThis.TrustedTypePolicy;
+  if (typeof Policy === 'function') {
+    const KEY = Symbol.for('diting.tt.policy');
+    const install = (method, slot, ctorName) => {
+      const P = Policy.prototype;
+      const Ctor = globalThis[ctorName];
+      const prev = Object.getOwnPropertyDescriptor(P, method);
+      if (!prev || !prev.configurable || typeof Ctor !== 'function') return;
+      const impl = function (input) {
+        if (!(this instanceof Policy)) throw new TypeError('Illegal invocation');
+        const rec = this[KEY];
+        const cb = rec && rec[slot];
+        if (typeof cb !== 'function') {
+          const who = rec && rec.name ? rec.name : '';
+          throw new TypeError("Failed to execute '" + method + "' on 'TrustedTypePolicy': Policy " + who + "'s TrustedTypePolicyOptions did not specify a '" + method + "' member.");
+        }
+        const out = cb(input == null ? '' : String(input));
+        if (typeof out !== 'string') {
+          throw new TypeError("Failed to execute '" + method + "' on 'TrustedTypePolicy': Policy returned a non-string value.");
+        }
+        const trusted = Object.create(Ctor.prototype);
+        Object.defineProperty(trusted, 'toString', { value: function () { return out; }, configurable: true });
+        return trusted;
+      };
+      Object.defineProperty(impl, 'name', { value: method, configurable: true });
+      Object.defineProperty(impl, 'length', { value: 1, configurable: true });
+      mark(impl);
+      Object.defineProperty(P, method, {
+        value: impl, writable: true, enumerable: prev.enumerable, configurable: true,
+      });
+    };
+    install('createHTML', 'html', 'TrustedHTML');
+    install('createScript', 'script', 'TrustedScript');
+    install('createScriptURL', 'url', 'TrustedScriptURL');
+  }
 })();
