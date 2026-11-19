@@ -668,13 +668,13 @@ const _IT_BLOCK_TAGS = new Set(('address article aside blockquote center dd deta
   'section summary table tfoot tr ul').split(' '));
 const _IT_BLOCK_DISPLAY = /^(block|flow-root|list-item|flex|inline-flex|grid|inline-grid|table|table-row|table-row-group|table-header-group|table-footer-group|table-caption)$/;
 const _IT_PRE_TAGS = new Set(['pre', 'textarea', 'listing']);
-// One cascade read (whole computed-style table) — same op getComputedStyle
-// uses, just without building the proxy. Null when the style engine hasn't
-// answered for this element yet.
+// display / white-space / text-transform only. The full computed-style
+// table per node held a GitHub-sized innerText past the fetch deadline.
+// Null when the style engine hasn't answered for this element yet.
 const _itCascade = (el) => {
   try {
     if (el && el._nid != null) {
-      const raw = _domRaw('computed_style', String(el._nid | 0), '');
+      const raw = _domRaw('inner_text_style', String(el._nid | 0), '');
       if (raw && raw !== 'null') {
         const t = JSON.parse(raw);
         if (t && typeof t === 'object') return t;

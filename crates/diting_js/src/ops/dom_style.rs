@@ -524,6 +524,19 @@ pub(crate) fn dom_cmd_scroll_style(
             }
             "ok".into()
         }
+        // innerText's cascade read. The walk only consults display,
+        // white-space, and text-transform; the full computed-style table
+        // is a hundred properties plus used geometry, and building it once
+        // per node held a GitHub-sized innerText past the fetch deadline.
+        // Spellings come from the same serializer as `computed_style`.
+        // visibility is not in that table, so it stays absent here too.
+        #[cfg(feature = "screenshot")]
+        "inner_text_style" => {
+            let Some(nid) = parse_nid(&arg1) else {
+                return Ok("null".into());
+            };
+            inner_text_style_json(gs, dom, nid)
+        }
         // Cascaded computed values for one element as a single JSON object,
         // from the same style+layout run as layout_rect — the layer
         // getComputedStyle was missing: only inline styles were consulted,
@@ -697,6 +710,8 @@ pub(crate) fn dom_cmd_scroll_style(
         #[cfg(not(feature = "screenshot"))]
         "computed_style" => "null".into(),
         #[cfg(not(feature = "screenshot"))]
+        "inner_text_style" => "null".into(),
+        #[cfg(not(feature = "screenshot"))]
         "layout_rect" => "null".into(),
         #[cfg(not(feature = "screenshot"))]
         "paint_order" => "null".into(),
@@ -712,6 +727,47 @@ pub(crate) fn dom_cmd_scroll_style(
         "iframe_local_geom" => "null".into(),
         _ => return Err((arg1, arg2)),
     })
+}
+
+/// display / white-space / text-transform for one element, as a small
+/// JSON object. `null` when the style cache has no row for it (the JS
+/// walk then uses the tag defaults). Containing-block size is unused:
+/// none of these three properties resolve a percentage.
+#[cfg(feature = "screenshot")]
+fn inner_text_style_json(gs: &JsState, dom: &DomTree, nid: diting_dom::NodeId) -> String {
+    let cssom_tag = dom
+        .with_node(nid, |n| {
+            n.as_element()
+                .map(|e| e.local.as_str().to_ascii_lowercase())
+        })
+        .flatten();
+    let epoch = dom.epoch();
+    ensure_layout_run(gs, dom, epoch);
+    let style = if gs.layout_policy.uses_real_layout() {
+        gs.layout_cache.borrow().as_ref().and_then(|(e, run)| {
+            if *e != epoch {
+                return None;
+            }
+            run.2.get(&nid).cloned()
+        })
+    } else {
+        gs.style_cache.borrow().as_ref().and_then(|(e, styles)| {
+            if *e != epoch {
+                return None;
+            }
+            styles.get(&nid).cloned()
+        })
+    };
+    let Some(style) = style else {
+        return "null".into();
+    };
+    let mut obj = serde_json::Map::with_capacity(3);
+    for prop in ["display", "white-space", "text-transform"] {
+        if let Some(v) = computed_style_value(&style, prop, cssom_tag.as_deref(), None) {
+            obj.insert((*prop).to_string(), serde_json::Value::String(v));
+        }
+    }
+    serde_json::Value::Object(obj).to_string()
 }
 
 /// Inline style string as an effective property map (lowercased names,
