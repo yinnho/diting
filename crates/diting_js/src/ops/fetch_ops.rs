@@ -865,6 +865,11 @@ pub(super) fn op_fetch_url_sync(
     let abandon_method = deps.method.clone();
     let abandon_started = deps.started_unix;
     let timeout_ms = sync_xhr_timeout_ms();
+    // Cloned before the wait loop. A script watchdog's TerminateExecution
+    // does not unwind a thread parked in recv; polling the flag is what
+    // lets the 5s script guard and the 30s navigation deadline actually
+    // return (hn.algolia.com held a fetch for 7 minutes this way).
+    let isolate = state.try_borrow::<v8::IsolateHandle>().cloned();
     std::thread::Builder::new()
         .name("sync-xhr".to_string())
         .spawn(move || {
@@ -883,9 +888,31 @@ pub(super) fn op_fetch_url_sync(
         })
         .map_err(|e| deno_error::JsErrorBox::generic(format!("sync XHR worker: {}", e)))?;
 
-    let (result, failures) = match rx.recv_timeout(std::time::Duration::from_millis(timeout_ms)) {
-        Ok(pair) => pair,
-        Err(_) => {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
+    let (result, failures) = loop {
+        if isolate
+            .as_ref()
+            .is_some_and(|handle| handle.is_execution_terminating())
+        {
+            record_failed_fetch(
+                state,
+                &FetchFailure {
+                    url: abandon_url.clone(),
+                    method: abandon_method.clone(),
+                    reason: "synchronous XHR abandoned: script execution was terminated \
+                             — the worker's late result is not logged"
+                        .to_string(),
+                    final_url: abandon_url,
+                    redirects: Vec::new(),
+                    started: abandon_started,
+                },
+            );
+            return Err(deno_error::JsErrorBox::generic(
+                "Synchronous XMLHttpRequest aborted: script execution was terminated",
+            ));
+        }
+        let now = std::time::Instant::now();
+        if now >= deadline {
             // #84: the walk may still be running on the worker — its own
             // failure replay will never be read (the channel's receiver
             // is gone). Record the abandonment as the request's terminal
@@ -907,6 +934,30 @@ pub(super) fn op_fetch_url_sync(
             return Err(deno_error::JsErrorBox::generic(
                 "Synchronous XMLHttpRequest timed out or its worker died",
             ));
+        }
+        let slice =
+            std::time::Duration::from_millis(100).min(deadline.saturating_duration_since(now));
+        match rx.recv_timeout(slice) {
+            Ok(pair) => break pair,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                record_failed_fetch(
+                    state,
+                    &FetchFailure {
+                        url: abandon_url.clone(),
+                        method: abandon_method.clone(),
+                        reason: "synchronous XHR worker died before replying — \
+                                 the worker's late result is not logged"
+                            .to_string(),
+                        final_url: abandon_url,
+                        redirects: Vec::new(),
+                        started: abandon_started,
+                    },
+                );
+                return Err(deno_error::JsErrorBox::generic(
+                    "Synchronous XMLHttpRequest timed out or its worker died",
+                ));
+            }
         }
     };
     replay_fetch_failures(state, &failures);

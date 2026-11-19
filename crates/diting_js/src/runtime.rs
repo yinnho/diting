@@ -363,6 +363,10 @@ impl JsRuntime {
             );
         }
         let isolate_handle = runtime.isolate_handle();
+        // Sync XHR blocks this thread inside a channel wait. TerminateExecution
+        // cannot unwind that wait, so the op polls the handle and returns
+        // once a script watchdog has fired.
+        op_state.borrow_mut().put(isolate_handle.clone());
         let heap_limit_state = std::sync::Arc::new(HeapLimitState::default());
         install_heap_limit_guard(
             &mut runtime,
