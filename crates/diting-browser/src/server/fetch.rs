@@ -142,15 +142,16 @@ pub(crate) async fn maybe_bypass_byte_waf(page: &mut crate::page::Page) -> Resul
 /// is empty, so a page that already has text pays nothing.
 const EMPTY_TEXT_GRACE_MS: u64 = 6_000;
 
-async fn wait_for_rendered_text(page: &mut crate::page::Page, selector: Option<&str>) -> bool {
+async fn wait_for_rendered_text(page: &mut crate::page::Page, selector: Option<&str>) -> String {
     let deadline =
         std::time::Instant::now() + std::time::Duration::from_millis(EMPTY_TEXT_GRACE_MS);
     loop {
-        if !rendered_text(page, selector).trim().is_empty() {
-            return true;
-        }
-        if std::time::Instant::now() >= deadline {
-            return false;
+        // Keep this string. A second innerText walk of the same document
+        // (GitHub, WHATWG) is what pushes the response past the client
+        // read timeout after the navigation deadline already fired.
+        let text = rendered_text(page, selector);
+        if !text.trim().is_empty() || std::time::Instant::now() >= deadline {
+            return text;
         }
         page.pump_event_loop_slice(250).await;
     }
@@ -197,15 +198,38 @@ fn rendered_text(page: &mut crate::page::Page, selector: Option<&str>) -> String
     collapse_whitespace(&raw)
 }
 
-/// Collapse runs of >=3 whitespace chars (spaces/tabs/newlines) into a single
-/// blank line, and trim each line. Keeps readable paragraph breaks without the
-/// hundreds of empty lines SPA layouts inject.
+/// Drop blank lines, turn a no-break space into a normal space, and write
+/// table-cell tabs as markdown pipes.
+///
+/// CSS 2.1's `<title>` is `CSS&nbsp;2.1`. The decoded heading contains
+/// U+00A0, so a reader looking for `CSS 2.1` misses the title that is
+/// already on the page. Rendered tables separate cells with a tab plus
+/// the space the walk leaves between cells (`Company\t Contact\t
+/// Country`); the readable row is `Company | Contact | Country`.
 fn collapse_whitespace(s: &str) -> String {
     s.lines()
-        .map(|l| l.trim())
+        .map(|l| normalize_fetch_line(l.trim()))
         .filter(|l| !l.is_empty())
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn normalize_fetch_line(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\u{00a0}' | '\u{202f}' | '\u{2007}' | '\u{feff}' => out.push(' '),
+            '\t' => {
+                if matches!(chars.peek(), Some(' ' | '\u{00a0}')) {
+                    chars.next();
+                }
+                out.push_str(" | ");
+            }
+            other => out.push(other),
+        }
+    }
+    out
 }
 
 /// Same as fetch_url_text but injects search-session cookies before navigation.
@@ -353,17 +377,22 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                 page.settle(wait * 1000).await;
             }
             // #66: text formats only — the HTML format returns the document
-            // itself, never empty.
-            if !matches!(req.format, OutputFormat::Html)
-                && !wait_for_rendered_text(&mut page, req.selector.as_deref()).await
-            {
-                tracing::warn!(
-                    url = %req.url,
-                    html_bytes = page.content().len(),
-                    "browser tier: page still has no text after {}ms of grace",
-                    EMPTY_TEXT_GRACE_MS
-                );
-            }
+            // itself, never empty. The string is kept: the content match
+            // below must not walk innerText a second time.
+            let rendered = if matches!(req.format, OutputFormat::Html) {
+                String::new()
+            } else {
+                let text = wait_for_rendered_text(&mut page, req.selector.as_deref()).await;
+                if text.trim().is_empty() {
+                    tracing::warn!(
+                        url = %req.url,
+                        html_bytes = page.content().len(),
+                        "browser tier: page still has no text after {}ms of grace",
+                        EMPTY_TEXT_GRACE_MS
+                    );
+                }
+                text
+            };
 
             // Cost knobs (#279) — the explicit opt-in for expensive work,
             // logged so the bill is observable. Layout first: the forced
@@ -434,7 +463,7 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             let (content, sanitize_report) = match req.format {
                 OutputFormat::Html => (page.content(), None),
                 OutputFormat::Text | OutputFormat::Markdown => {
-                    let raw = rendered_text(&mut page, req.selector.as_deref());
+                    let raw = rendered;
                     if !req.sanitize {
                         (raw, None)
                     } else {
@@ -475,7 +504,16 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             // CAPTCHA detection and optional auto-solve.
             let captcha_event = {
                 let final_url = page.url();
-                let html_snapshot = page.content();
+                // A challenge interstitial is a short document. Serializing
+                // outerHTML of a page that already yielded a long body
+                // (GitHub, an RFC) only to scan for a widget marker holds
+                // the response past the client's read timeout. URL checks
+                // still run against an empty body.
+                let html_snapshot = if content.len() > 8_000 {
+                    String::new()
+                } else {
+                    page.content()
+                };
                 crate::captcha::detect_and_maybe_solve(&final_url, &html_snapshot).await
             };
 
@@ -691,4 +729,29 @@ pub fn do_eval(req: EvalRequest) -> Result<EvalResponse> {
             })
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::collapse_whitespace;
+
+    #[test]
+    fn nbsp_in_a_title_reads_as_a_normal_space() {
+        let raw = "Cascading Style Sheets Level 2 Revision 1 (CSS\u{00a0}2.1) Specification\n";
+        let text = collapse_whitespace(raw);
+        assert!(
+            text.contains("(CSS 2.1) Specification"),
+            "nbsp must fold to a space, got {text:?}"
+        );
+        assert!(!text.contains('\u{00a0}'));
+    }
+
+    #[test]
+    fn table_cell_tabs_become_markdown_pipes() {
+        let raw = "Company\t Contact\t Country\nAlfreds Futterkiste\t Maria Anders\t Germany\n";
+        let text = collapse_whitespace(raw);
+        assert!(text.contains("Company | Contact | Country"), "got {text:?}");
+        assert!(text.contains("Alfreds Futterkiste | Maria Anders | Germany"));
+        assert!(!text.contains('\t'));
+    }
 }
