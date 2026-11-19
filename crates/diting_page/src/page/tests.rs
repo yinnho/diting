@@ -2278,6 +2278,44 @@ async fn on_request_and_on_response_fire_for_document_and_subresources() {
     );
 }
 
+/// `<base href>` rebases a relative stylesheet the same way it rebases
+/// a script. Angular Material ships `<base href="/">` and
+/// `href="styles-….css"`; joining that against the document path fetched
+/// a 404 under `/components/…` and held commit for the sheet budget.
+#[tokio::test(flavor = "current_thread")]
+async fn stylesheet_href_resolves_against_base_href() {
+    let _g = net_test_guard();
+    let port = local_http_server(vec![
+        (
+            "/components/autocomplete/examples",
+            200,
+            "<html><head><base href=\"/\"><link rel=\"stylesheet\" href=\"styles.css\"></head>\
+             <body><div class=\"box\">x</div></body></html>"
+                .into(),
+        ),
+        ("/styles.css", 200, ".box{position:absolute}".into()),
+        (
+            "/components/autocomplete/styles.css",
+            200,
+            ".box{position:fixed}".into(),
+        ),
+    ]);
+    let mut p = test_page();
+    p.navigate(&format!(
+        "http://127.0.0.1:{port}/components/autocomplete/examples"
+    ))
+    .await
+    .unwrap();
+    assert_eq!(
+        p.evaluate("document.styleSheets[0].cssRules[0].cssText"),
+        serde_json::json!(".box { position: absolute; }")
+    );
+    assert_eq!(
+        p.evaluate("document.styleSheets[0].href"),
+        serde_json::json!(format!("http://127.0.0.1:{port}/styles.css"))
+    );
+}
+
 /// External stylesheets fetched at navigation must reach three places:
 /// the cascade (getComputedStyle), document.styleSheets' rule lists, and
 /// the `__diting_css` global. Before the ext_sheets plumbing the fetch

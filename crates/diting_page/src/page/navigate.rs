@@ -28,6 +28,33 @@ pub(super) fn cross_scheme_to_file(from: &str, to: &str) -> bool {
         .unwrap_or(true)
 }
 
+/// Document base for a commit-time stylesheet. The first `<base href>` in
+/// the parse tree, resolved against the document URL; otherwise the
+/// document URL. These sheets are fetched before the JS realm owns the
+/// DOM, so this reads the parse tree directly — the same rule as
+/// [`Page::resolve_base_url`].
+fn stylesheet_base(doc_url: &Url, dom: &DomTree) -> Url {
+    // Tag walk, not `base[href]`: the attribute form does not match on this
+    // parse tree, so a present <base href="/"> was ignored and the sheet
+    // was joined against the document path.
+    let href = dom
+        .query_selector_all("base")
+        .ok()
+        .into_iter()
+        .flatten()
+        .find_map(|nid| {
+            dom.get_node(nid).and_then(|n| {
+                n.get_attribute("href")
+                    .map(|s| s.to_string())
+                    .filter(|s| !s.is_empty())
+            })
+        });
+    match href {
+        Some(href) => doc_url.join(&href).unwrap_or_else(|_| doc_url.clone()),
+        None => doc_url.clone(),
+    }
+}
+
 /// Chrome renders a response whose MIME says "this is not HTML" as a plain
 /// text document: body is a single `<pre>` holding the source verbatim, so
 /// newlines survive and markup characters stay inert. Feeding the bytes to
@@ -1029,11 +1056,12 @@ impl Page {
             })
             .collect();
 
+        let sheet_base = self.url.as_ref().map(|doc| stylesheet_base(doc, &dom));
         let mut css_fetch_urls: Vec<String> = Vec::new();
         for href in &stylesheet_urls {
             let full_url = if href.starts_with("http://") || href.starts_with("https://") {
                 href.clone()
-            } else if let Some(base) = &self.url {
+            } else if let Some(base) = &sheet_base {
                 base.join(href)
                     .map(|u| u.to_string())
                     .unwrap_or_else(|_| href.clone())

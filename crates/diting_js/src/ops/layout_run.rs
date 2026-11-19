@@ -36,6 +36,31 @@ pub(crate) type LayoutRun = (
     Vec<diting_layout::StickySpan>,
 );
 
+/// Document base for a `<link rel=stylesheet>` href. The first `<base href>`
+/// in the tree, resolved against the document URL; otherwise the document
+/// URL. Same rule as the commit-time sheet fetch.
+#[cfg(feature = "screenshot")]
+fn sheet_base_url(dom: &DomTree, doc_url: &str) -> Option<Url> {
+    let doc = Url::parse(doc_url).ok()?;
+    let href = dom
+        .query_selector_all("base")
+        .ok()
+        .into_iter()
+        .flatten()
+        .find_map(|nid| {
+            dom.with_node(nid, |n| {
+                n.get_attribute("href")
+                    .map(|s| s.to_string())
+                    .filter(|s| !s.is_empty())
+            })
+            .flatten()
+        });
+    match href {
+        Some(href) => doc.join(&href).ok().or(Some(doc)),
+        None => Some(doc),
+    }
+}
+
 /// Run the full diting style + layout pipeline over the live DOM tree and
 /// return every element's border-box rect, the paint order (see
 /// `layout_dom_with_paint_order_and_images`) and the cascaded ComputedStyle
@@ -102,8 +127,7 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree, solve: bool) -> Layout
                         continue;
                     };
                     let doc_url = gs.document.url();
-                    let abs = Url::parse(&doc_url)
-                        .ok()
+                    let abs = sheet_base_url(dom, &doc_url)
                         .and_then(|base| base.join(&href).ok())
                         .map(|u| u.to_string());
                     let Some(abs) = abs else { continue };

@@ -111,7 +111,7 @@ function __prepareInsertedStylesheetLink(link) {
   const raw = link.getAttribute('href');
   if (!raw) return;
   let abs;
-  try { abs = new URL(raw, globalThis.location?.href || 'http://localhost/').href; } catch (e) { return; }
+  try { abs = new URL(raw, (globalThis.document && document.baseURI) || globalThis.location?.href || 'http://localhost/').href; } catch (e) { return; }
   // One fetch per (element, URL); a later href change re-enters with the new
   // URL and starts a fresh load, like the browser.
   if (link._sheetLoadUrl === abs) return;
