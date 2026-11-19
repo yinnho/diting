@@ -175,12 +175,19 @@ fn rendered_text(page: &mut crate::page::Page, selector: Option<&str>) -> String
             // reveals it — body.innerText is then just the title/byline shell
             // (v0.3.1 report P1-3: 133 chars where the article is 981). Per
             // spec a not-rendered element's own innerText is its textContent,
-            // so the container read still carries the article. Whichever
-            // extraction is richer wins: once the reveal does run, body
-            // reclaims the article (plus the byline lines) and matches anyway.
+            // so the container read still carries the article. GitHub does
+            // the same with `.markdown-body`: the README is in the DOM, an
+            // ancestor is still hidden, and body.innerText is only the nav.
+            // Append any such container the body text does not already
+            // contain, and put document.title on the front when the heading
+            // never made it into the rendered text (example.com's h1).
             "(function(){var b=document.body?document.body.innerText:'';\
-             var c=document.querySelector('#js_content');var a=c?c.innerText:'';\
-             return (a.trim().length>b.trim().length)?a:b;})()"
+             var nodes=document.querySelectorAll('article.markdown-body,.markdown-body,#readme,#js_content');\
+             for(var i=0;i<nodes.length;i++){var a=nodes[i].innerText||'';var probe=a.trim().slice(0,80);\
+             if(probe&&b.indexOf(probe)<0)b+='\\n'+a;}\
+             var title=(document.title||'').trim();\
+             if(title&&b.indexOf(title)<0)b=title+'\\n'+b;\
+             return b;})()"
                 .to_string()
         }
     };
