@@ -255,9 +255,9 @@ impl Page {
     /// script fetches land and execute, inflight XHR/fetch resolve, and
     /// timers tick. Bounded twice over — a 500ms fast path for pages with
     /// nothing pending, and `DITING_DYNAMIC_SCRIPT_SETTLE_MS`
-    /// (default 3s) while a dynamic script fetch is still in flight, so
-    /// normal pages and unrelated fetches retain the fast path (upstream
-    /// a6bb741).
+    /// (default 3s) while a dynamic script fetch or an ES `import()` is
+    /// still in flight, so normal pages and unrelated fetches retain the
+    /// fast path (upstream a6bb741).
     pub(super) async fn settle_pending_work(&mut self) {
         let Some(js) = self.js.as_mut() else { return };
         let dynamic_settle_ms = std::env::var("DITING_DYNAMIC_SCRIPT_SETTLE_MS")
@@ -284,7 +284,7 @@ impl Page {
         let mut idle_count = 0u32;
         loop {
             let now = tokio::time::Instant::now();
-            if now >= deadline && (now >= dynamic_deadline || !js.has_pending_dynamic_scripts()) {
+            if now >= deadline && (now >= dynamic_deadline || !js.has_pending_module_load()) {
                 break;
             }
             let result =
@@ -293,7 +293,7 @@ impl Page {
 
             match result {
                 Ok(Ok(())) => {
-                    if self.http_client.active_requests() == 0 {
+                    if self.http_client.active_requests() == 0 && !js.has_pending_module_load() {
                         idle_count += 1;
                         if idle_count >= 2 {
                             break;
@@ -311,8 +311,7 @@ impl Page {
                     // when nothing is in flight and nothing fires inside
                     // the rest of the fast-path window, waiting it out
                     // only adds latency.
-                    if self.http_client.active_requests() == 0 && !js.has_pending_dynamic_scripts()
-                    {
+                    if self.http_client.active_requests() == 0 && !js.has_pending_module_load() {
                         let left = deadline
                             .saturating_duration_since(tokio::time::Instant::now())
                             .as_millis() as u64;

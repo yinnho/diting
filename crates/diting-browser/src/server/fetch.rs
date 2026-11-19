@@ -144,8 +144,11 @@ pub(crate) async fn maybe_bypass_byte_waf(page: &mut crate::page::Page) -> Resul
 /// load). A finished shell, or a page whose next timer is further out,
 /// pays nothing.
 const EMPTY_TEXT_GRACE_MS: u64 = 6_000;
-/// Bytes. ASCII pages under this are "short"; a longer body is done.
-const SHORT_TEXT_BYTES: usize = 1_200;
+/// Characters. ASCII pages under this are "short"; a longer body is done.
+/// Counted in chars, not bytes: a Chinese nav shell is ~1100 characters
+/// and ~1800 UTF-8 bytes, and the byte check used to treat that shell as
+/// the finished document (Arco's component page).
+const SHORT_TEXT_CHARS: usize = 1_200;
 /// A title-only shell. Doc sites (EUI, PrimeNG) used to be read after the
 /// app painted; giving up on the first empty sample is what made them
 /// regress. Anything longer than a title is a finished short page.
@@ -154,7 +157,32 @@ const SHELL_BYTES: usize = 200;
 /// heartbeat is not, so the grace does not idle out on analytics timers.
 const SOON_WORK_MS: u64 = 3_500;
 
+/// A body under [`SHORT_TEXT_CHARS`]. Byte length is only a fast path:
+/// anything past four bytes per character cannot still be short, and a
+/// pure-ASCII page never pays for a char walk.
+fn rendered_text_is_short(text: &str) -> bool {
+    if text.len() < SHORT_TEXT_CHARS {
+        return true;
+    }
+    if text.len() >= SHORT_TEXT_CHARS * 4 {
+        return false;
+    }
+    text.chars().count() < SHORT_TEXT_CHARS
+}
+
 fn page_has_soon_work(page: &mut crate::page::Page) -> bool {
+    // A route `import()` or a stylesheet preload is invisible to the
+    // in-page fetch map. Arco's table doc is that chunk: the shell is
+    // already ~1KB, and a quiet probe used to return it before the
+    // README module arrived.
+    if page
+        .inner
+        .js
+        .as_ref()
+        .is_some_and(|js| js.has_pending_module_load())
+    {
+        return true;
+    }
     // Missing probe reads as "nothing pending" so a realm without the
     // helper does not sit out the whole grace.
     let expr = format!(
@@ -174,7 +202,7 @@ async fn wait_for_rendered_text(page: &mut crate::page::Page, selector: Option<&
         // (GitHub, WHATWG) is what pushes the response past the client
         // read timeout after the navigation deadline already fired.
         let text = rendered_text(page, selector);
-        if text.len() >= SHORT_TEXT_BYTES || std::time::Instant::now() >= deadline {
+        if !rendered_text_is_short(&text) || std::time::Instant::now() >= deadline {
             return text;
         }
         // Title-only shells keep pumping for the whole grace. A probe that
@@ -780,7 +808,16 @@ pub fn do_eval(req: EvalRequest) -> Result<EvalResponse> {
 
 #[cfg(test)]
 mod tests {
-    use super::collapse_whitespace;
+    use super::{collapse_whitespace, rendered_text_is_short};
+
+    #[test]
+    fn chinese_nav_shell_is_still_short() {
+        let shell = "开发指南".repeat(200);
+        assert!(shell.len() > 1_200);
+        assert!(shell.chars().count() < 1_200);
+        assert!(rendered_text_is_short(&shell));
+        assert!(!rendered_text_is_short(&"a".repeat(1_200)));
+    }
 
     #[test]
     fn nbsp_in_a_title_reads_as_a_normal_space() {
