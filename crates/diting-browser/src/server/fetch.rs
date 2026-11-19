@@ -146,6 +146,10 @@ pub(crate) async fn maybe_bypass_byte_waf(page: &mut crate::page::Page) -> Resul
 const EMPTY_TEXT_GRACE_MS: u64 = 6_000;
 /// Bytes. ASCII pages under this are "short"; a longer body is done.
 const SHORT_TEXT_BYTES: usize = 1_200;
+/// A title-only shell. Doc sites (EUI, PrimeNG) used to be read after the
+/// app painted; giving up on the first empty sample is what made them
+/// regress. Anything longer than a title is a finished short page.
+const SHELL_BYTES: usize = 200;
 /// `settle_quiet` window. A 3s delayed paint is still pending; a 5s
 /// heartbeat is not, so the grace does not idle out on analytics timers.
 const SOON_WORK_MS: u64 = 3_500;
@@ -170,8 +174,12 @@ async fn wait_for_rendered_text(page: &mut crate::page::Page, selector: Option<&
         // (GitHub, WHATWG) is what pushes the response past the client
         // read timeout after the navigation deadline already fired.
         let text = rendered_text(page, selector);
-        let short = text.len() < SHORT_TEXT_BYTES;
-        if !short || std::time::Instant::now() >= deadline || !page_has_soon_work(page) {
+        if text.len() >= SHORT_TEXT_BYTES || std::time::Instant::now() >= deadline {
+            return text;
+        }
+        // Title-only shells keep pumping for the whole grace. A probe that
+        // fails on a wedged realm must not look like "nothing is coming".
+        if text.len() >= SHELL_BYTES && !page_has_soon_work(page) {
             return text;
         }
         page.pump_event_loop_slice(250).await;
@@ -211,7 +219,8 @@ fn rendered_text(page: &mut crate::page::Page, selector: Option<&str>) -> String
              var probe=a.trim().slice(0,80);if(probe&&b.indexOf(probe)<0)b+='\\n'+a;\
              addFrames(child,depth+1);}}\
              addFrames(document,0);\
-             var nodes=document.querySelectorAll('article.markdown-body,.markdown-body,#readme,#js_content');\
+             var nodes=document.querySelectorAll('article.markdown-body,.markdown-body,#readme,#js_content,article,main,.theme-doc-markdown');\
+             if(nodes.length>8)nodes=Array.prototype.slice.call(nodes,0,8);\
              for(var i=0;i<nodes.length;i++){var a=nodes[i].innerText||'';var probe=a.trim().slice(0,80);\
              if(probe&&b.indexOf(probe)<0)b+='\\n'+a;}\
              var title=(document.title||'').trim();\
