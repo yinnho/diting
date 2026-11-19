@@ -90,6 +90,9 @@ pub fn should_auto_proxy(url: &str) -> bool {
         "developer.mozilla.org",
         "ycombinator.com",
         "algolia.com",
+        // Direct from CN the docs answer "Service unavailable in your
+        // region"; the article is on the other side of DITING_PROXY.
+        "lexmount.com",
     ];
 
     for domain in BLOCKED_DOMAINS {
@@ -312,6 +315,9 @@ mod tests {
             "https://api.github.com/search/repositories"
         ));
         assert!(should_auto_proxy("https://export.arxiv.org/api/query"));
+        assert!(should_auto_proxy(
+            "https://browser.lexmount.com/docs/webfetch/quickstart"
+        ));
         assert!(!should_auto_proxy("https://notwikipedia.org/"));
         assert!(!should_auto_proxy("https://example.com/"));
         assert!(!should_auto_proxy("not a url"));
