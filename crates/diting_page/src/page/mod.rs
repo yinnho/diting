@@ -334,6 +334,14 @@ impl Page {
         self.document.title()
     }
 
+    /// The committed document's declared content type (response header
+    /// value, or empty when none arrived). Callers use it to refuse
+    /// non-text documents before rendering — a PDF HTML-parsed into a
+    /// DOM is megabytes of binary soup in every text face.
+    pub fn content_type(&self) -> String {
+        self.document.content_type()
+    }
+
     /// Write the live document, or the in-flight draft when a navigation
     /// is already staging. `navigate_blank`'s caller sets the live title
     /// before any draft exists.

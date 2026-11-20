@@ -176,6 +176,14 @@ const SHELL_BYTES: usize = 200;
 /// fill it. The 6s short-text grace returns the toolbar if the examples
 /// import starts during the gap after the sidenav graph evaluates.
 const ROUTE_SHELL_GRACE_MS: u64 = 15_000;
+/// Grace for the long-shell trap: doc sites (docusaurus class — EUI) paint
+/// a multi-KB sidebar/nav first, so the body passes the "not short" bar
+/// while `main` is still an empty route outlet. An empty main is not by
+/// itself a work signal (a wedged realm must not idle the whole route
+/// grace), so it pumps this long and then accepts the shell. Docusaurus
+/// pages whose SSR HTML fails hydration (React #418/#423) fall back to a
+/// full client render — cold loads through a proxy need the full window.
+const MAIN_OUTLET_GRACE_MS: u64 = 8_000;
 /// `settle_quiet` window. A 3s delayed paint is still pending; a 5s
 /// heartbeat is not, so the grace does not idle out on analytics timers.
 const SOON_WORK_MS: u64 = 3_500;
@@ -236,21 +244,48 @@ fn router_outlet_unfilled(page: &mut crate::page::Page) -> bool {
     .unwrap_or(false)
 }
 
-async fn wait_for_rendered_text(page: &mut crate::page::Page, selector: Option<&str>) -> String {
+/// The docusaurus-class shell: a long sidebar makes the body read as
+/// "done" while the routed document has not mounted yet. `main` (or
+/// `[role=main]`) exists but carries (almost) no text. No main element is
+/// not this case — pages that use neither keep their old behavior.
+fn main_outlet_unfilled(page: &mut crate::page::Page) -> bool {
+    page.evaluate(
+        "(function(){\
+            var m=document.querySelector('main,[role=main]');\
+            if(!m) return false;\
+            var t=(m.innerText||'').replace(/\\s+/g,' ').trim();\
+            return t.length<40;\
+        })()",
+    )
+    .as_bool()
+    .unwrap_or(false)
+}
+
+async fn wait_for_rendered_text(
+    page: &mut crate::page::Page,
+    selector: Option<&str>,
+    links: bool,
+) -> String {
     let started = std::time::Instant::now();
     loop {
         // Keep this string. A second innerText walk of the same document
         // (GitHub, WHATWG) is what pushes the response past the client
         // read timeout after the navigation deadline already fired.
-        let text = rendered_text(page, selector);
-        let unfilled = router_outlet_unfilled(page);
+        let text = rendered_text(page, selector, links);
+        let outlet_empty = main_outlet_unfilled(page);
+        let unfilled = router_outlet_unfilled(page) || outlet_empty;
         let soon = page_has_soon_work(page);
         let grace = if unfilled && soon {
             std::time::Duration::from_millis(ROUTE_SHELL_GRACE_MS)
+        } else if outlet_empty {
+            std::time::Duration::from_millis(MAIN_OUTLET_GRACE_MS)
         } else {
             std::time::Duration::from_millis(EMPTY_TEXT_GRACE_MS)
         };
-        if !rendered_text_is_short(&text) || started.elapsed() >= grace {
+        // A long body is done — unless its main outlet is still empty and
+        // the route grace has not expired: that body is the sidebar, not
+        // the document.
+        if ((!rendered_text_is_short(&text) && !outlet_empty) || started.elapsed() >= grace) {
             return text;
         }
         // Title-only shells keep pumping for the whole grace. A probe that
@@ -263,7 +298,225 @@ async fn wait_for_rendered_text(page: &mut crate::page::Page, selector: Option<&
     }
 }
 
-fn rendered_text(page: &mut crate::page::Page, selector: Option<&str>) -> String {
+/// Inline link splice for the markdown body read (see `rendered_text`).
+///
+/// `document.body.innerText` carries labels but never destinations, yet
+/// markdown consumers (agents, list/detail extraction) score named
+/// `[label](url)` records — and scoped contracts only count records inside
+/// their own page section, so a links appendix at the end of the content
+/// scores nothing. This pass walks `a[href]` in DOM order (visible anchors
+/// only, computed-style display/visibility memoized up the ancestor chain),
+/// finds each label's own position in the body text (whitespace-collapsed
+/// view with an index map back into the raw string), and splices the
+/// markdown link in place. Labels with no position in the text fall back to
+/// a tail appendix.
+/// Markdown face of a rendered page, spliced into `b` (the body innerText)
+/// at each element's own text position — see `rendered_text`.
+///
+/// Two splice families share one edit list:
+/// - `a[href]` anchors become `[label](url)` at the label's own position, so
+///   scoped list sections keep owning their records. Labels drop
+///   screen-reader-only runs (`(external, opens in a new tab)`) and hidden
+///   anchors are skipped (computed-style walk, memoized with `__dlv`).
+/// - `<table>`s become pipe tables that REPLACE the table's own text span
+///   (anchored on the collapsed header-row and last-row text), because
+///   innerText's cell-per-line face scores as neither a markdown table nor
+///   a plain row — and appending them at the end puts them outside the
+///   start/end scope most table contracts cut. A table whose span cannot
+///   be located falls back to the tail appendix.
+///
+/// Edits apply back-to-front by raw offset (see the sort); table spans
+/// occupy their interval first so link matches inside a table are not
+/// spliced into its cells (the pipe table already carries the cell text).
+const MARKDOWN_SPLICE_JS: &str = r#"
+try{window.__dsOrig=b;}catch(e){}
+function __srText(n){
+  // Parts join with no separator: innerText concatenates inline siblings
+  // ("Lana24" + sr-only "(external…)" renders "Lana24(external…)"), and a
+  // space-joined anchor can never match the marker-joined text.
+  var parts=[];
+  (function w(x){for(var i=0;i<x.childNodes.length;i++){var c=x.childNodes[i];
+    if(c.nodeType===3){parts.push(c.nodeValue);continue;}
+    if(c.nodeType!==1)continue;
+    var cl=c.className;if(cl&&cl.baseVal!==undefined)cl=cl.baseVal;
+    if(/sr-only|screen.?reader|visually-hidden/i.test(cl||'')||c.getAttribute('aria-hidden')==='true')continue;
+    w(c);}})(n);
+  return parts.join('');
+}
+function __allText(n){
+  // Every text node, sr-only included: the span window must budget what raw
+  // innerText actually holds. EUI rows carry ~45 chars of sr-only copy text
+  // per link cell; a DOM-visible-only estimate undershoots by hundreds of
+  // chars over a 10-row table and the tail anchor then falls outside the
+  // window (table gets tailed instead of replaced in place).
+  var parts=[];
+  (function w(x){for(var i=0;i<x.childNodes.length;i++){var c=x.childNodes[i];
+    if(c.nodeType===3){parts.push(c.nodeValue);continue;}
+    if(c.nodeType===1)w(c);}})(n);
+  return parts.join('');
+}
+var __marks=[],__tables=[];
+var __all=document.querySelectorAll('a[href]');
+var __an=Math.min(__all.length,500);
+for(var __i=0;__i<__an;__i++){
+  var __a=__all[__i];
+  var __h='';try{__h=__a.href||'';}catch(e){}
+  if(__h.indexOf('http://')!==0&&__h.indexOf('https://')!==0){__h=(__a.getAttribute('href')||'').trim();if(!__h)continue;}
+  var __lab=__srText(__a).replace(/\s+/g,' ').trim();
+  if(!__lab)continue;
+  var __el=__a,__hid=false;
+  while(__el&&__el.nodeType===1){
+    if(__el.__dlv===1)break;
+    if(__el.__dlv===2){__hid=true;break;}
+    var __cs=null;try{__cs=getComputedStyle(__el);}catch(e){}
+    if(__cs&&(__cs.display==='none'||__cs.visibility==='hidden'||__cs.visibility==='collapse')){__el.__dlv=2;__hid=true;break;}
+    __el=__el.parentElement;
+  }
+  if(__hid)continue;
+  if(__lab.length>160)__lab=__lab.slice(0,160);
+  __marks.push([__lab,__h]);
+}
+var __TRIM=/^[\s←-⇿⌀-⏿■-◿☀-➿︎️​-‏]+|[\s←-⇿⌀-⏿■-◿☀-➿︎️​-‏]+$/g;
+function __cellText(el){return __srText(el).replace(/\s+/g,' ').trim().replace(__TRIM,'').replace(/\|/g,'\\|');}
+function __rowText(cells,trim){var p=[];for(var i=0;i<cells.length;i++){var t=__srText(cells[i]).replace(/\s+/g,' ').trim();p.push(trim?t.replace(__TRIM,''):t);}return p.join(' ');}
+function __hiddenTree(el){
+  while(el&&el.nodeType===1){
+    var cs=null;try{cs=getComputedStyle(el);}catch(e){}
+    if(cs&&(cs.display==='none'||cs.visibility==='hidden'||cs.visibility==='collapse'))return true;
+    el=el.parentElement;
+  }
+  return false;
+}
+function __ownCells(row){
+  var cells=[];
+  var all=row.querySelectorAll('th,td,[role=cell],[role=columnheader]');
+  for(var i=0;i<all.length&&cells.length<40;i++){
+    var c=all[i],p=c.parentElement,nested=false;
+    while(p&&p!==row){
+      if(p.tagName==='TD'||p.tagName==='TH'||p.getAttribute('role')==='cell'){nested=true;break;}
+      p=p.parentElement;
+    }
+    if(!nested)cells.push(c);
+  }
+  return cells;
+}
+var __tabs=document.querySelectorAll('table,[role=table],[role=grid]');
+var __emitted=0;
+for(var __t=0;__t<__tabs.length&&__emitted<20;__t++){
+  var __tb=__tabs[__t],__p=__tb.parentElement,__nested=false;
+  while(__p){
+    if(__p.tagName==='TABLE'||__p.getAttribute('role')==='table'||__p.getAttribute('role')==='grid'){__nested=true;break;}
+    __p=__p.parentElement;
+  }
+  if(__nested||__hiddenTree(__tb))continue;
+  var __rows=__tb.querySelectorAll('tr,[role=row]');
+  if(!__rows.length)continue;
+  var __headCells=__ownCells(__rows[0]);
+  var __headers=[];
+  for(var __c=0;__c<__headCells.length;__c++)__headers.push(__cellText(__headCells[__c]));
+  if(!__headers.join('').trim())continue;
+  var __lines=['| '+__headers.join(' | ')+' |'];
+  var __sep=[];for(var __s=0;__s<__headers.length;__s++)__sep.push('---');
+  __lines.push('| '+__sep.join(' | ')+' |');
+  var __data=0,__span=__allText(__rows[0]).length+600,__lastCells=null;
+  for(var __r=1;__r<__rows.length&&__data<100;__r++){
+    var __tr=__rows[__r],__q=__tr.parentElement,__inHead=false;
+    while(__q&&__q!==__tb){
+      if(__q.tagName==='THEAD'){__inHead=true;break;}
+      __q=__q.parentElement;
+    }
+    if(__inHead)continue;
+    var __cells=__ownCells(__tr);
+    if(!__cells.length)continue;
+    var __vals=[];
+    for(var __v=0;__v<__cells.length;__v++)__vals.push(__cellText(__cells[__v]));
+    __lines.push('| '+__vals.join(' | ')+' |');
+    __span+=__allText(__tr).length+32;
+    __lastCells=__cells;__data++;
+  }
+  if(__data>0&&__lastCells){
+    __tables.push({md:__lines.join('\n'),
+      head:__rowText(__headCells,false).trim(),head2:__rowText(__headCells,true).trim(),
+      tail:__rowText(__lastCells,false).trim(),tail2:__rowText(__lastCells,true).trim(),
+      span:__span});
+    __emitted++;
+  }
+}
+if((__marks.length||__tables.length)&&b.length<500000){
+  // The match view collapses whitespace runs to single spaces. EUI-class
+  // grids also plant sr-only copy markers (↦ between cells, ↵ after rows)
+  // that innerText carries — collapse those as separators too, or a
+  // space-joined anchor can never match the marker-joined text.
+  var __nb='',__map=[],__run=false;
+  for(var __j=0;__j<b.length;__j++){
+    var __c2=b.charAt(__j);
+    var __w=/[\s↦↵]/.test(__c2);
+    if(__w){if(__run)continue;__run=true;}else __run=false;
+    __nb+=__w?' ':__c2;__map.push(__j);
+  }
+  var __used=[],__edit=[],__tail=[],__seen={},__tabFrom=0;
+  for(var __ti=0;__ti<__tables.length;__ti++){
+    var __t2=__tables[__ti];
+    var __h0=__nb.indexOf(__t2.head,__tabFrom);
+    if(__h0<0)__h0=__nb.indexOf(__t2.head2,__tabFrom);
+    var __tEnd=-1,__tLen=0;
+    if(__h0>=0){
+      var __lim=Math.min(__nb.length,__h0+__t2.span);
+      __tEnd=__nb.lastIndexOf(__t2.tail,__lim);
+      if(__tEnd>__h0)__tLen=__t2.tail.length;
+      if(__tEnd<0){__tEnd=__nb.lastIndexOf(__t2.tail2,__lim);if(__tEnd>__h0)__tLen=__t2.tail2.length;}
+    }
+    if(__h0>=0&&__tEnd>__h0){
+      var __ts0=__map[__h0],__ts1=__map[__tEnd+__tLen-1]+1;
+      // Swallow the row-end marker run right after the last cell, and
+      // verify the replaced slice really starts/ends with the anchors —
+      // an offset mismatch degrades to the tail appendix, never a splice
+      // torn out of neighbouring text.
+      while(__ts1<b.length&&/[\s↦↵]/.test(b.charAt(__ts1)))__ts1++;
+      var __chk=b.slice(__ts0,__ts1).replace(/[\s↦↵]+/g,' ').replace(/^\s+|\s+$/g,'');
+      if(__chk.indexOf(__t2.head)===0&&__chk.slice(-__t2.tail.length)===__t2.tail){
+        __edit.push([__ts0,__ts1,__t2.md,null]);
+        __used.push([__h0,__tEnd+__tLen]);
+        __tabFrom=__tEnd+__tLen;
+        continue;
+      }
+    }
+    __tail.push(__t2.md);
+  }
+  for(var __m=0;__m<__marks.length;__m++){
+    var __lab2=__marks[__m][0],__u=__marks[__m][1],__k=__lab2+'\u0000'+__u;
+    if(__seen[__k])continue;__seen[__k]=1;
+    var __from=0,__idx=-1;
+    while(true){
+      __idx=__nb.indexOf(__lab2,__from);
+      if(__idx<0)break;
+      var __ok=true;
+      for(var __q2=0;__q2<__used.length;__q2++){
+        if(__idx<__used[__q2][1]&&__used[__q2][0]<__idx+__lab2.length){__ok=false;break;}
+      }
+      if(__ok)break;
+      __from=__idx+1;
+    }
+    if(__idx<0){__tail.push('['+__lab2.replace(/([\\[\]])/g,'\\$1')+']('+__u.replace(/([()])/g,'\\$1')+')');continue;}
+    __used.push([__idx,__idx+__lab2.length]);
+    __edit.push([__map[__idx],__map[__idx+__lab2.length-1]+1,__lab2,__u]);
+  }
+  // `__marks`/`__tables` follow DOM order, but `b` follows innerText order —
+  // they diverge on flex `order`/floats, and back-to-front splicing with a
+  // stale offset lands one link inside another's URL (unparseable markdown).
+  __edit.sort(function(__p,__q){return __p[0]-__q[0];});
+  for(var __e=__edit.length-1;__e>=0;__e--){
+    var __ed=__edit[__e];
+    // Table replacements carry their own trailing newline — the swallowed
+    // marker run was the separator to whatever follows the table.
+    var __rep=__ed[3]===null?__ed[2]+'\n':'['+__ed[2].replace(/([\\[\]])/g,'\\$1')+']('+__ed[3].replace(/([()])/g,'\\$1')+')';
+    b=b.slice(0,__ed[0])+__rep+b.slice(__ed[1]);
+  }
+  if(__tail.length)b+='\n'+__tail.join('\n');
+}
+"#;
+
+fn rendered_text(page: &mut crate::page::Page, selector: Option<&str>, links: bool) -> String {
     // innerText now carries rendered-text semantics itself (script/style/
     // display:none excluded, block boundaries as newlines), so no DOM
     // mutation is needed here — the old workaround blanked script text by
@@ -288,7 +541,19 @@ fn rendered_text(page: &mut crate::page::Page, selector: Option<&str>) -> String
             // Append any such container the body text does not already
             // contain, and put document.title on the front when the heading
             // never made it into the rendered text (example.com's h1).
-            "(function(){var b=document.body?document.body.innerText:'';\
+            //
+            // With `links` (the markdown format), MARKDOWN_SPLICE_JS runs
+            // right after the body read so `[label](url)` lands at each
+            // label's own position and `<table>`s replace their own text
+            // span with a pipe table — scoped list sections keep owning
+            // their records — before the container/nav/footer appends
+            // below.
+            let mut js = "(function(){var b=document.body?document.body.innerText:'';".to_string();
+            if links {
+                js.push_str(MARKDOWN_SPLICE_JS);
+            }
+            js.push_str(
+                "\
              function addFrames(doc,depth){if(!doc||depth>3)return;\
              var frames=doc.querySelectorAll('iframe');var n=frames.length<8?frames.length:8;\
              for(var i=0;i<n;i++){var child=null;try{child=frames[i].contentDocument;}catch(e){}\
@@ -308,12 +573,14 @@ fn rendered_text(page: &mut crate::page::Page, selector: Option<&str>) -> String
              if(b.indexOf(head)<0||(tail!==head&&b.indexOf(tail)<0))b+='\\n'+ft;}\
              var nodes=document.querySelectorAll('article.markdown-body,.markdown-body,#readme,#js_content,article,main,.theme-doc-markdown');\
              if(nodes.length>8)nodes=Array.prototype.slice.call(nodes,0,8);\
+             var orig=(typeof window!=='undefined'&&window.__dsOrig)||null;\
              for(var i=0;i<nodes.length;i++){var a=nodes[i].innerText||'';var probe=a.trim().slice(0,80);\
-             if(probe&&b.indexOf(probe)<0)b+='\\n'+a;}\
+             if(probe&&b.indexOf(probe)<0&&(!orig||orig.indexOf(probe)<0))b+='\\n'+a;}\
              var title=(document.title||'').trim();\
              if(title&&b.indexOf(title)<0)b=title+'\\n'+b;\
-             return b;})()"
-                .to_string()
+             return b;})()",
+            );
+            js
         }
     };
     let raw = page.evaluate(&js).as_str().unwrap_or("").to_string();
@@ -393,7 +660,7 @@ pub(crate) fn fetch_url_text_with_cookies(
                 || final_url.contains("wappass.baidu.com")
                 || final_url.contains("sorry.google.com")
                 || final_url.contains("challenge-platform");
-            let mut content = rendered_text(&mut page, None);
+            let mut content = rendered_text(&mut page, None, false);
             // Search bodies always get the stripper — there is no per-item
             // knob to turn it off, and a result list is exactly where a
             // poisoned page meets a model with no human in the loop.
@@ -493,6 +760,33 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                 );
             }
 
+            // Non-text documents (PDF/DOCX/…) must not reach the renderer:
+            // the HTML parser accepts the binary and every text face then
+            // carries megabytes of soup — downstream markdown consumers
+            // choke on it (the LexBench scorer's HTML tokenizer spins for
+            // CPU-hours on a 2.7MB single-line PDF body). Bytes belong to
+            // /download; text extraction is not implemented. The allow
+            // list mirrors navigate.rs `renders_as_text_document` plus the
+            // html/xhtml family; an unknown (empty) type keeps the old
+            // lenient path.
+            let content_type = page.inner.content_type();
+            if !content_type.is_empty()
+                && !content_type.starts_with("text/")
+                && content_type != "text/html"
+                && content_type != "application/xhtml+xml"
+                && content_type != "application/json"
+                && !content_type.ends_with("+json")
+                && content_type != "application/xml"
+                && !content_type.ends_with("+xml")
+                && content_type != "application/javascript"
+                && content_type != "text/javascript"
+            {
+                return Err(anyhow::anyhow!(
+                    "binary document ({content_type}): {} is not text-extractable; use /download for the bytes",
+                    req.url
+                ));
+            }
+
             // Auto-bypass Cloudflare Turnstile challenge if detected.
             if req.auto_bypass_challenge {
                 maybe_bypass_challenge(&mut page).await?;
@@ -511,13 +805,20 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             let rendered = if matches!(req.format, OutputFormat::Html) {
                 String::new()
             } else {
-                let text = wait_for_rendered_text(&mut page, req.selector.as_deref()).await;
+                // Markdown carries destinations inline and tables as in-place
+                // pipe tables (MARKDOWN_SPLICE_JS in rendered_text) —
+                // innerText alone scores as neither.
+                let text = wait_for_rendered_text(
+                    &mut page,
+                    req.selector.as_deref(),
+                    req.format == OutputFormat::Markdown,
+                )
+                .await;
                 if text.trim().is_empty() {
                     tracing::warn!(
                         url = %req.url,
                         html_bytes = page.content().len(),
-                        "browser tier: page still has no text after {}ms of grace",
-                        EMPTY_TEXT_GRACE_MS
+                        "browser tier: page still has no text after grace"
                     );
                 }
                 text
