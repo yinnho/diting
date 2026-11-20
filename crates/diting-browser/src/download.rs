@@ -372,7 +372,12 @@ fn download_dir() -> Result<PathBuf> {
         std::fs::create_dir_all(&dir)
             .with_context(|| format!("create download dir {}", dir.display()))?;
     }
-    Ok(dir)
+    // DownloadResponse::path promises an ABSOLUTE path — an HTTP consumer's
+    // cwd is a different universe, so a relative value (the "." default, or
+    // a relative DITING_DOWNLOAD_DIR) is unreadable on the caller's side.
+    // Lexical absolutization, not canonicalize: symlinked temp dirs (macOS
+    // /var → /private/var) must not rewrite the operator's configured path.
+    std::path::absolute(&dir).with_context(|| format!("absolutize download dir {}", dir.display()))
 }
 
 /// Caller-requested subdir under the download root (#232): must be relative
@@ -536,6 +541,25 @@ mod tests {
         assert!(resolve_download_subdir("/abs").is_err());
         assert!(resolve_download_subdir("\\\\srv\\share").is_err());
         assert!(resolve_download_subdir("a\0b").is_err());
+    }
+
+    /// The "." default (and any relative DITING_DOWNLOAD_DIR) used to leak a
+    /// CWD-relative path into DownloadResponse::path — the benchmark worker
+    /// in another cwd read `Path(payload["path"])` and got FileNotFoundError
+    /// on all three file-kind cases.
+    #[test]
+    fn download_dir_is_absolute_with_and_without_env() {
+        let _g = DOWNLOAD_DIR_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::remove_var("DITING_DOWNLOAD_DIR");
+        let d = download_dir().unwrap();
+        assert!(d.is_absolute());
+        assert_eq!(d, std::env::current_dir().unwrap());
+
+        std::env::set_var("DITING_DOWNLOAD_DIR", "dl-rel-fixture");
+        let d = download_dir().unwrap();
+        assert!(d.is_absolute());
+        assert!(d.ends_with("dl-rel-fixture"));
+        std::fs::remove_dir_all(&d).ok(); // created on demand above
     }
 
     #[test]
