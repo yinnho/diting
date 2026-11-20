@@ -870,6 +870,14 @@ pub(super) fn op_fetch_url_sync(
     // lets the 5s script guard and the 30s navigation deadline actually
     // return (hn.algolia.com held a fetch for 7 minutes this way).
     let isolate = state.try_borrow::<v8::IsolateHandle>().cloned();
+    // Same bit the phase watchdog and the per-script guard set at fire
+    // time. The V8 flag stays false until the op returns and unwinding
+    // starts, so polling it never aborted a parked sync XHR (Nintendo's
+    // softPickup.js then held the classic phase for 30s and the footer
+    // scripts never ran).
+    let watchdog_fired = state
+        .try_borrow::<crate::runtime::StaleTerminationFlag>()
+        .map(|flag| flag.0.clone());
     std::thread::Builder::new()
         .name("sync-xhr".to_string())
         .spawn(move || {
@@ -890,9 +898,12 @@ pub(super) fn op_fetch_url_sync(
 
     let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
     let (result, failures) = loop {
-        if isolate
+        if watchdog_fired
             .as_ref()
-            .is_some_and(|handle| handle.is_execution_terminating())
+            .is_some_and(|flag| flag.load(std::sync::atomic::Ordering::SeqCst))
+            || isolate
+                .as_ref()
+                .is_some_and(|handle| handle.is_execution_terminating())
         {
             record_failed_fetch(
                 state,

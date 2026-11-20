@@ -819,11 +819,12 @@ impl super::JsRuntime {
 
 impl super::JsRuntime {
     pub fn execute_script_guarded(&mut self, _name: &str, source: &str) -> Result<(), String> {
-        if source.len() < 10_000 {
-            self.execute_script(_name, source)
-        } else {
-            self.execute_script_with_timeout(source, std::time::Duration::from_secs(5))
-        }
+        // Every classic script, not only sources ≥10KB. A 1KB file can
+        // still park the thread in a synchronous XHR (Nintendo
+        // softPickup.js). Without this wall the phase budget is already
+        // gone by the time the transport times out, and the footer
+        // scripts after it never run.
+        self.execute_script_with_timeout(source, std::time::Duration::from_secs(5))
     }
 
     pub fn execute_script_with_timeout(
@@ -839,6 +840,7 @@ impl super::JsRuntime {
         }
 
         let isolate_handle = self.runtime.isolate_handle();
+        let stale = self.stale_termination.clone();
 
         let pair = std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
         let pair_clone = pair.clone();
@@ -851,8 +853,20 @@ impl super::JsRuntime {
             let deadline = std::time::Instant::now() + timeout;
 
             loop {
+                // A tiny script finishes before this thread reaches
+                // wait_timeout. The cancel notify is then lost, and we
+                // would sit out the whole budget (5s) on every short
+                // script — long enough to blow the classic-phase
+                // deadline and skip the scripts after it.
+                if *cancelled {
+                    return;
+                }
                 let remaining = deadline.saturating_duration_since(std::time::Instant::now());
                 if remaining.is_zero() {
+                    // Visible to a sync XHR parked in Rust. terminate_execution
+                    // alone does not flip is_execution_terminating() until
+                    // the op returns and V8 starts unwinding.
+                    stale.store(true, std::sync::atomic::Ordering::SeqCst);
                     watchdog_terminate(&isolate_handle);
                     return;
                 }
@@ -878,6 +892,18 @@ impl super::JsRuntime {
             cvar.notify_one();
         }
         let _ = watchdog.join();
+        // The 5s thread may have armed a termination the script's own
+        // catch already absorbed (sync XHR throws, then the script
+        // returns Ok). Clear it before the next script, or that script's
+        // sync XHR aborts immediately.
+        let fired = self
+            .stale_termination
+            .swap(false, std::sync::atomic::Ordering::SeqCst);
+        if fired {
+            self.runtime.revive();
+            self.termination_unwound
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
 
         match result {
             Ok(_) => Ok(()),
@@ -897,11 +923,11 @@ impl super::JsRuntime {
                     // running. cancel_terminate_execution is the same
                     // healing disarm_watchdog applies at its phase boundary.
                     self.runtime.revive();
-                    // #227: this guard arms a raw thread with no stale
-                    // flag, so the #39/#50 heals are blind to its fires —
-                    // a dispatch window beheaded here leaks _mtDepth and
-                    // every later chain defer-spins on it forever. Forward
-                    // the unwind for the next loop entry.
+                    // #227: forward the unwind for the next loop entry.
+                    // A dispatch window beheaded here leaks _mtDepth and
+                    // every later chain defer-spins on it forever. The
+                    // stale flag was already cleared above so the next
+                    // script's sync XHR is not aborted by this fire.
                     self.termination_unwound
                         .store(true, std::sync::atomic::Ordering::SeqCst);
                     tracing::warn!("Script killed after {}s timeout", timeout.as_secs());
