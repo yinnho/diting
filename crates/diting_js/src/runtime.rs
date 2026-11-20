@@ -8,6 +8,13 @@ use diting_env::env_knobs;
 /// isolate handle without taking a direct dependency on diting_runtime.
 pub use v8::IsolateHandle;
 
+/// Watchdog-fired bit shared with the sync-XHR op. The op is parked in a
+/// channel wait, so it cannot see `is_execution_terminating()` (that flag
+/// is only true while V8 is unwinding). The watchdog stores `true` here
+/// before `terminate_execution()`.
+#[derive(Clone)]
+pub(crate) struct StaleTerminationFlag(pub std::sync::Arc<std::sync::atomic::AtomicBool>);
+
 use crate::module_loader::DitingModuleLoader;
 use crate::ops::{our_decls, JsState};
 use diting_runtime::vm::Vm;
@@ -87,7 +94,9 @@ pub struct JsRuntime {
     /// a fire that lands while the session task is parked leaves the flag
     /// pending and invisible until the next V8 entry — by then it kills the
     /// op-delivery tick and drops the batch. `run_event_loop` consults THIS
-    /// flag at every poll boundary and cancels the stale termination.
+    /// flag at every poll boundary and cancels the stale termination. Sync
+    /// XHR polls the same flag: it is parked in Rust, so the V8 flag never
+    /// flips until the op returns.
     stale_termination: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// #39: set by the `run_event_loop` poll heal whenever it clears a
     /// termination. A terminate_execution unwinds the JS stack without
@@ -364,8 +373,14 @@ impl JsRuntime {
         }
         let isolate_handle = runtime.isolate_handle();
         // Sync XHR blocks this thread inside a channel wait. TerminateExecution
-        // cannot unwind that wait, so the op polls the handle and returns
-        // once a script watchdog has fired.
+        // cannot unwind that wait, and `is_execution_terminating()` stays
+        // false until V8 starts unwinding — which cannot happen until the
+        // op returns. The op polls `stale_termination`, set by the watchdog
+        // at the instant it fires.
+        let stale_termination = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        op_state
+            .borrow_mut()
+            .put(StaleTerminationFlag(stale_termination.clone()));
         op_state.borrow_mut().put(isolate_handle.clone());
         let heap_limit_state = std::sync::Arc::new(HeapLimitState::default());
         install_heap_limit_guard(
@@ -385,7 +400,7 @@ impl JsRuntime {
             stall_log_at: std::cell::Cell::new(None),
             stall_log_folded: std::cell::Cell::new(0),
             v8_active_ns: std::cell::Cell::new(0),
-            stale_termination: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            stale_termination,
             termination_unwound: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             watchdog_wedge: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             module_evaluations: HashMap::new(),

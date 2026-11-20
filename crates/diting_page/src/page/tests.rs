@@ -1401,6 +1401,51 @@ async fn nav_chain_limit_env_unblocks_long_chains() {
 
 // ---- wait semantics & network events ---------------------------------
 
+/// A 1KB classic script that sync-XHR's a socket which never answers
+/// must return inside the 5s guard, and the script after it must still
+/// run. Nintendo's softPickup.js is that shape: the unguarded request
+/// held the classic phase for 30s and the footer includes never ran.
+#[tokio::test(flavor = "current_thread")]
+async fn small_sync_xhr_does_not_skip_the_scripts_after_it() {
+    let _g = net_test_guard();
+    let stall = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let stall_port = stall.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        let mut held: Vec<std::net::TcpStream> = Vec::new();
+        while let Ok((stream, _)) = stall.accept() {
+            held.push(stream);
+        }
+    });
+    let port = local_http_server(vec![(
+        "/a",
+        200,
+        format!(
+            "<html><body>\
+             <script>\
+               try {{\
+                 var x = new XMLHttpRequest();\
+                 x.open('GET', 'http://127.0.0.1:{stall_port}/hang', false);\
+                 x.send();\
+               }} catch (e) {{}}\
+               globalThis.__sync = 'back';\
+             </script>\
+             <script>globalThis.__after = 'ran';</script>\
+             ok</body></html>"
+        ),
+    )]);
+    let mut p = test_page();
+    let started = std::time::Instant::now();
+    p.navigate(&format!("http://127.0.0.1:{port}/a"))
+        .await
+        .unwrap();
+    let elapsed = started.elapsed();
+    assert_eq!(p.evaluate("globalThis.__after"), serde_json::json!("ran"));
+    assert!(
+        elapsed < std::time::Duration::from_secs(12),
+        "sync XHR held navigation for {elapsed:?}; the 5s guard should have returned"
+    );
+}
+
 /// #203 retest shape: a stylesheet whose connection silently dies held
 /// the whole commit hostage — navigate() stayed parked in "document
 /// received, not yet committed" until the 30s nav deadline. The per-sheet
