@@ -567,6 +567,14 @@ impl StealthHttpClient {
         // category HTML). The send path already retries a reset; this covers
         // the timeout that happens after headers.
         let mut body_read_retried = false;
+        // One extra round-trip when the connection never came up. Tunnel
+        // health flaps in whole seconds — the CN proxy answers "unreachable"
+        // for one request and serves the next (LexBench run3/run4 2026-11-20:
+        // github/wikipedia 502 "upstream proxy unreachable", books.toscrape
+        // Connect/TimedOut, all fine minutes later). Connect-phase failures
+        // sent no bytes, so a re-request is safe; still gated to idempotent
+        // methods to match the other retries.
+        let mut connect_retried = false;
         // #231: hop targets with status, mirroring the plain walk so the
         // scripted-fetch face gets the same trail whichever transport served.
         let mut redirect_hops: Vec<crate::RedirectHop> = Vec::new();
@@ -830,6 +838,19 @@ impl StealthHttpClient {
                     // proxy instead of folding it into "error sending request"
                     // (obscura#491).
                     let unreachable = e.is_connect() || e.is_proxy_connect();
+                    if unreachable
+                        && !connect_retried
+                        && matches!(method, diting_wire::Method::GET | diting_wire::Method::HEAD)
+                    {
+                        connect_retried = true;
+                        tracing::info!(
+                            %current_url,
+                            "connect-phase failure ({}), one retry after 1s",
+                            e
+                        );
+                        tokio::time::sleep(std::time::Duration::from_millis(1_000)).await;
+                        continue;
+                    }
                     return Err(match (&self.proxy_url, unreachable) {
                         (Some(proxy), true) => NetError::Network(format!(
                             "upstream proxy {} unreachable while fetching {}: {} — unset DITING_PROXY to connect directly",

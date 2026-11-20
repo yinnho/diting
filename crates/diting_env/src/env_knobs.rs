@@ -93,6 +93,12 @@ pub fn should_auto_proxy(url: &str) -> bool {
         // Direct from CN the docs answer "Service unavailable in your
         // region"; the article is on the other side of DITING_PROXY.
         "lexmount.com",
+        // Scraping-practice sandbox on GCP ingress. Direct connect from CN
+        // timed out at the wire 10s budget twice (LexBench run3+run4,
+        // 2026-11-20, Connect/TimedOut) while both curl and the engine
+        // succeeded minutes later — the direct path flaps; the tunnel is
+        // stable (2.5s). Route it where the road is paved.
+        "toscrape.com",
     ];
 
     for domain in BLOCKED_DOMAINS {
