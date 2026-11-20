@@ -562,6 +562,11 @@ impl StealthHttpClient {
         }
 
         let mut redirects = Vec::new();
+        // One extra GET when the body stalls. A pooled connection can return
+        // headers and then sit silent for the 30s read clock (Kabum's ~1MB
+        // category HTML). The send path already retries a reset; this covers
+        // the timeout that happens after headers.
+        let mut body_read_retried = false;
         // #231: hop targets with status, mirroring the plain walk so the
         // scripted-fetch face gets the same trail whichever transport served.
         let mut redirect_hops: Vec<crate::RedirectHop> = Vec::new();
@@ -899,11 +904,24 @@ impl StealthHttpClient {
                 }
             }
 
-            let body = resp
-                .bytes()
-                .await
-                .map_err(|e| NetError::Network(format!("Failed to read body: {}", e)))?
-                .to_vec();
+            let body = match resp.bytes().await {
+                Ok(bytes) => bytes.to_vec(),
+                Err(e)
+                    if e.is_timeout()
+                        && !body_read_retried
+                        && matches!(
+                            method,
+                            diting_wire::Method::GET | diting_wire::Method::HEAD
+                        ) =>
+                {
+                    body_read_retried = true;
+                    tracing::debug!(%current_url, "retrying GET after body read timeout");
+                    continue;
+                }
+                Err(e) => {
+                    return Err(NetError::Network(format!("Failed to read body: {}", e)));
+                }
+            };
 
             return Ok(Response {
                 url: current_url,
