@@ -13,6 +13,7 @@ use crate::cookies::CookieJar;
 pub(crate) mod metadata;
 mod observer;
 pub mod policy;
+mod shared_pool;
 mod ssrf;
 
 pub use metadata::ResourceType;
@@ -121,6 +122,26 @@ pub fn client_builder_no_env_proxy() -> diting_wire::ClientBuilder {
     }
 }
 
+/// The option set every plain (non-stealth) client shares — the private
+/// `HttpClient` builders and `shared_pool::build` both come through here,
+/// so a shared pool entry and a private client can never drift apart.
+///
+/// Browser timeout semantics (#49), not scraper semantics: no total-cap
+/// `.timeout()` — headers get 30s from request start, then every body
+/// chunk resets the stall clock, so a large-but-live body (the xhs
+/// publish page's 32MB ffmpeg-core.wasm at real CDN speed, ~40s) streams
+/// to completion instead of dying mid-read at 30s. Plus the bug #24
+/// half-dead-pool hygiene: short idle window + TCP keepalive so a
+/// connection NAT-dropped while idle is reaped, not handed back out.
+pub(crate) fn tuned_builder(builder: diting_wire::ClientBuilder) -> diting_wire::ClientBuilder {
+    builder
+        .redirect(Policy::none())
+        .read_timeout(Duration::from_secs(30))
+        .connect_timeout(Duration::from_secs(10))
+        .pool_idle_timeout(Duration::from_secs(60))
+        .tcp_keepalive(Duration::from_secs(30))
+}
+
 #[derive(Debug, Clone)]
 pub struct Response {
     pub url: Url,
@@ -221,14 +242,14 @@ pub(crate) async fn fetch_file_url(url: &Url) -> Result<Response, NetError> {
 }
 
 pub struct HttpClient {
-    client: tokio::sync::OnceCell<Client>,
+    client: tokio::sync::OnceCell<Arc<Client>>,
     /// Direct-connect client (no proxy). Built once on first use.
-    direct_client: tokio::sync::OnceCell<Client>,
+    direct_client: tokio::sync::OnceCell<Arc<Client>>,
     /// Proxy client for known-blocked domains when no explicit proxy was
     /// configured. Built once on first auto-proxy hit from `DITING_PROXY`;
     /// `None` inside means the env var is unset (every later check falls
     /// through to the direct client without rebuilding).
-    auto_proxy_client: tokio::sync::OnceCell<Option<Client>>,
+    auto_proxy_client: tokio::sync::OnceCell<Option<Arc<Client>>>,
     proxy_url: Option<String>,
     pub cookie_jar: Arc<CookieJar>,
     pub user_agent: RwLock<String>,
@@ -325,29 +346,22 @@ impl HttpClient {
         }
     }
 
+    /// The option set every plain (non-stealth) client shares — see
+    /// [`tuned_builder`] (module level, also the shared-pool recipe).
+
     async fn get_client(&self) -> &Client {
-        self.client
+        &**self
+            .client
             .get_or_init(|| async {
-                let mut builder = self
-                    .base_builder()
-                    .redirect(Policy::none())
-                    // Browser timeout semantics (#49), not scraper semantics:
-                    // `.timeout()` caps the WHOLE request — connect through body
-                    // read — so a large-but-live body (the xhs publish page's
-                    // 32MB ffmpeg-core.wasm at real CDN speed, ~40s) is killed
-                    // mid-stream at 30s with "error decoding response body" while
-                    // every browser streams it to completion. `read_timeout` is
-                    // the browser shape: headers get 30s from request start, then
-                    // every body chunk resets the stall clock — no total cap.
-                    .read_timeout(Duration::from_secs(30))
-                    .connect_timeout(Duration::from_secs(10))
-                    // Bug #24 (long-run degradation): a pooled connection that went
-                    // half-dead while idle (NAT drop, proxy reset) used to be handed
-                    // back out and stall every subsequent request until the process
-                    // was restarted. Keep the idle window short and send TCP
-                    // keepalive so the pool reaps stale connections instead.
-                    .pool_idle_timeout(Duration::from_secs(60))
-                    .tcp_keepalive(Duration::from_secs(30));
+                // Shared-pool fast path (DITING_SHARED_POOL): the previous
+                // /fetch already paid this proxy's CONNECT + TLS — ride it.
+                if let Some(shared) = shared_pool::shared_client(
+                    shared_pool::Flavor::Proxied(self.proxy_url.clone().unwrap_or_default()),
+                    self.emulate_chrome,
+                ) {
+                    return shared;
+                }
+                let mut builder = tuned_builder(self.base_builder());
                 // No manual Accept-Encoding header: with the gzip/brotli/
                 // deflate/zstd features the client advertises and decodes on
                 // its own, by the RESPONSE's Content-Encoding (pinned by
@@ -362,36 +376,38 @@ impl HttpClient {
                     }
                 }
 
-                builder.build().expect("failed to build HTTP client")
+                Arc::new(builder.build().expect("failed to build HTTP client"))
             })
             .await
     }
 
     /// Build (once) a direct-connect client with no upstream proxy.
     async fn get_direct_client(&self) -> &Client {
-        self.direct_client
+        &**self
+            .direct_client
             .get_or_init(|| async {
-                self.base_builder()
-                    .redirect(Policy::none())
-                    // read_timeout (per-chunk stall, #49), not a total-duration
-                    // cap — see get_client.
-                    .read_timeout(Duration::from_secs(30))
-                    .connect_timeout(Duration::from_secs(10))
-                    // See get_client: short idle window + keepalive against
-                    // half-dead pooled connections (bug #24).
-                    .pool_idle_timeout(Duration::from_secs(60))
-                    .tcp_keepalive(Duration::from_secs(30))
-                    // SSRF guard: reject hostnames that resolve to a
-                    // private/loopback IP at connect time (replaces the old
-                    // TOCTOU pre-resolution check). Only on the direct client —
-                    // with a proxy, the proxy resolves target DNS and the only
-                    // local lookup is the proxy host itself, which is often
-                    // deliberately a loopback address (e.g. socks5://127.0.0.1).
-                    .dns_resolver(Arc::new(SsrfGuardResolver::new(Arc::new(
-                        std::sync::atomic::AtomicBool::new(self.allow_private_network),
-                    ))))
-                    .build()
-                    .expect("failed to build direct HTTP client")
+                if let Some(shared) = shared_pool::shared_client(
+                    shared_pool::Flavor::Direct {
+                        ssrf_private: self.allow_private_network,
+                    },
+                    self.emulate_chrome,
+                ) {
+                    return shared;
+                }
+                // SSRF guard: reject hostnames that resolve to a
+                // private/loopback IP at connect time (replaces the old
+                // TOCTOU pre-resolution check). Only on the direct client —
+                // with a proxy, the proxy resolves target DNS and the only
+                // local lookup is the proxy host itself, which is often
+                // deliberately a loopback address (e.g. socks5://127.0.0.1).
+                Arc::new(
+                    tuned_builder(self.base_builder())
+                        .dns_resolver(Arc::new(SsrfGuardResolver::new(Arc::new(
+                            std::sync::atomic::AtomicBool::new(self.allow_private_network),
+                        ))))
+                        .build()
+                        .expect("failed to build direct HTTP client"),
+                )
             })
             .await
     }
@@ -430,26 +446,25 @@ impl HttpClient {
         };
         self.auto_proxy_client
             .get_or_init(|| async move {
-                let mut builder = self
-                    .base_builder()
-                    .redirect(Policy::none())
-                    // read_timeout (per-chunk stall, #49), not a total-duration
-                    // cap — see get_client.
-                    .read_timeout(Duration::from_secs(30))
-                    .connect_timeout(Duration::from_secs(10))
-                    .pool_idle_timeout(Duration::from_secs(60))
-                    .tcp_keepalive(Duration::from_secs(30));
+                if let Some(shared) = shared_pool::shared_client(
+                    shared_pool::Flavor::Proxied(proxy.clone()),
+                    self.emulate_chrome,
+                ) {
+                    return Some(shared);
+                }
+                let mut builder = tuned_builder(self.base_builder());
                 if let Ok(p) = diting_wire::Proxy::all(&proxy) {
                     builder = builder.proxy(p);
                 }
-                Some(
+                Some(Arc::new(
                     builder
                         .build()
                         .expect("failed to build auto-proxy HTTP client"),
-                )
+                ))
             })
             .await
             .as_ref()
+            .map(|a| &**a)
     }
 
     /// Read-only accessor for the proxy URL the client was configured with
@@ -808,6 +823,10 @@ impl HttpClient {
             default_accept,
         } = metadata_for(resource_type);
 
+        // Connect-phase retry flag (see the Err arm in the loop): tunnels
+        // flap for whole seconds; one re-request after a 1s pause converts a
+        // "proxy unreachable" blip into a pass instead of a 502.
+        let mut connect_retried = false;
         for _redirect_count in 0..max_redirects {
             let ua = self.user_agent.read().await.clone();
             let (sec_ch_ua, platform) = derive_client_hints(&ua);
@@ -1038,6 +1057,19 @@ impl HttpClient {
                     // reads as "site down" and sends the operator debugging
                     // the wrong layer (obscura#491's debugging cost).
                     let unreachable = e.is_connect() || e.is_proxy_connect();
+                    if unreachable
+                        && !connect_retried
+                        && matches!(method, diting_wire::Method::GET | diting_wire::Method::HEAD)
+                    {
+                        connect_retried = true;
+                        tracing::info!(
+                            url = %current_url,
+                            "connect-phase failure ({}), one retry after 1s",
+                            e
+                        );
+                        tokio::time::sleep(std::time::Duration::from_millis(1_000)).await;
+                        continue;
+                    }
                     return Err(match (&self.proxy_url, unreachable) {
                         (Some(proxy), true) => NetError::Network(format!(
                             "upstream proxy {} unreachable while fetching {}: {} — unset DITING_PROXY to connect directly",
