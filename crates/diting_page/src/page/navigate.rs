@@ -202,6 +202,15 @@ impl Page {
         }
     }
 
+    /// Non-consuming peek: does the page have a JS-initiated navigation
+    /// (location/form) queued and undrained? Settle loops ask this before
+    /// paying for the drain attempt.
+    pub fn has_pending_navigation(&self) -> bool {
+        self.js
+            .as_ref()
+            .is_some_and(|js| js.has_pending_navigation())
+    }
+
     /// Session-history jump queued by page JS (`history.back()` past this
     /// document's first entry, `forward()` into seeded forward entries) —
     /// an absolute index into `self.history`.
@@ -557,6 +566,88 @@ impl Page {
             return idle;
         }
         true
+    }
+
+    /// Wait until the page stops producing content. `settle(max_ms)` pumps
+    /// by duration, and on a slow tunnel the event loop goes idle between
+    /// chunk fetches (each 3-8s in flight with nothing to run), so a
+    /// short-wait extract caught pages mid-hydration — eui's demo tables
+    /// read "Loading..." at wait_secs≤5 but all render by 8s. Stability is
+    /// two signals agreeing across a whole quiet window: nothing in flight
+    /// (HTTP requests, module loads) and the body text length unchanged.
+    /// `min_ms` is the caller's floor (`wait_secs`) — never cut, whatever
+    /// the clocks say. The open-ended tail is capped at `TAIL_MS`, further
+    /// clamped by `tail_budget_ms` so a page whose navigation already ate
+    /// the caller's overall deadline (benchmark worker kills at 27s) spends
+    /// only what's left, not a fresh 9s on top.
+    pub async fn settle_content_stable(&mut self, min_ms: u64, tail_budget_ms: u64) {
+        const TAIL_MS: u64 = 9_000;
+        const WINDOW_MS: u64 = 600;
+        self.settle(min_ms).await;
+        let tail = TAIL_MS.min(tail_budget_ms);
+        let cap = tokio::time::Instant::now() + tokio::time::Duration::from_millis(tail);
+        let window = tokio::time::Duration::from_millis(WINDOW_MS);
+        let mut last = self.body_text_len().await;
+        let mut quiet_since: Option<tokio::time::Instant> = None;
+        loop {
+            if tokio::time::Instant::now() >= cap {
+                return;
+            }
+            self.settle(WINDOW_MS).await;
+            // A JS navigation queued during the settle (delayed redirect,
+            // challenge pass-through) must not rot in the queue: nothing
+            // downstream of this loop drains it in the stateless fetch
+            // path. Running it here lets the landing document join the
+            // same stability measurement; its own text length resets the
+            // quiet window. The navigation carries the page-scoped nav
+            // timeout for hang protection, like the byte-WAF drain.
+            if self.has_pending_navigation() {
+                match self.process_pending_navigation().await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        tracing::warn!("settle tail: JS navigation failed: {}", e);
+                    }
+                }
+                last = self.body_text_len().await;
+                quiet_since = None;
+                continue;
+            }
+            // Script graph pending = content is on its way (webpack chunk
+            // fetches). Arbitrary network activity is NOT a hold signal —
+            // analytics beacons keep python.org's request count above zero
+            // for the whole tail while its text stopped changing at 1s.
+            let busy = self
+                .js
+                .as_ref()
+                .is_some_and(|js| js.has_pending_module_load());
+            let len = self.body_text_len().await;
+            let now = tokio::time::Instant::now();
+            if len != last || busy {
+                last = len;
+                quiet_since = None;
+                continue;
+            }
+            match quiet_since {
+                None => quiet_since = Some(now),
+                Some(t) if now.duration_since(t) >= window => return,
+                Some(_) => {}
+            }
+        }
+    }
+
+    /// `document.body.innerText.length` as a cheap content fingerprint for
+    /// [`settle_content_stable`]. Errors (no body / wedged realm) read as 0,
+    /// which is as comparable as any other constant.
+    async fn body_text_len(&mut self) -> usize {
+        self.evaluate_remote(
+            "(document.body && document.body.innerText || '').length",
+            true,
+            false,
+        )
+        .await
+        .value
+        .and_then(|v| v.as_u64().map(|n| n as usize))
+        .unwrap_or(0)
     }
 
     /// One background event-loop slice for the idle session loop: pump the

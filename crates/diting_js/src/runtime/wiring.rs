@@ -175,6 +175,13 @@ impl JsRuntime {
         self.state.borrow_mut().pending_navigation.take()
     }
 
+    /// Non-consuming peek at [`Self::take_pending_navigation`]: a settle loop
+    /// asks this before paying for a drain attempt, so quiet pages never
+    /// enter the navigation path at all.
+    pub fn has_pending_navigation(&self) -> bool {
+        self.state.borrow().pending_navigation.is_some()
+    }
+
     /// Whether page JS ran `document.write()` since the last drain (see
     /// `JsState::pending_write_nav`).
     pub fn take_pending_write_nav(&self) -> bool {

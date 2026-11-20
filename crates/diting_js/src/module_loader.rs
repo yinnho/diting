@@ -229,7 +229,17 @@ impl ModuleLoader for DitingModuleLoader {
                 .map_err(|error| io_err(error.to_string()));
         }
 
-        let base = if referrer.is_empty() || referrer.starts_with('<') || referrer == "about:blank"
+        // V8 hands the host callback the import() call site's resource
+        // name; inside indirect-eval code (inline page scripts run through
+        // `(0, eval)` in script_prep) that value is `undefined`, and
+        // to_rust_string_lossy stringifies it as "undefined". Treat it as
+        // no-referrer — same as the bracketed internal names — and resolve
+        // against the document (Anubis v1.28's dynamic main.mjs loader and
+        // power-z.cn's magpie bridge both import() from inline eval code).
+        let base = if referrer.is_empty()
+            || referrer.starts_with('<')
+            || referrer == "about:blank"
+            || referrer == "undefined"
         {
             &self.base_url
         } else {
@@ -414,4 +424,32 @@ fn decoded_module_source(
     };
 
     Ok(ModuleSource { code })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The dynamic-import host callback stringifies an `undefined` resource
+    // name (import() called from indirect-eval code — inline page scripts in
+    // script_prep run through `(0, eval)`): "undefined" must be treated as
+    // no-referrer and resolve against the document. Anubis v1.28's main.mjs
+    // loader and power-z.cn's magpie bridge both import() that way.
+    #[test]
+    fn dynamic_import_undefined_referrer_falls_back_to_document() {
+        let loader = DitingModuleLoader::new("https://example.com/page/");
+        let spec = loader
+            .resolve("https://example.com/static/main.mjs", "undefined")
+            .expect("undefined referrer resolves against the document URL");
+        assert_eq!(spec.to_string(), "https://example.com/static/main.mjs");
+    }
+
+    #[test]
+    fn relative_specifier_under_undefined_referrer_resolves() {
+        let loader = DitingModuleLoader::new("https://example.com/page/");
+        let spec = loader
+            .resolve("./mod.js", "undefined")
+            .expect("relative specifier resolves against the document URL");
+        assert_eq!(spec.to_string(), "https://example.com/page/mod.js");
+    }
 }
