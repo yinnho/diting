@@ -73,6 +73,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 http = "1"
 url = "2"
 urlencoding = "2"
+# --- pdf salvage text extraction (server::pdf_text): PDF streams are
+# zlib (FlateDecode); workspace lock already carries flate2. ---
+flate2 = "1"
 
 # --- html / dom parsing (#42 ②: servo family vendored; htmlq = own query layer) ---
 ego-tree = "0.11"
