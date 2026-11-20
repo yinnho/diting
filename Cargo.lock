@@ -773,6 +773,7 @@ dependencies = [
  "diting_profiles",
  "diting_selectors",
  "ego-tree",
+ "flate2",
  "futures",
  "futures-util",
  "http",

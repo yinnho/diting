@@ -10,6 +10,7 @@ use crate::{
     OutputFormat,
 };
 use anyhow::{Context, Result};
+use std::sync::Arc;
 
 /// `/fetch` read ceiling. Interactive navigation stays at 30s so a hung
 /// CDP session cannot wedge the dispatcher. This path holds no session
@@ -764,9 +765,10 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             // the HTML parser accepts the binary and every text face then
             // carries megabytes of soup — downstream markdown consumers
             // choke on it (the LexBench scorer's HTML tokenizer spins for
-            // CPU-hours on a 2.7MB single-line PDF body). Bytes belong to
-            // /download; text extraction is not implemented. The allow
-            // list mirrors navigate.rs `renders_as_text_document` plus the
+            // CPU-hours on a 2.7MB single-line PDF body). PDF/DOCX asked
+            // back as text go through the salvage extractor below; anything
+            // else is refused — bytes belong to /download. The allow list
+            // mirrors navigate.rs `renders_as_text_document` plus the
             // html/xhtml family; an unknown (empty) type keeps the old
             // lenient path.
             let content_type = page.inner.content_type();
@@ -781,6 +783,44 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                 && content_type != "application/javascript"
                 && content_type != "text/javascript"
             {
+                // One exception: text-back requests for binary documents get
+                // the salvage extractor (pdf_text.rs) on bytes re-fetched
+                // over plain HTTP — same origin, same proxy decision as the
+                // navigation that discovered the type. Routed by content
+                // type AND magic bytes: raw.githubusercontent serves PDFs as
+                // application/octet-stream, so the sniff, not the mime, has
+                // the final word. Anything unextractable stays refused:
+                // bytes belong to /download.
+                if matches!(req.format, OutputFormat::Markdown | OutputFormat::Text)
+                    && (content_type.contains("pdf")
+                        || content_type.contains("wordprocessingml")
+                        || content_type == "application/octet-stream")
+                {
+                    if let Some(text) = binary_document_text(&req.url, req.use_proxy).await {
+                        tracing::info!(
+                            url = %req.url,
+                            chars = text.len(),
+                            "fetch: pdf text extracted via salvage parser"
+                        );
+                        return Ok(FetchResponse {
+                            url: page.url(),
+                            title: None,
+                            content: text,
+                            truncated: false,
+                            captcha_event: None,
+                            js_extract_result: None,
+                            tier: Some("browser"),
+                            redirected_from: Vec::new(),
+                            content_hash: None,
+                            changed_since_prev: None,
+                            sanitize_report: None,
+                            xhr: Vec::new(),
+                            media: Vec::new(),
+                            layout: None,
+                            resources: Vec::new(),
+                        });
+                    }
+                }
                 return Err(anyhow::anyhow!(
                     "binary document ({content_type}): {} is not text-extractable; use /download for the bytes",
                     req.url
@@ -984,6 +1024,43 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             })
         })
     })
+}
+
+/// Byte-fetch a binary document (PDF / DOCX) and pull its text out with the
+/// salvage extractor ([`crate::server::pdf_text`]). `None` on any failure —
+/// the caller then keeps the binary-document refusal, so a parser miss
+/// degrades to the honest error rather than a half-empty answer. Mirrors
+/// `http_fetch`'s proxy decision instead of the browser's because the bytes
+/// are the same origin the navigation just reached; no rate re-check (the
+/// navigation already counted this request).
+async fn binary_document_text(url: &str, use_proxy: bool) -> Option<String> {
+    let parsed = url::Url::parse(url).ok()?;
+    let use_proxy = use_proxy || crate::config::should_auto_proxy(url);
+    let proxy = if use_proxy {
+        crate::config::proxy_from_env()
+    } else {
+        None
+    };
+    let jar = Arc::new(diting::diting_net::CookieJar::new());
+    let mut client =
+        diting::diting_net::HttpClient::with_full_options(jar, proxy.as_deref(), false);
+    client.emulate_chrome = true;
+    let resp = client.fetch(&parsed).await.ok()?;
+    if resp.status != 200 {
+        return None;
+    }
+    let text = if resp.body.starts_with(b"%PDF") {
+        crate::server::pdf_text::pdf_to_text(&resp.body)
+    } else if resp.body.starts_with(b"PK\x03\x04") {
+        crate::server::docx_text::docx_to_text(&resp.body)
+    } else {
+        None
+    }?;
+    // A parse that yielded soup or nothing is not an answer.
+    if text.trim().len() < 200 {
+        return None;
+    }
+    Some(text)
 }
 
 /// Media-manifest probe (#232). Runs after the page settles, so img

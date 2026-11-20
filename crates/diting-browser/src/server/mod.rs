@@ -9,9 +9,15 @@
 //! Callers keep using `crate::server::…`; this module re-exports the public API.
 
 mod browser;
+/// Salvage DOCX → text (benchmark document column): zip local-file-header
+/// walk + `<w:t>` run extraction. DOCX family of the pdf_text salvage.
+mod docx_text;
 mod fetch;
 #[cfg(feature = "screenshot")]
 mod outputs;
+/// Salvage PDF → text (benchmark document column): linear object scan +
+/// ObjStm expansion + ToUnicode replay of text operators.
+mod pdf_text;
 mod search;
 
 // Façade re-exports — names exist for other modules / future callers even when
