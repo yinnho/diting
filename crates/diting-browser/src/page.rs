@@ -218,6 +218,16 @@ impl Page {
         self.inner.settle_until_idle(max_ms).await
     }
 
+    /// Wait until the page stops producing content (nothing in flight and
+    /// body text stable). `min_ms` is the never-cut floor; the tail beyond
+    /// it is clamped to `tail_budget_ms`. See
+    /// [`diting::diting_browser::Page::settle_content_stable`].
+    pub async fn settle_content_stable(&mut self, min_ms: u64, tail_budget_ms: u64) {
+        self.inner
+            .settle_content_stable(min_ms, tail_budget_ms)
+            .await
+    }
+
     /// One background event-loop slice (pump, then park when quiescent).
     /// See [`diting::diting_browser::Page::pump_event_loop_slice`].
     pub async fn pump_event_loop_slice(&mut self, ms: u64) {

@@ -169,12 +169,36 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree, solve: bool) -> Layout
         .hash(&mut hasher);
         hasher.finish()
     };
-    let (mut rules, keyframes, containers) = diting_css::parse_stylesheet_full(
-        &css,
-        (viewport_width, viewport_height),
-        gs.media_type,
-        &gs.media_overrides,
-    );
+    let cached: Option<
+        std::sync::Arc<(
+            Vec<diting_css::ParsedRule>,
+            diting_css::KeyframesMap,
+            Vec<diting_css::ContainerRule>,
+        )>,
+    > = gs
+        .sheet_parse_cache
+        .borrow()
+        .as_ref()
+        .filter(|(k, _)| *k == css_key)
+        .map(|(_, parsed)| parsed.clone());
+    let parsed = match cached {
+        // Hit: a Vec clone per run (selector compile stays lazy) instead of
+        // re-parsing the joined sheet text from scratch.
+        Some(parsed) => parsed,
+        _ => {
+            let parsed = std::sync::Arc::new(diting_css::parse_stylesheet_full(
+                &css,
+                (viewport_width, viewport_height),
+                gs.media_type,
+                &gs.media_overrides,
+            ));
+            *gs.sheet_parse_cache.borrow_mut() = Some((css_key, parsed.clone()));
+            parsed
+        }
+    };
+    // The container stage below extends the local rule list; the memo keeps
+    // the pristine parse under the Arc.
+    let (mut rules, keyframes, containers) = (parsed.0.clone(), parsed.1.clone(), parsed.2.clone());
     let t_parse = t0.elapsed();
     let mut styles_map = diting_layout::compute_styles_timed(
         dom,

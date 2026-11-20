@@ -251,6 +251,24 @@ pub struct JsState {
     /// decoded CSS text). Joined into the cascade by [`layout_run_all`]
     /// and served to the JS side as `document.styleSheets` rule content.
     pub(crate) ext_sheets: std::cell::RefCell<std::collections::HashMap<String, String>>,
+    /// Parsed-sheet memo for `layout_run_all`, keyed by the css_key (the
+    /// collected css bytes + viewport + media identity — exactly the parse
+    /// inputs). A layout run used to re-parse every stylesheet from text on
+    /// each epoch bump; a page whose text mutates per animation frame (the
+    /// Anubis PoW progress bar) then spent its whole budget in the parser
+    /// while JS starved. Rules are cloned out (selector compile stays lazy),
+    /// so a cache hit costs a Vec copy, not a re-parse.
+    #[cfg(feature = "screenshot")]
+    pub(super) sheet_parse_cache: std::cell::RefCell<
+        Option<(
+            u64,
+            std::sync::Arc<(
+                Vec<diting_css::ParsedRule>,
+                diting_css::KeyframesMap,
+                Vec<diting_css::ContainerRule>,
+            )>,
+        )>,
+    >,
     /// Real per-request timings backing
     /// `performance.getEntriesByType('resource')` (#126). Populated by the
     /// navigation pipeline (stylesheet + script fetches); the JS fetch/XHR
@@ -594,6 +612,8 @@ impl JsState {
             // getComputedStyle answers initial values and every rect-based
             // consumer (gBCR, elementFromPoint) sees unstyled geometry.
             ext_sheets: std::cell::RefCell::new(std::collections::HashMap::new()),
+            #[cfg(feature = "screenshot")]
+            sheet_parse_cache: std::cell::RefCell::new(None),
             resource_timings: std::cell::RefCell::new(Vec::new()),
         }
     }
