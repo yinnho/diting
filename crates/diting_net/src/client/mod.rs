@@ -29,6 +29,25 @@ pub use policy::{
 pub use crate::chrome_headers::derive_client_hints;
 pub use ssrf::{forbidden_after_dns, is_forbidden_base, is_forbidden_ip, SsrfGuardResolver};
 
+/// The international Accept-Language a leg advertises when the route or the
+/// variant table says so (the geo-variant class, LexBench challenge
+/// 2026-11-21): openai/shopify/canva answer a zh-CN request with a 30x
+/// straight into the localized page. A proxied leg — whose exit is anyway
+/// abroad — and a variant-table domain (see
+/// [`wants_international_language`]) speak this; every other direct leg
+/// keeps the configured default (zh-CN), and an explicit
+/// `DITING_ACCEPT_LANGUAGE` / `set_accept_language` pins all legs.
+pub const INTERNATIONAL_LANGUAGE: &str = "en-US,en;q=0.9";
+
+/// Whether the request for `url` riding `via_proxy` should advertise
+/// [`INTERNATIONAL_LANGUAGE`]: proxied legs, plus the variant table's
+/// direct-leg domains that negotiate a zh shell to zh-CN requests
+/// (`diting_env::env_knobs::en_variant_language`). A pinned language wins
+/// over both at the call sites.
+pub fn wants_international_language(url: &str, via_proxy: bool) -> bool {
+    via_proxy || diting_env::env_knobs::en_variant_language(url)
+}
+
 /// One hop a redirected request followed: the Location target and the 3xx
 /// status that sent it there. Network rows keep the REQUESTED url in
 /// `url` (#203: a taobao submit bounced to error.taobao.com used to read
@@ -256,6 +275,12 @@ pub struct HttpClient {
     /// Same default and env knob as the stealth transport (`diting_net::wreq_client`),
     /// so both transports advertise one Accept-Language (obscura #777 class).
     pub accept_language: RwLock<String>,
+    /// True once the language was explicitly chosen — `DITING_ACCEPT_LANGUAGE`
+    /// at construction or a `set_accept_language` call. Pinned means every
+    /// leg advertises it; unpinned means the language follows the route/table
+    /// (proxied and variant-table legs speak [`INTERNATIONAL_LANGUAGE`], the
+    /// rest the default zh-CN).
+    pub lang_pinned: std::sync::atomic::AtomicBool,
     pub extra_headers: RwLock<HashMap<String, String>>,
     pub in_flight: Arc<std::sync::atomic::AtomicU32>,
     /// Per-hop registry of the requests behind `in_flight` — url/method/
@@ -325,6 +350,9 @@ impl HttpClient {
             accept_language: RwLock::new(
                 std::env::var("DITING_ACCEPT_LANGUAGE")
                     .unwrap_or_else(|_| "zh-CN,zh;q=0.9".to_string()),
+            ),
+            lang_pinned: std::sync::atomic::AtomicBool::new(
+                std::env::var_os("DITING_ACCEPT_LANGUAGE").is_some(),
             ),
             extra_headers: RwLock::new(HashMap::new()),
             in_flight: Arc::new(std::sync::atomic::AtomicU32::new(0)),
@@ -420,14 +448,14 @@ impl HttpClient {
     /// page/session/CDP navigations working on the CN boundary: a session
     /// created without use_proxy used to hard-fail on wikipedia while /fetch
     /// succeeded for the same origin.
-    async fn get_client_for(&self, url: &Url) -> &Client {
+    async fn get_client_for(&self, url: &Url) -> (&Client, bool) {
         if self.proxy_url.is_some() {
-            return self.get_client().await;
+            return (self.get_client().await, true);
         }
         if let Some(c) = self.get_auto_proxy_client(url).await {
-            return c;
+            return (c, true);
         }
-        self.get_direct_client().await
+        (self.get_direct_client().await, false)
     }
 
     /// Proxied client for known-blocked domains, built once from
@@ -482,7 +510,7 @@ impl HttpClient {
     /// itself) can take one without copying the pool.
     pub async fn request_client(&self, url: &str) -> Client {
         match url::Url::parse(url) {
-            Ok(u) => self.get_client_for(&u).await.clone(),
+            Ok(u) => self.get_client_for(&u).await.0.clone(),
             Err(_) => self.get_direct_client().await.clone(),
         }
     }
@@ -683,8 +711,11 @@ impl HttpClient {
         stealth
             .set_user_agent(&self.user_agent.read().await.clone())
             .await;
+        // Non-pinning copy: the source language itself may be unpinned
+        // (route-following), and pinning here would freeze the stealth
+        // transport's proxied legs back onto zh-CN.
         stealth
-            .set_accept_language(&self.accept_language.read().await.clone())
+            .sync_accept_language(&self.accept_language.read().await.clone())
             .await;
         stealth
             .set_extra_headers(self.extra_headers.read().await.clone())
@@ -828,8 +859,22 @@ impl HttpClient {
         // "proxy unreachable" blip into a pass instead of a 502.
         let mut connect_retried = false;
         for _redirect_count in 0..max_redirects {
+            // Route picked up front: the via-proxy flag also drives the
+            // route-following Accept-Language below.
+            let (route_client, via_proxy) = self.get_client_for(&current_url).await;
             let ua = self.user_agent.read().await.clone();
             let (sec_ch_ua, platform) = derive_client_hints(&ua);
+            // Route-following language: the proxy exit carries the
+            // international variant (openai/shopify/canva redirect zh-CN
+            // straight into a localized page), the direct CN exit the
+            // localized one — unless an explicit choice pinned it.
+            let lang = if wants_international_language(current_url.as_str(), via_proxy)
+                && !self.lang_pinned.load(std::sync::atomic::Ordering::Relaxed)
+            {
+                INTERNATIONAL_LANGUAGE.to_string()
+            } else {
+                self.accept_language.read().await.clone()
+            };
             let mut headers = HeaderMap::new();
             headers.insert(
                 USER_AGENT,
@@ -843,7 +888,7 @@ impl HttpClient {
             );
             headers.insert(
                 diting_wire::header::ACCEPT_LANGUAGE,
-                HeaderValue::from_str(&self.accept_language.read().await.clone())
+                HeaderValue::from_str(&lang)
                     .unwrap_or_else(|_| HeaderValue::from_static("zh-CN,zh;q=0.9")),
             );
             headers.insert(
@@ -1019,9 +1064,7 @@ impl HttpClient {
                 _ => None,
             };
 
-            let mut req_builder = self
-                .get_client_for(&current_url)
-                .await
+            let mut req_builder = route_client
                 .request(method.clone(), current_url.as_str())
                 .headers(headers);
 
@@ -1169,6 +1212,9 @@ impl HttpClient {
 
     pub async fn set_accept_language(&self, lang: &str) {
         *self.accept_language.write().await = lang.to_string();
+        // An explicit setter pins the language on both routes.
+        self.lang_pinned
+            .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
     pub async fn set_extra_headers(&self, headers: HashMap<String, String>) {

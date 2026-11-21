@@ -226,6 +226,12 @@ pub struct StealthHttpClient {
     /// the UA to match the TLS fingerprint's advertised platform.
     pub user_agent: RwLock<String>,
     pub accept_language: RwLock<String>,
+    /// True once the language was explicitly chosen — `DITING_ACCEPT_LANGUAGE`
+    /// at construction or a `set_accept_language` call (persona override).
+    /// Pinned means every leg advertises it; unpinned means the language
+    /// follows the route/table (proxied and variant-table legs speak en-US,
+    /// the rest the default zh-CN — see `INTERNATIONAL_LANGUAGE`).
+    pub lang_pinned: AtomicBool,
     /// When true, `validate_url` lets localhost / RFC1918 / link-local hosts
     /// through on the stealth path too, and the direct client's SSRF resolver
     /// (#247) passes private resolutions. Shared with that resolver as an
@@ -386,26 +392,29 @@ impl StealthHttpClient {
                 std::env::var("DITING_ACCEPT_LANGUAGE")
                     .unwrap_or_else(|_| "zh-CN,zh;q=0.9".to_string()),
             ),
+            lang_pinned: AtomicBool::new(std::env::var_os("DITING_ACCEPT_LANGUAGE").is_some()),
             allow_private_network: allow_flag,
             block_trackers: crate::blocklist::block_trackers_from_env(),
         }
     }
 
-    /// Pick the client. An explicitly configured proxy applies to the whole
-    /// page (foreign sites), so all requests go through it. Without one,
-    /// requests go direct except known-blocked domains, which ride
-    /// `DITING_PROXY` when set — the same fallback /fetch applies, so a
-    /// stealth session page doesn't hard-fail on an origin /fetch reaches.
-    async fn select_client(&self, url: &Url) -> &diting_wire::Client {
+    /// Pick the client plus whether that route rides a proxy. An explicitly
+    /// configured proxy applies to the whole page (foreign sites), so all
+    /// requests go through it. Without one, requests go direct except
+    /// known-blocked domains, which ride `DITING_PROXY` when set — the same
+    /// fallback /fetch applies, so a stealth session page doesn't hard-fail
+    /// on an origin /fetch reaches. The flag drives the route-following
+    /// Accept-Language (proxied = en-US unless pinned).
+    async fn select_client(&self, url: &Url) -> (&diting_wire::Client, bool) {
         if let Some(p) = &self.proxied_client {
-            return p;
+            return (p, true);
         }
         if let Some(p) = &self.auto_proxied_client {
             if diting_env::env_knobs::should_auto_proxy(url.as_str()) {
-                return p;
+                return (p, true);
             }
         }
-        &self.direct_client
+        (&self.direct_client, false)
     }
 
     pub async fn fetch(&self, url: &Url) -> Result<Response, NetError> {
@@ -583,16 +592,26 @@ impl StealthHttpClient {
         let mut content_type = content_type;
 
         for _ in 0..20 {
-            let mut req = self
-                .select_client(&current_url)
-                .await
-                .request(method.clone(), current_url.as_str());
+            let (route_client, via_proxy) = self.select_client(&current_url).await;
+            let mut req = route_client.request(method.clone(), current_url.as_str());
 
             // Override the emulation's hardcoded Linux UA + en-US locale so the
             // advertised identity is internally consistent (UA platform must
             // match sec-ch-ua-platform; Chinese sites expect zh-CN).
             let ua = self.user_agent.read().await.clone();
-            let lang = self.accept_language.read().await.clone();
+            // Route-following language: the proxy exit carries the
+            // international variant (openai/shopify/canva redirect zh-CN
+            // straight into a localized page), the direct CN exit the
+            // localized one — unless an explicit choice pinned it.
+            let lang = if crate::client::wants_international_language(
+                current_url.as_str(),
+                via_proxy,
+            ) && !self.lang_pinned.load(std::sync::atomic::Ordering::Relaxed)
+            {
+                crate::client::INTERNATIONAL_LANGUAGE.to_string()
+            } else {
+                self.accept_language.read().await.clone()
+            };
             // The emulation preset bakes its own major into Sec-Ch-Ua (the
             // preset the profile table pins). The fleet UA follows
             // chrome-target — override brands to match the UA, same as the
@@ -967,6 +986,16 @@ impl StealthHttpClient {
     }
 
     pub async fn set_accept_language(&self, lang: &str) {
+        *self.accept_language.write().await = lang.to_string();
+        // An explicit setter pins the language on both routes.
+        self.lang_pinned
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Copy the language without pinning — the transport sync out of
+    /// `HttpClient` (`synced_stealth_transport`) must not freeze the
+    /// route-following behavior its own source hasn't pinned.
+    pub async fn sync_accept_language(&self, lang: &str) {
         *self.accept_language.write().await = lang.to_string();
     }
 }
