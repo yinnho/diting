@@ -461,7 +461,7 @@ async fn wait_for_rendered_text(
 /// occupy their interval first so link matches inside a table are not
 /// spliced into its cells (the pipe table already carries the cell text).
 const MARKDOWN_SPLICE_JS: &str = r#"
-try{window.__dsOrig=b;}catch(e){}
+try{if(!window.__dsOrig)window.__dsOrig=b;}catch(e){}
 function __srText(n){
   // Parts join with no separator: innerText concatenates inline siblings
   // ("Lana24" + sr-only "(external…)" renders "Lana24(external…)"), and a
@@ -692,10 +692,67 @@ if((__marks.length||__tables.length)&&b.length<500000){
     }
     __tail.push(__t2.md);
   }
+  // Code blocks (moli-html2md parity): a visible <pre> becomes a fenced block
+  // replacing its own text span. Without delimiters the example text is
+  // indistinguishable from prose — docs pages whose JSX samples carry paired
+  // tags (heroui: "<Table>…</Table>") reparse downstream as real markup, and
+  // the consumer's literal-table detector then owns the page start, hiding
+  // the true Markdown pipe table from its scoped row parser. Inline <code>
+  // stays bare: link labels built on code text (MDN method references) must
+  // keep splicing. Links inside a fenced block fall to the tail appendix —
+  // the destination survives, the example text keeps its literal face.
+  var __pres=document.querySelectorAll('pre');
+  for(var __pi=0;__pi<__pres.length&&__pi<100;__pi++){
+    var __pre=__pres[__pi];
+    if(__hiddenTree(__pre))continue;
+    var __pa=__pre.parentElement,__panc=false;
+    while(__pa){if(__pa.tagName==='A'){__panc=true;break;}__pa=__pa.parentElement;}
+    if(__panc)continue;
+    var __pt='';try{__pt=__pre.innerText||'';}catch(e){}
+    if(!__pt.replace(/\s+/g,''))continue;
+    // Locate the block in the same collapsed view every splice matches in.
+    var __pn='',__pr=false;
+    for(var __pj=0;__pj<__pt.length;__pj++){
+      var __pch=__pt.charAt(__pj);
+      var __pw=/[\s↦↵]/.test(__pch);
+      if(__pw){if(__pr)continue;__pr=true;}else __pr=false;
+      __pn+=__pw?' ':__pch;
+    }
+    __pn=__pn.replace(/^ +| +$/g,'');
+    if(!__pn)continue;
+    var __from2=0,__pidx=-1;
+    while(true){
+      __pidx=__nb.indexOf(__pn,__from2);
+      if(__pidx<0)break;
+      var __pok=true;
+      for(var __pq=0;__pq<__used.length;__pq++){
+        if(__pidx<__used[__pq][1]&&__used[__pq][0]<__pidx+__pn.length){__pok=false;break;}
+      }
+      if(__pok)break;
+      __from2=__pidx+1;
+    }
+    if(__pidx<0)continue;
+    var __ps0=__map[__pidx],__ps1=__map[__pidx+__pn.length-1]+1;
+    __used.push([__pidx,__pidx+__pn.length]);
+    __edit.push([__ps0,__ps1,'```\n'+b.slice(__ps0,__ps1)+'\n```',0]);
+  }
+  // Splice a multi-word or path-shaped label only where it stands at a word
+  // boundary in the rendered text. A label that is the prefix of a longer
+  // word ("Prestigio SmartB" inside "Prestigio SmartBook 133S…") tears the
+  // word when linked — "[Prestigio SmartB](url)ook" — and consumers that
+  // restore a boundary around such labels then read "SmartB ook". innerText
+  // has no boundary there, so the occurrence stays plain text. Single-word
+  // labels stay exempt: consumers join them back into the word anyway, so
+  // linking them is only ever a lost destination, never torn text.
+  // Word char ≈ letters/digits (ASCII plus Latin-1 letters, then every
+  // script from Greek up — CJK included), mirroring the consumer side.
+  function __wb(c){if(!c)return false;var x=c.charCodeAt(0);
+    return (x>=48&&x<=57)||(x>=65&&x<=90)||(x>=97&&x<=122)||(x>=0xC0&&x<=0x24F)||x>=0x370;}
   for(var __m=0;__m<__marks.length;__m++){
     var __lab2=__marks[__m][0],__u=__marks[__m][1],__k=__lab2+'\u0000'+__u;
     if(__seen[__k])continue;__seen[__k]=1;
-    var __from=0,__idx=-1;
+    var __sep=/^[/#]/.test(__lab2)||/\s/.test(__lab2);
+    var __from=0,__idx=-1,__dirty=false;
     while(true){
       __idx=__nb.indexOf(__lab2,__from);
       if(__idx<0)break;
@@ -703,10 +760,19 @@ if((__marks.length||__tables.length)&&b.length<500000){
       for(var __q2=0;__q2<__used.length;__q2++){
         if(__idx<__used[__q2][1]&&__used[__q2][0]<__idx+__lab2.length){__ok=false;break;}
       }
+      if(__ok&&__sep&&(__wb(__idx>0?__nb.charAt(__idx-1):'')||__wb(__nb.charAt(__idx+__lab2.length)))){__ok=false;__dirty=true;}
       if(__ok)break;
       __from=__idx+1;
     }
     if(__idx<0){__tail.push('['+__lab2.replace(/([\\[\]])/g,'\\$1')+']('+__u.replace(/([()])/g,'\\$1')+')');continue;}
+    if(!__ok){
+      // Every occurrence sat mid-word: the label is already in the text as
+      // part of a longer word, and tailing it would duplicate the fragment.
+      // Occurrences merely consumed by tables or earlier links keep the
+      // historical appendix so the destination is not lost.
+      if(!__dirty)__tail.push('['+__lab2.replace(/([\\[\]])/g,'\\$1')+']('+__u.replace(/([()])/g,'\\$1')+')');
+      continue;
+    }
     __used.push([__idx,__idx+__lab2.length]);
     __edit.push([__map[__idx],__map[__idx+__lab2.length-1]+1,__lab2,__u]);
   }
@@ -717,8 +783,10 @@ if((__marks.length||__tables.length)&&b.length<500000){
   for(var __e=__edit.length-1;__e>=0;__e--){
     var __ed=__edit[__e];
     // Table replacements carry their own trailing newline — the swallowed
-    // marker run was the separator to whatever follows the table.
-    var __rep=__ed[3]===null?__ed[2]+'\n':'['+__ed[2].replace(/([\\[\]])/g,'\\$1')+']('+__ed[3].replace(/([()])/g,'\\$1')+')';
+    // marker run was the separator to whatever follows the table. Code-fence
+    // replacements (sentinel 0) are already complete: the raw slice kept its
+    // own leading/trailing block boundaries.
+    var __rep=__ed[3]===null?__ed[2]+'\n':(__ed[3]===0?__ed[2]:'['+__ed[2].replace(/([\\[\]])/g,'\\$1')+']('+__ed[3].replace(/([()])/g,'\\$1')+')');
     b=b.slice(0,__ed[0])+__rep+b.slice(__ed[1]);
   }
   if(__tail.length)b+='\n'+__tail.join('\n');
@@ -761,6 +829,15 @@ fn rendered_text(page: &mut crate::page::Page, selector: Option<&str>, links: bo
             // below.
             let mut js = "(function(){var b=document.body?document.body.innerText:'';".to_string();
             if links {
+                // Pristine innerText snapshot for the containment probes
+                // below (nav/footer/container appends): ATX prefixes and
+                // [label](url) splices both break substring containment, so
+                // comparing a raw probe against the rewritten body would
+                // append whole <main>/<footer> duplicates of content that is
+                // already there. Captured BEFORE the ATX pass for the same
+                // reason, and overwritten on every evaluate so a retry on a
+                // mutated DOM never probes against a stale snapshot.
+                js.push_str("try{window.__dsOrig=b;}catch(e){}");
                 // ATX headings: innerText flattens h1-h6 into plain lines, so
                 // a markdown consumer loses the document outline entirely —
                 // card-shaped contracts ("^#{2,3}\\s+(?<title>.+)$") then find
@@ -806,7 +883,7 @@ fn rendered_text(page: &mut crate::page::Page, selector: Option<&str>, links: bo
              for(var f=0;f<fm;f++){\
              var ft=(feet[f].innerText||feet[f].textContent||'').replace(/^[ \\t\\r\\n\\f]+|[ \\t\\r\\n\\f]+$/g,'');\
              if(!ft)continue;\
-             if(nb===null)nb=b.replace(/[ \\t\\n\\r\\f]+/g,' ').toLowerCase();\
+             if(nb===null)nb=((typeof window!=='undefined'&&window.__dsOrig)||b).replace(/[ \\t\\n\\r\\f]+/g,' ').toLowerCase();\
              var fn=ft.replace(/[ \\t\\n\\r\\f]+/g,' ').toLowerCase();\
              var head=fn.slice(0,60);var tail=fn.slice(Math.max(0,fn.length-60));\
              if(nb.indexOf(head)<0||(tail!==head&&nb.indexOf(tail)<0))b+='\\n'+ft;}\
@@ -845,6 +922,18 @@ fn collapse_whitespace(s: &str) -> String {
 }
 
 fn normalize_fetch_line(line: &str) -> String {
+    // Installment typography: React price splits plant the amount in its own
+    // element with no whitespace node (`<span>or 9 x</span><b>$1.21</b>`), so
+    // innerText faithfully reads "or 9 x$1.21" — while element-joining
+    // readers, and the installment wording itself, read "or 9 x $1.21".
+    // Restore the boundary on this one unambiguous shape.
+    let owned;
+    let line = if let Some(fixed) = installment_space(line) {
+        owned = fixed;
+        owned.as_str()
+    } else {
+        line
+    };
     let mut out = String::with_capacity(line.len());
     let mut chars = line.chars().peekable();
     while let Some(c) = chars.next() {
@@ -860,6 +949,23 @@ fn normalize_fetch_line(line: &str) -> String {
         }
     }
     out
+}
+
+/// "or 9 x$1.21" → "or 9 x $1.21" — only after a literal `or <digits> x$`.
+fn installment_space(line: &str) -> Option<String> {
+    let rest = line.strip_prefix("or ")?;
+    let digits = rest.bytes().take_while(|b| b.is_ascii_digit()).count();
+    if digits == 0 {
+        return None;
+    }
+    let tail = &rest[digits..];
+    let after = tail.strip_prefix(" x$")?;
+    let next = after.as_bytes().first()?;
+    if !next.is_ascii_digit() {
+        return None;
+    }
+    let cut = 3 + digits + 2; // "or " + digits + " x"
+    Some(format!("{} {}", &line[..cut], &line[cut..]))
 }
 
 /// Same as fetch_url_text but injects search-session cookies before navigation.
@@ -1683,6 +1789,18 @@ mod tests {
             "nbsp must fold to a space, got {text:?}"
         );
         assert!(!text.contains('\u{00a0}'));
+    }
+
+    #[test]
+    fn installment_glue_gets_its_space_back_and_nothing_else_does() {
+        // <span>or 9 x</span><b>$1.21</b> renders with no whitespace node, so
+        // the line arrives glued; the amount keeps its own word.
+        let text = collapse_whitespace("Cropped Stay Groovy off white\n$10.90\nor 9 x$1.21\n");
+        assert!(text.contains("or 9 x $1.21"), "got {text:?}");
+        // Anything outside "or <digits> x$" keeps its exact bytes.
+        let keep = collapse_whitespace("Box 4 x$2\nor x$1\nor 9x$1.21\nTorx$6\n");
+        assert!(keep.contains("4 x$2") && keep.contains("or x$1"));
+        assert!(keep.contains("or 9x$1.21") && keep.contains("Torx$6"));
     }
 
     #[test]
