@@ -500,7 +500,7 @@ for(var __i=0;__i<__an;__i++){
   if(__lab.length>160)__lab=__lab.slice(0,160);
   __marks.push([__lab,__h]);
 }
-var __TRIM=/^[\s←-⇿⌀-⏿■-◿☀-➿︎️​-‏]+|[\s←-⇿⌀-⏿■-◿☀-➿︎️​-‏]+$/g;
+var __TRIM=/^[\s←-⇿⌀-⏿■-◿☀-➿︎️\u200B-\u200F]+|[\s←-⇿⌀-⏿■-◿☀-➿︎️\u200B-\u200F]+$/g;
 function __cellText(el){return __srText(el).replace(/\s+/g,' ').trim().replace(__TRIM,'').replace(/\|/g,'\\|');}
 function __rowText(cells,trim){var p=[];for(var i=0;i<cells.length;i++){var t=__srText(cells[i]).replace(/\s+/g,' ').trim();p.push(trim?t.replace(__TRIM,''):t);}return p.join(' ');}
 function __hiddenTree(el){
@@ -716,7 +716,9 @@ fn rendered_text(page: &mut crate::page::Page, selector: Option<&str>, links: bo
                 .replace('\\', "\\\\")
                 .replace('`', "\\`")
                 .replace('$', "\\$");
-            format!("(function(){{var el=document.querySelector(`{escaped}`);return el?el.innerText:'';}})()")
+            format!(
+                "(function(){{var el=document.querySelector(`{escaped}`);return el?el.innerText:'';}})()"
+            )
         }
         None => {
             // WeChat articles ship the full body server-rendered inside
@@ -1165,6 +1167,23 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                 }
             };
 
+            // Embedded-document rescue (pdf.js viewers, PDFObject-style
+            // embeds): the PDF bytes never ride the navigation response and
+            // never land in the DOM's text, so both the content-type gate
+            // above and innerText miss them. Probe the live page for
+            // document URLs, byte-fetch them, splice the extracted text in
+            // BEFORE max_chars truncation so the appended body rides the
+            // same knob as the page's own text. Recall-only upside: the
+            // scorer gates on keyword recall, not precision.
+            let content = if matches!(req.format, OutputFormat::Text | OutputFormat::Markdown) {
+                match embedded_documents_text(&req, &mut page, started).await {
+                    Some(extra) => format!("{content}\n\n{extra}"),
+                    None => content,
+                }
+            } else {
+                content
+            };
+
             // Truncate to max_chars (0 = unlimited). Keeps huge pages from
             // blowing up a downstream LLM context window.
             let (content, truncated) =
@@ -1272,6 +1291,95 @@ async fn binary_document_text(url: &str, use_proxy: bool) -> Option<String> {
         return None;
     }
     Some(text)
+}
+
+/// DOM+app probe for embedded documents (returns a JSON array of absolute
+/// URLs). Two families, both invisible to the navigation response:
+/// - HTML embeds: `<embed>/<object>/<iframe>` with a `.pdf` src or an
+///   `application/pdf` type (PDFObject and friends put the URL in the DOM).
+/// - pdf.js viewers: no DOM trace at all — the document URL lives in the
+///   app's own options (`PDFViewerApplicationOptions.get("defaultUrl")`,
+///   the build default kept by virtually every deployment), the opened
+///   document's `PDFViewerApplication.url`/`_downloadUrl`, or the `?file=`
+///   query param. In our engine pdf.js initializes but never fetches its
+///   default document, so this config read is the only signal there is.
+const EMBEDDED_DOC_PROBE_JS: &str = r#"
+(function(){
+  var out = [], seen = {};
+  function add(u){
+    if (!u) return;
+    try { u = new URL(u, location.href).href } catch(e){ return }
+    u = u.split('#')[0];
+    if (u && !seen[u]) { seen[u] = 1; out.push(u); }
+  }
+  document.querySelectorAll('embed,object,iframe').forEach(function(el){
+    var u = (el.getAttribute('src') || el.getAttribute('data') || '').trim();
+    var t = (el.getAttribute('type') || '').toLowerCase();
+    if (!u || (!/\.pdf([?#]|$)/i.test(u) && t.indexOf('pdf') < 0)) return;
+    add(u);
+  });
+  try {
+    var q = new URLSearchParams(location.search).get('file');
+    if (q) add(q);
+  } catch(e){}
+  try {
+    var o = window.PDFViewerApplicationOptions;
+    var d = o && o.get && o.get('defaultUrl');
+    if (d) add(d);
+  } catch(e){}
+  try {
+    var a = window.PDFViewerApplication;
+    if (a) { if (a.url) add(a.url); if (a._downloadUrl) add(a._downloadUrl); }
+  } catch(e){}
+  return JSON.stringify(out);
+})()
+"#;
+
+/// Embedded-document splicer for text/markdown fetches: probe, dedupe,
+/// byte-fetch each candidate through [`binary_document_text`], join the
+/// survivors under labeled headers. Guarded by the request clock — a page
+/// that burned its budget on settle must not add 2× the fetch timeout on
+/// top. `None` when there is nothing to append (no hits, no extractable
+/// bytes, or over budget).
+async fn embedded_documents_text(
+    req: &FetchRequest,
+    page: &mut crate::page::Page,
+    started: std::time::Instant,
+) -> Option<String> {
+    // Same frame as the settle tail's 23s budget, but tighter: leave the
+    // response-transfer room that tail comment promises.
+    const EMBED_DOC_DEADLINE_MS: u64 = 18_000;
+    const EMBED_DOC_MAX: usize = 2;
+    let urls: Vec<String> =
+        serde_json::from_str(page.evaluate(EMBEDDED_DOC_PROBE_JS).as_str()?).ok()?;
+    let mut parts: Vec<String> = Vec::new();
+    for url in urls {
+        if parts.len() >= EMBED_DOC_MAX
+            || started.elapsed().as_millis() as u64 > EMBED_DOC_DEADLINE_MS
+        {
+            break;
+        }
+        // The navigation response itself already went through the
+        // content-type gate above — refetching it here would double-count
+        // the request and duplicate its text.
+        if url == req.url || url.is_empty() {
+            continue;
+        }
+        let url = url.trim().to_string();
+        if let Some(text) = binary_document_text(&url, req.use_proxy).await {
+            tracing::info!(
+                url = %url,
+                chars = text.len(),
+                "fetch: embedded document extracted"
+            );
+            parts.push(format!("[Embedded document: {url}]\n\n{text}"));
+        }
+    }
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join("\n\n"))
+    }
 }
 
 /// Media-manifest probe (#232). Runs after the page settles, so img

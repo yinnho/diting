@@ -1991,6 +1991,24 @@ class Element extends Node {
     // browser does by navigation — held the login for hours).
     fetch(fullUrl, {mode: 'no-cors', credentials: 'include'}).then(async resp => {
       if (resp.ok || resp.type === 'opaque') {
+        // A binary-document frame (PDF/DOCX) must not parse as HTML: the
+        // HTML parser accepts the bytes and the frame's text face then
+        // carries binary soup into body.innerText (pdfobject.com's demo
+        // frames pushed 14k U+FFFD, tripping the benchmark's encoding-
+        // corruption gate). Browsers hand such frames to a plugin/viewer,
+        // never the HTML parser — leave the child an empty document; the
+        // /fetch embedded-document rescue owns extracting the bytes.
+        // Same-origin frames can read the header; opaque (cross-origin)
+        // responses hide it, and those stay on the old path.
+        let __ct = '';
+        try { __ct = (resp.headers.get('content-type') || '').toLowerCase(); } catch(e) {}
+        if (__ct.includes('pdf') || __ct.includes('wordprocessingml') || __ct === 'application/octet-stream') {
+          el._iframeDoc = new _IframeDocument('<!DOCTYPE html><html><head></head><body></body></html>', fullUrl, el);
+          el._iframeWin = new _IframeWindow(el._iframeDoc, fullUrl);
+          _registerIframe(el);
+          el.dispatchEvent(new Event('load'));
+          return;
+        }
         const html = await resp.text();
         el._iframeDoc = new _IframeDocument(html, fullUrl, el);
         el._iframeWin = new _IframeWindow(el._iframeDoc, fullUrl);
