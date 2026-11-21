@@ -22,6 +22,7 @@ pub(crate) use timers::op_sleep_body;
 
 mod band;
 mod canvas;
+mod compression;
 mod css;
 mod ecdsa;
 mod ed25519;
@@ -88,6 +89,7 @@ pub fn our_decls() -> Vec<diting_runtime::op_reg::OpDecl> {
         css::op_css_supports(),
         props::op_register_property(),
         dom::op_dom(),
+        compression::op_inflate(),
         timers::op_clock_ms(),
         svg::op_svg_path_len(),
         svg::op_svg_path_point(),
