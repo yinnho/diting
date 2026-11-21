@@ -99,6 +99,25 @@ pub fn should_auto_proxy(url: &str) -> bool {
         // succeeded minutes later — the direct path flaps; the tunnel is
         // stable (2.5s). Route it where the road is paved.
         "toscrape.com",
+        // Geo-variant / geo-wall class (LexBench challenge column,
+        // 2026-11-21): the direct CN exit gets a localized or stub page
+        // and the proxy exit carries the real one — weather.com serves a
+        // 南京中文页, bing/amazon/yahoo give CN variants, shein answers
+        // "outOfService", nih.gov/indeed raise a Chinese Cloudflare
+        // challenge, paypal lands an 11-char shell, yandex a
+        // "temporarily turned off" wall, netflix a bare "Not Available"
+        // (also caught by the fetch-path geo-stub retry for unlisted
+        // hosts — this entry saves that wasted direct navigation).
+        "netflix.com",
+        "bing.com",
+        "yahoo.com",
+        "amazon.com",
+        "weather.com",
+        "paypal.com",
+        "indeed.com",
+        "shein.com",
+        "nih.gov",
+        "yandex.com",
     ];
 
     for domain in BLOCKED_DOMAINS {
