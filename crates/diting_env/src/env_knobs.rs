@@ -118,6 +118,18 @@ pub fn should_auto_proxy(url: &str) -> bool {
         "shein.com",
         "nih.gov",
         "yandex.com",
+        // Docs-SPA family (LexBench dynamic column, 2026-11-21 evening peak):
+        // the direct CN exit can't feed these CDNs fast enough, so the SPA
+        // settles before the table renders — eui.elastic.co direct 25s/14.6k
+        // chars (table missing) vs proxy 27s/34.8k (rendered); quasar.dev
+        // 35.6s/14.6k vs 14.7s/21.6k; material.angular.dev 65.3s/8k vs
+        // 19.7s/37.1k. NOT here: arco.design renders complete on direct
+        // (71k) and the proxy leg answers with a 15-char stub; heroui and
+        // selenium.dev return identical content both ways — per-domain A/B
+        // or the routing poisons the working leg (microsoft/zoom lesson).
+        "eui.elastic.co",
+        "quasar.dev",
+        "material.angular.dev",
     ];
 
     for domain in BLOCKED_DOMAINS {
