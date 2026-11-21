@@ -140,8 +140,30 @@ impl Page {
         if !ua_to_set.is_empty() {
             rt.set_user_agent(&ua_to_set);
         }
-        let lang = std::env::var("DITING_ACCEPT_LANGUAGE")
-            .unwrap_or_else(|_| "zh-CN,zh;q=0.9".to_string());
+        // Route-following language (geo-variant class, LexBench challenge
+        // 2026-11-21): a document loaded through the proxy tunnel or from a
+        // variant-table domain advertises the international variant in
+        // navigator.language too — client-side locale pickers (canva-class
+        // SPAs) read it, and the HTTP legs already made this same choice
+        // (INTERNATIONAL_LANGUAGE). An explicit DITING_ACCEPT_LANGUAGE /
+        // set_accept_language pins every route.
+        let via_proxy = self.context.proxy_url.is_some()
+            || (diting_env::env_knobs::proxy_from_env().is_some()
+                && diting_env::env_knobs::should_auto_proxy(&self.url_string()));
+        let lang = if diting_net::client::wants_international_language(
+            &self.url_string(),
+            via_proxy,
+        ) && !self
+            .http_client
+            .lang_pinned
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            diting_net::client::INTERNATIONAL_LANGUAGE.to_string()
+        } else if let Ok(l) = self.http_client.accept_language.try_read() {
+            l.clone()
+        } else {
+            "zh-CN,zh;q=0.9".to_string()
+        };
         rt.set_language(&lang);
 
         rt.set_cookie_jar(self.context.cookie_jar.clone());

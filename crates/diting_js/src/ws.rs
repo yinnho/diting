@@ -518,20 +518,34 @@ pub(crate) async fn op_ws_open_body(
         )
     };
     // The client's UA/header state lives in tokio RwLocks; await them outside
-    // any JsState borrow.
+    // any JsState borrow. The language follows the route like the HTTP legs:
+    // a handshake through the proxy tunnel or to a variant-table domain
+    // carries the international variant
+    // (diting_net::client::INTERNATIONAL_LANGUAGE) unless explicitly pinned.
     let (ua, accept_language, extra_headers, allow_private, proxy_url) = match &http_client {
-        Some(c) => (
-            c.user_agent.read().await.clone(),
-            c.accept_language.read().await.clone(),
-            c.extra_headers
-                .read()
-                .await
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect(),
-            c.allow_private_network,
-            c.proxy_url().map(|s| s.to_string()),
-        ),
+        Some(c) => {
+            let mut lang = c.accept_language.read().await.clone();
+            let via_proxy = c.proxy_url().is_some()
+                || (diting_env::env_knobs::proxy_from_env().is_some()
+                    && diting_env::env_knobs::should_auto_proxy(parsed.as_str()));
+            if diting_net::client::wants_international_language(parsed.as_str(), via_proxy)
+                && !c.lang_pinned.load(Ordering::Relaxed)
+            {
+                lang = diting_net::client::INTERNATIONAL_LANGUAGE.to_string();
+            }
+            (
+                c.user_agent.read().await.clone(),
+                lang,
+                c.extra_headers
+                    .read()
+                    .await
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect(),
+                c.allow_private_network,
+                c.proxy_url().map(|s| s.to_string()),
+            )
+        }
         None => (String::new(), String::new(), Vec::new(), false, None),
     };
 

@@ -128,6 +128,41 @@ pub fn should_auto_proxy(url: &str) -> bool {
     false
 }
 
+/// Locale-variant domains: the direct route works, but the site negotiates
+/// a zh shell to a zh-CN Accept-Language and the EN content only appears
+/// for en-US (LexBench challenge 2026-11-21, measured on the discriminator
+/// probe: shopify 0→14/14 anchor words, huawei 1→28/28, alibaba 1→10/11,
+/// canva 2→22/35, kimi 0→12/18, espn 0→8/15 — while baidu-class CN targets
+/// and zh-anchored contracts need zh-CN kept). These stay DIRECT (nothing
+/// is blocked); only the advertised language changes, so the language
+/// follows this table the way it follows the proxy route.
+pub fn en_variant_language(url: &str) -> bool {
+    let Ok(parsed) = url::Url::parse(url) else {
+        return false;
+    };
+    let Some(host) = parsed.host_str() else {
+        return false;
+    };
+    const EN_VARIANT_DOMAINS: &[&str] = &[
+        "shopify.com",
+        // canva funnels CN exits to canva.cn (IP-based 30x, not language) —
+        // the entry must cover the landing host too, or the zh shell waits
+        // one redirect away.
+        "canva.com",
+        "canva.cn",
+        "alibaba.com",
+        "huawei.com",
+        "kimi.com",
+        "espn.com",
+    ];
+    for domain in EN_VARIANT_DOMAINS {
+        if host == *domain || host.ends_with(&format!(".{}", domain)) {
+            return true;
+        }
+    }
+    false
+}
+
 /// First standard proxy env var that is set, as "NAME=value". Used to warn
 /// that the engine ignores these: every engine client pins the transport's
 /// implicit env/system proxy matcher off (see `client_builder_no_env_proxy`),
@@ -314,7 +349,30 @@ pub fn realm_heap_stats() -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{app_data_dir, ephemeral, should_auto_proxy};
+    use super::{app_data_dir, en_variant_language, ephemeral, should_auto_proxy};
+
+    // The variant table stays DIRECT (nothing here is blocked) — only the
+    // language changes. Pin the shape so a stray copy into BLOCKED_DOMAINS
+    // shows up in this test too.
+    #[test]
+    fn en_variant_table_matches_its_domains_and_stays_direct() {
+        for url in [
+            "https://www.shopify.com/",
+            "https://canva.com/",
+            "https://www.canva.cn/?display-com-option=true",
+            "https://www.alibaba.com/",
+            "https://consumer.huawei.com/en/",
+            "https://www.kimi.com/",
+            "https://www.espn.com/",
+        ] {
+            assert!(en_variant_language(url), "{url}");
+            assert!(!should_auto_proxy(url), "variant table must stay direct: {url}");
+        }
+        // Suffix match only: a lookalike apex is not the domain.
+        assert!(!en_variant_language("https://notcanva.com/"));
+        assert!(!en_variant_language("https://example.com/"));
+        assert!(!en_variant_language("not a url"));
+    }
 
     // The list gates routing for every navigation now — pin the match shapes.
     #[test]
