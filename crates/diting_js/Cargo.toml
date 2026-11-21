@@ -22,6 +22,8 @@ diting_dom = { path = "../diting_dom" }
 diting_css = { path = "../diting_css" }
 diting_net = { path = "../diting_net" }
 diting_layout = { path = "../diting_layout", optional = true }
+# Compression Streams (DecompressionStream) native inflate leg.
+flate2 = "1"
 # --- async runtime ---
 tokio = { version = "1", features = ["full"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
