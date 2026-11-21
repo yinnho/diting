@@ -452,6 +452,12 @@ function __srText(n){
     if(c.nodeType!==1)continue;
     var cl=c.className;if(cl&&cl.baseVal!==undefined)cl=cl.baseVal;
     if(/sr-only|screen.?reader|visually-hidden/i.test(cl||'')||c.getAttribute('aria-hidden')==='true')continue;
+    // Inline-hidden parts (tooltips: ej2 plants a display:none span inside
+    // every grid header cell) render nowhere and innerText drops them — the
+    // extract must too, or labels grow glue ("Order IDPress Alt Down to open
+    // filter Menu…") and cell anchors stop matching the rendered body.
+    var __st=c.getAttribute('style')||'';
+    if(c.hasAttribute('hidden')||/display\s*:\s*none|visibility\s*:\s*(?:hidden|collapse)/i.test(__st))continue;
     w(c);}})(n);
   return parts.join('');
 }
@@ -476,6 +482,12 @@ for(var __i=0;__i<__an;__i++){
   if(__h.indexOf('http://')!==0&&__h.indexOf('https://')!==0){__h=(__a.getAttribute('href')||'').trim();if(!__h)continue;}
   var __lab=__srText(__a).replace(/\s+/g,' ').trim();
   if(!__lab)continue;
+  // Symbol-only labels (#/¶/→ docs copy-anchors) carry no destination text.
+  // Splicing them glues the marker onto the line — "[#](url)Server-side
+  // paginate and sort" — and section boundaries that key on heading-shaped
+  // lines ("^#?\s*Server-side…$") then miss the whole section. Skip the
+  // link; the bare marker stays as plain text and the heading line matches.
+  if(/^[\p{P}\p{S}\s]+$/u.test(__lab))continue;
   var __el=__a,__hid=false;
   while(__el&&__el.nodeType===1){
     if(__el.__dlv===1)break;
@@ -524,8 +536,38 @@ for(var __t=0;__t<__tabs.length&&__emitted<20;__t++){
   var __rows=__tb.querySelectorAll('tr,[role=row]');
   if(!__rows.length)continue;
   var __headCells=__ownCells(__rows[0]);
-  var __headers=[];
-  for(var __c=0;__c<__headCells.length;__c++)__headers.push(__cellText(__headCells[__c]));
+  function __ci(__c2){var __v=__c2.getAttribute('aria-colindex');return __v?(parseInt(__v,10)||0):0;}
+  // ARIA grids (ej2/syncfusion class) carry aria-colindex on header AND
+  // data cells while data rows still lead with structural no-index cells
+  // (the group indent). Keying columns by index keeps headers aligned with
+  // data where plain cell order drifts one over, and drops the structural
+  // cells outright. Engage only when both sides actually carry indexes.
+  var __hci=0;
+  for(var __c=0;__c<__headCells.length;__c++)if(__ci(__headCells[__c])>0)__hci++;
+  var __useIndex=false;
+  if(__hci>=2){
+    for(var __r2=1;__r2<__rows.length&&!__useIndex;__r2++){
+      var __q3=__rows[__r2].parentElement,__ih2=false;
+      while(__q3&&__q3!==__tb){if(__q3.tagName==='THEAD'){__ih2=true;break;}__q3=__q3.parentElement;}
+      if(__ih2)continue;
+      var __dc=__ownCells(__rows[__r2]);
+      for(var __v2=0;__v2<__dc.length;__v2++)if(__ci(__dc[__v2])>0){__useIndex=true;break;}
+    }
+  }
+  function __place(__cells){
+    var __w=0,__out=[],__i2;
+    for(__i2=0;__i2<__cells.length;__i2++){var __x=__ci(__cells[__i2]);if(__x>__w)__w=__x;}
+    for(__i2=0;__i2<__w;__i2++)__out.push('');
+    for(__i2=0;__i2<__cells.length;__i2++){
+      var __txt=__cellText(__cells[__i2]);
+      if(!__txt)continue;
+      var __x2=__ci(__cells[__i2]);
+      if(__x2>0&&__x2<=__w)__out[__x2-1]=__txt;else __out.push(__txt);
+    }
+    return __out;
+  }
+  var __headers=__useIndex?__place(__headCells):[];
+  for(var __c=0;!__useIndex&&__c<__headCells.length;__c++)__headers.push(__cellText(__headCells[__c]));
   if(!__headers.join('').trim())continue;
   var __lines=['| '+__headers.join(' | ')+' |'];
   var __sep=[];for(var __s=0;__s<__headers.length;__s++)__sep.push('---');
@@ -540,11 +582,27 @@ for(var __t=0;__t<__tabs.length&&__emitted<20;__t++){
     if(__inHead)continue;
     var __cells=__ownCells(__tr);
     if(!__cells.length)continue;
-    var __vals=[];
-    for(var __v=0;__v<__cells.length;__v++)__vals.push(__cellText(__cells[__v]));
+    var __vals;
+    if(__useIndex){
+      // Caption/detail rows carry no indexed cells at all; a placement that
+      // comes out empty is the grid's own blank spacer row.
+      var __any=0;
+      for(var __v=0;__v<__cells.length;__v++)if(__ci(__cells[__v])>0){__any=1;break;}
+      if(!__any)continue;
+      __vals=__place(__cells);
+      if(!__vals.join('').trim())continue;
+    }else{
+      __vals=[];
+      for(var __v=0;__v<__cells.length;__v++)__vals.push(__cellText(__cells[__v]));
+    }
     __lines.push('| '+__vals.join(' | ')+' |');
     __span+=__allText(__tr).length+32;
-    __lastCells=__cells;__data++;
+    // Anchor on the last row that carries text: virtual/structural grids
+    // (vuetify v-virtual-scroll, ej2 spacers) end in a blank sentinel row,
+    // and a lastIndexOf("") tail match returns the window limit — the
+    // verify then fails and the whole table drops to the tail appendix.
+    if(__vals.join('').trim())__lastCells=__cells;
+    __data++;
   }
   if(__data>0&&__lastCells){
     __tables.push({md:__lines.join('\n'),
@@ -577,6 +635,25 @@ if((__marks.length||__tables.length)&&b.length<500000){
       __tEnd=__nb.lastIndexOf(__t2.tail,__lim);
       if(__tEnd>__h0)__tLen=__t2.tail.length;
       if(__tEnd<0){__tEnd=__nb.lastIndexOf(__t2.tail2,__lim);if(__tEnd>__h0)__tLen=__t2.tail2.length;}
+      // Sibling tables reuse the same markup (docs pages repeat one demo):
+      // with a generous span budget the backward tail search latches onto
+      // the NEXT table's identical last row and the splice then swallows
+      // everything between — headings included. A table's own span can
+      // never legitimately contain a second run of its header row text
+      // (nested tables are never collected), so tighten at every header
+      // hit between the anchors and re-search.
+      var __next=__nb.indexOf(__t2.head,__h0+1);
+      while(__next>__h0&&__next<__tEnd){
+        __lim=__next;
+        var __e2=__nb.lastIndexOf(__t2.tail,__lim);
+        if(__e2>__h0){__tEnd=__e2;__tLen=__t2.tail.length;}
+        else{
+          __e2=__nb.lastIndexOf(__t2.tail2,__lim);
+          if(__e2>__h0){__tEnd=__e2;__tLen=__t2.tail2.length;}
+          else{__tEnd=-1;break;}
+        }
+        __next=__nb.indexOf(__t2.head,__tEnd+1);
+      }
     }
     if(__h0>=0&&__tEnd>__h0){
       var __ts0=__map[__h0],__ts1=__map[__tEnd+__tLen-1]+1;
