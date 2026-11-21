@@ -882,6 +882,7 @@ dependencies = [
  "diting_socks",
  "ecdsa",
  "ed25519-dalek",
+ "flate2",
  "futures-util",
  "getrandom 0.4.3",
  "ghash",
@@ -956,7 +957,7 @@ version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.9",
 ]
 
 [[package]]
