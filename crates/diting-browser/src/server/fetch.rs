@@ -313,6 +313,26 @@ fn rendered_text_is_short(text: &str) -> bool {
     text.chars().count() < SHORT_TEXT_CHARS
 }
 
+/// Geo-block stub probe. netflix-class sites answer a direct (CN-exit)
+/// request with a bare server-rendered shell — netflix's is literally
+/// "Not Available" at 13 chars — while the same URL through the proxy
+/// carries the full page. The worker never sets `use_proxy`, so the fetch
+/// path detects the stub by phrase and re-navigates through the tunnel
+/// once. Phrase-matched (not just "short") so legitimately tiny pages
+/// (example.com) and still-empty SPA shells never pay the retry.
+const GEO_STUB_PROBE_JS: &str = r#"(function(){var t=(document.body?document.body.innerText:'').trim();
+if(t.length>300)return false;t=t.toLowerCase();
+var m=['not available','unavailable in your','unavailable in your country','blocked in your country','geo-restricted','geo restricted','access denied','currently unavailable'];
+for(var i=0;i<m.length;i++){if(t.indexOf(m[i])>=0)return true;}
+return false;})()"#;
+
+/// True when the live page reads as a geo-block stub (see
+/// [`GEO_STUB_PROBE_JS`]). Server-rendered stubs are readable before any
+/// settle, so this costs one innerText walk on the committed document.
+fn geo_block_stub(page: &mut crate::page::Page) -> bool {
+    page.evaluate(GEO_STUB_PROBE_JS).as_bool().unwrap_or(false)
+}
+
 fn page_has_soon_work(page: &mut crate::page::Page) -> bool {
     // A route `import()` or a stylesheet preload is invisible to the
     // in-page fetch map. Arco's table doc is that chunk: the shell is
@@ -741,6 +761,30 @@ fn rendered_text(page: &mut crate::page::Page, selector: Option<&str>, links: bo
             // below.
             let mut js = "(function(){var b=document.body?document.body.innerText:'';".to_string();
             if links {
+                // ATX headings: innerText flattens h1-h6 into plain lines, so
+                // a markdown consumer loses the document outline entirely —
+                // card-shaped contracts ("^#{2,3}\\s+(?<title>.+)$") then find
+                // zero records on a page whose tiles are all headings
+                // (apple.com). Prefix every body line that IS a heading's own
+                // text with its level markers, BEFORE the splice so a heading
+                // that is itself a link still becomes "## [Title](url)". Full
+                // line equality (whitespace-collapsed) — partial matches stay
+                // untouched; plain-text format keeps its bare lines.
+                js.push_str(
+                    "\
+                 var __hs=document.querySelectorAll('h1,h2,h3,h4,h5,h6');\
+                 if(__hs.length&&__hs.length<=400){var __hm={};\
+                 for(var __hi=0;__hi<__hs.length;__hi++){\
+                 var __ht=(__hs[__hi].innerText||'').replace(/\\s+/g,' ').trim();\
+                 if(__ht&&__ht.length<=200&&!__hm[__ht])__hm[__ht]=parseInt(__hs[__hi].tagName.slice(1),10);}\
+                 var __bl=b.split('\\n'),__ol=[];\
+                 for(var __li=0;__li<__bl.length;__li++){\
+                 var __lk=__bl[__li].replace(/\\s+/g,' ').trim();\
+                 if(__lk&&__hm[__lk]&&!/^#{1,6}\\s/.test(__lk)){\
+                 __ol.push(new Array(__hm[__lk]+1).join('#')+' '+__lk);}\
+                 else{__ol.push(__bl[__li]);}}\
+                 b=__ol.join('\\n');}",
+                );
                 js.push_str(MARKDOWN_SPLICE_JS);
             }
             js.push_str(
@@ -758,10 +802,14 @@ fn rendered_text(page: &mut crate::page::Page, selector: Option<&str>, links: bo
              if(t.length>1&&t.length<80&&b.indexOf(t)<0)extra.push(t);}\
              if(extra.length)b+='\\n'+extra.join('\\n');\
              var feet=document.querySelectorAll('footer');\
-             var fm=feet.length<3?feet.length:3;\
-             for(var f=0;f<fm;f++){var ft=(feet[f].textContent||'').replace(/[ \\t\\n\\r\\f]+/g,' ').trim();\
-             if(!ft)continue;var head=ft.slice(0,60);var tail=ft.slice(Math.max(0,ft.length-60));\
-             if(b.indexOf(head)<0||(tail!==head&&b.indexOf(tail)<0))b+='\\n'+ft;}\
+             var fm=feet.length<3?feet.length:3;var nb=null;\
+             for(var f=0;f<fm;f++){\
+             var ft=(feet[f].innerText||feet[f].textContent||'').replace(/^[ \\t\\r\\n\\f]+|[ \\t\\r\\n\\f]+$/g,'');\
+             if(!ft)continue;\
+             if(nb===null)nb=b.replace(/[ \\t\\n\\r\\f]+/g,' ').toLowerCase();\
+             var fn=ft.replace(/[ \\t\\n\\r\\f]+/g,' ').toLowerCase();\
+             var head=fn.slice(0,60);var tail=fn.slice(Math.max(0,fn.length-60));\
+             if(nb.indexOf(head)<0||(tail!==head&&nb.indexOf(tail)<0))b+='\\n'+ft;}\
              var nodes=document.querySelectorAll('article.markdown-body,.markdown-body,#readme,#js_content,article,main,.theme-doc-markdown');\
              if(nodes.length>8)nodes=Array.prototype.slice.call(nodes,0,8);\
              var orig=(typeof window!=='undefined'&&window.__dsOrig)||null;\
@@ -926,7 +974,8 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             // Request clock: the content-stability tail below budgets itself
             // against what navigation already spent of the caller's deadline.
             let started = std::time::Instant::now();
-            let browser = build_browser(req.use_proxy, &req.url, req.tls_fingerprint.as_deref())?;
+            let browser =
+                build_browser(req.use_proxy, &req.url, req.tls_fingerprint.as_deref())?;
             inject_cookies(&browser, &req.cookies, &req.url);
             let mut page = browser.new_page().await?;
             if let Some(ms) =
@@ -1033,6 +1082,52 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             // workers, drain the pass-challenge navigation. Same
             // acquisition-path stance as the two above.
             maybe_bypass_anubis(&mut page).await?;
+
+            // Geo-block stub (netflix class): the direct route landed a
+            // bare phrase-matched shell, the proxy route carries the real
+            // page. The direct browser and its page are dropped FIRST —
+            // V8 isolates must be dropped in reverse creation order, so a
+            // second browser may not be built while the first one's page
+            // is still alive (v8::OwnedIsolate panics otherwise). The
+            // stub is worthless anyway; if the proxy leg fails the error
+            // says what happened.
+            if !req.use_proxy
+                && crate::config::proxy_from_env().is_some()
+                && geo_block_stub(&mut page)
+            {
+                tracing::info!(
+                    url = %req.url,
+                    "fetch: geo-block stub on the direct route; retrying through the proxy"
+                );
+                drop(page);
+                drop(browser);
+                let browser2 = build_browser(true, &req.url, req.tls_fingerprint.as_deref())
+                    .map_err(|e| {
+                        anyhow::anyhow!("geo-block stub and the proxy retry failed to start: {e}")
+                    })?;
+                inject_cookies(&browser2, &req.cookies, &req.url);
+                let mut page2 = browser2.new_page().await.map_err(|e| {
+                    anyhow::anyhow!("geo-block stub and the proxy retry failed to open a page: {e}")
+                })?;
+                if let Some(ms) = fetch_nav_timeout_override(
+                    std::env::var("DITING_NAV_TIMEOUT_MS").ok().as_deref(),
+                ) {
+                    page2.inner.set_navigation_timeout(Some(ms));
+                }
+                // Same committed-document tolerance as the primary
+                // navigation above: a deadline after commit still leaves
+                // a readable live page.
+                if let Err(e) = page2.goto(&req.url).await {
+                    if !e.to_string().contains("document committed") {
+                        return Err(anyhow::anyhow!(
+                            "geo-block stub and the proxy retry failed to navigate: {e}"
+                        ));
+                    }
+                }
+                page = page2;
+                // browser2 may drop here: Page owns its Arc<BrowserContext>,
+                // the page outlives the factory that built it.
+            }
 
             if let Some(wait) = req.wait_secs {
                 // Floor, not ceiling: late hydration work (chunk fetches
