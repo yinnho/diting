@@ -333,6 +333,25 @@ fn geo_block_stub(page: &mut crate::page::Page) -> bool {
     page.evaluate(GEO_STUB_PROBE_JS).as_bool().unwrap_or(false)
 }
 
+/// Meta-refresh stub probe (hao123 class): the bare domain 301s to a page
+/// whose only payload is `<meta http-equiv="refresh" content="0.5;url=…">`,
+/// and nothing in the page lifetime acts on it. Returns the resolved target
+/// only for a true stub — collapsed body text under 400 chars and delay at
+/// most 10s — so a real page carrying a stray refresh meta is never
+/// hijacked. Empty string means "not a stub, stay".
+const META_REFRESH_PROBE_JS: &str = r#"(function(){
+var metas=document.querySelectorAll('meta');
+for(var i=0;i<metas.length;i++){
+  var eq=(metas[i].getAttribute('http-equiv')||'').toLowerCase();
+  if(eq!=='refresh')continue;
+  var m=/^\s*(\d+(?:\.\d+)?)\s*;\s*url\s*=\s*(.+?)\s*$/i.exec(metas[i].getAttribute('content')||'');
+  if(!m||parseFloat(m[1])>10)continue;
+  var t=(document.body?document.body.innerText:'').replace(/\s+/g,'');
+  if(t.length>400)continue;
+  try{return new URL(m[2].replace(/^['"]+|['"]+$/g,''),location.href).href;}catch(e){return '';}
+}
+return '';})()"#;
+
 fn page_has_soon_work(page: &mut crate::page::Page) -> bool {
     // A route `import()` or a stylesheet preload is invisible to the
     // in-page fetch map. Arco's table doc is that chunk: the shell is
@@ -1233,6 +1252,26 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                 page = page2;
                 // browser2 may drop here: Page owns its Arc<BrowserContext>,
                 // the page outlives the factory that built it.
+            }
+
+            // Meta-refresh stub (hao123 class): a bare redirect page whose
+            // only payload is the refresh directive. Follow it explicitly —
+            // same route, at most two hops, self-loop guarded. A failed hop
+            // keeps the stub: it scores nothing either way, and an error
+            // would only hide what actually happened.
+            for _ in 0..2 {
+                let target = page.evaluate(META_REFRESH_PROBE_JS);
+                let target = target.as_str().unwrap_or("").trim().to_string();
+                if target.is_empty() || target == req.url {
+                    break;
+                }
+                tracing::info!(url = %req.url, %target, "fetch: following meta-refresh stub");
+                if let Err(e) = page.goto(&target).await {
+                    if !e.to_string().contains("document committed") {
+                        tracing::warn!(%target, "fetch: meta-refresh hop failed: {e}");
+                        break;
+                    }
+                }
             }
 
             if let Some(wait) = req.wait_secs {
