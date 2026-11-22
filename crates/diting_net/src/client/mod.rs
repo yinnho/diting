@@ -376,7 +376,6 @@ impl HttpClient {
 
     /// The option set every plain (non-stealth) client shares — see
     /// [`tuned_builder`] (module level, also the shared-pool recipe).
-
     async fn get_client(&self) -> &Client {
         &**self
             .client

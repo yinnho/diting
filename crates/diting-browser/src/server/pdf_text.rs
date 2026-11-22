@@ -90,12 +90,10 @@ pub fn pdf_to_text(bytes: &[u8]) -> Option<String> {
                 let d = objects.get(font_obj).and_then(|o| o.dict.as_ref());
                 let w = match d.and_then(|d| d.get("Widths")) {
                     Some(Value::Array(_)) => "inline".to_string(),
-                    Some(Value::Ref(n, _)) => {
-                        match objects.get(&n).and_then(|o| o.value.as_ref()) {
-                            Some(Value::Array(_)) => format!("ref{n}:array"),
-                            other => format!("ref{n}:{other:?}"),
-                        }
-                    }
+                    Some(Value::Ref(n, _)) => match objects.get(n).and_then(|o| o.value.as_ref()) {
+                        Some(Value::Array(_)) => format!("ref{n}:array"),
+                        other => format!("ref{n}:{other:?}"),
+                    },
                     other => format!("{other:?}"),
                 };
                 eprintln!(
@@ -944,7 +942,7 @@ fn b_end(text: &str, kw: &str) -> usize {
     text.find(kw).map(|p| p + kw.len()).unwrap_or(0)
 }
 
-fn find_str<'t>(text: &'t str, kw: &str) -> Option<usize> {
+fn find_str(text: &str, kw: &str) -> Option<usize> {
     text.find(kw)
 }
 

@@ -10067,11 +10067,11 @@ function makeBacking(persistent) {
     const source = globalThis.__diting_incumbentWindow || globalThis;
     const deliver = (win) => {
       if (!win || win === source) return;
-      try { win.dispatchEvent(new StorageEvent('storage', init)); } catch (e) {}
+      try { win.dispatchEvent(new globalThis.StorageEvent('storage', init)); } catch (e) {}
     };
     deliver(globalThis);
     try {
-      const frames = document.querySelectorAll('iframe');
+      const frames = globalThis.document.querySelectorAll('iframe');
       for (let i = 0; i < frames.length; i++) deliver(frames[i].contentWindow);
     } catch (e) {}
   };

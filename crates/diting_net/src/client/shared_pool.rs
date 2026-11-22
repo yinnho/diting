@@ -33,7 +33,9 @@ pub(crate) enum Flavor {
     Direct { ssrf_private: bool },
 }
 
-static POOLS: std::sync::LazyLock<Mutex<HashMap<(Flavor, bool), Arc<Client>>>> =
+type PoolMap = Mutex<HashMap<(Flavor, bool), Arc<Client>>>;
+
+static POOLS: std::sync::LazyLock<PoolMap> =
     std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// The knob: `DITING_SHARED_POOL=1` routes every `HttpClient`'s lazily

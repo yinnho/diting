@@ -106,6 +106,16 @@ type StickyShiftCache = Option<(
     std::rc::Rc<HashMap<NodeId, [f32; 2]>>,
 )>;
 
+/// Arc-shared parsed stylesheet triple (rules, keyframes, container rules) —
+/// the `sheet_parse_cache` payload, aliased so layout_run.rs and the field
+/// agree without spelling the tuple twice (clippy type_complexity).
+#[cfg(feature = "screenshot")]
+pub(crate) type ParsedSheets = std::sync::Arc<(
+    Vec<diting_css::ParsedRule>,
+    diting_css::KeyframesMap,
+    Vec<diting_css::ContainerRule>,
+)>;
+
 pub struct JsState {
     pub dom: Option<DomTree>,
     /// The document this realm is committed to. The page owns the `Rc` and
@@ -259,16 +269,7 @@ pub struct JsState {
     /// while JS starved. Rules are cloned out (selector compile stays lazy),
     /// so a cache hit costs a Vec copy, not a re-parse.
     #[cfg(feature = "screenshot")]
-    pub(super) sheet_parse_cache: std::cell::RefCell<
-        Option<(
-            u64,
-            std::sync::Arc<(
-                Vec<diting_css::ParsedRule>,
-                diting_css::KeyframesMap,
-                Vec<diting_css::ContainerRule>,
-            )>,
-        )>,
-    >,
+    pub(super) sheet_parse_cache: std::cell::RefCell<Option<(u64, ParsedSheets)>>,
     /// Real per-request timings backing
     /// `performance.getEntriesByType('resource')` (#126). Populated by the
     /// navigation pipeline (stylesheet + script fetches); the JS fetch/XHR

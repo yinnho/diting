@@ -603,15 +603,14 @@ impl StealthHttpClient {
             // international variant (openai/shopify/canva redirect zh-CN
             // straight into a localized page), the direct CN exit the
             // localized one — unless an explicit choice pinned it.
-            let lang = if crate::client::wants_international_language(
-                current_url.as_str(),
-                via_proxy,
-            ) && !self.lang_pinned.load(std::sync::atomic::Ordering::Relaxed)
-            {
-                crate::client::INTERNATIONAL_LANGUAGE.to_string()
-            } else {
-                self.accept_language.read().await.clone()
-            };
+            let lang =
+                if crate::client::wants_international_language(current_url.as_str(), via_proxy)
+                    && !self.lang_pinned.load(std::sync::atomic::Ordering::Relaxed)
+                {
+                    crate::client::INTERNATIONAL_LANGUAGE.to_string()
+                } else {
+                    self.accept_language.read().await.clone()
+                };
             // The emulation preset bakes its own major into Sec-Ch-Ua (the
             // preset the profile table pins). The fleet UA follows
             // chrome-target — override brands to match the UA, same as the

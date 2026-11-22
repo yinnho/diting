@@ -11,7 +11,8 @@ if (!globalThis.__diting_ownerDocs) {
     value: new WeakMap(), writable: true, enumerable: false, configurable: true,
   });
 }
-const _ownerDocs = globalThis.__diting_ownerDocs;
+// Provider only: readers (domcore's ownerDocument getter, createElement,
+// adoptNode; domparser) all touch it at call time through globalThis.
 // (刀90) raw cross-tree base/extent for Selection.toString — kept in a
 // module WeakMap, not an own property: Chrome instances carry zero own keys
 // and the engine's native slot only takes scalar values (an array leaks
@@ -116,25 +117,6 @@ function _rngContents(range, extract) {
     return frag;
   }
   return frag;
-}
-if (typeof Document !== "undefined") {
-  const _createElement = Document.prototype.createElement;
-  Document.prototype.createElement = function (tag) {
-    const el = _createElement.apply(this, arguments);
-    if (el && this !== globalThis.document) _ownerDocs.set(el, this);
-    return el;
-  };
-  Document.prototype.adoptNode = function (node) {
-    if (!node) return null;
-    if (node.parentNode) node.parentNode.removeChild(node);
-    _ownerDocs.set(node, this);
-    return node;
-  };
-  const mark = globalThis.__diting_markNative;
-  if (typeof mark === "function") {
-    mark(Document.prototype.createElement);
-    mark(Document.prototype.adoptNode);
-  }
 }
 // (刀90) Selection.toString text extraction — Chrome's Selection uses a
 // layout-flavored plain text (block boundaries emit '\n'), unlike

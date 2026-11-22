@@ -378,7 +378,10 @@ mod tests {
             "https://www.espn.com/",
         ] {
             assert!(en_variant_language(url), "{url}");
-            assert!(!should_auto_proxy(url), "variant table must stay direct: {url}");
+            assert!(
+                !should_auto_proxy(url),
+                "variant table must stay direct: {url}"
+            );
         }
         // Suffix match only: a lookalike apex is not the domain.
         assert!(!en_variant_language("https://notcanva.com/"));

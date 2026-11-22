@@ -13,6 +13,7 @@ mod browser;
 /// walk + `<w:t>` run extraction. DOCX family of the pdf_text salvage.
 mod docx_text;
 mod fetch;
+mod fetch_splice;
 #[cfg(feature = "screenshot")]
 mod outputs;
 /// Salvage PDF → text (benchmark document column): linear object scan +

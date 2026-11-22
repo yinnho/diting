@@ -141,6 +141,11 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
     // Error.prototype, untouched by any earlier slot.
     ("error_face.js", include_str!("js/error_face.js")),
     ("abort_signals.js", include_str!("js/abort_signals.js")),
+    // god-file split (domcore ratchet repay, innerText machinery): the UA tag
+    // tables + cascade pocket-read + block/cell separator walk. Pure helpers;
+    // the sole consumer is domcore's innerText getter, at call time through
+    // the d()-published hidden globals. Right before domcore.js.
+    ("inner_text.js", include_str!("js/inner_text.js")),
     // god-file split (刀3, DOM core): Node/Element/Document/ShadowRoot/Attr —
     // the DOM core family bootstrap.js carried wholesale. Straight after it:
     // everything later (canvas, sweeps) needs these classes in scope.
