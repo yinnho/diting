@@ -104,6 +104,32 @@ fn inner_text_preserves_pre_content_verbatim() {
     assert_eq!(t, serde_json::json!("  keep\n   me  \nafter"), "got: {t}");
 }
 
+/// diting#79: white-space:pre* from an INLINE declaration must keep spaces
+/// even when the style engine has no answer for the element (fetch-tier
+/// builds carry no cascade — inner_text_style returns null there). Same
+/// inline fallback the walk already uses for display and text-transform.
+#[test]
+fn inner_text_preserves_inline_white_space_pre_wrap() {
+    let mut rt = setup_runtime(
+        "<html><body><div style=\"white-space:pre-wrap\">a  b   c</div><p>after</p></body></html>",
+    );
+    let t = rt.evaluate("document.body.innerText").unwrap();
+    assert_eq!(t, serde_json::json!("a  b   c\nafter"), "got: {t}");
+}
+
+/// diting#79, cascade path: a stylesheet-declared pre-wrap reaches the walk
+/// through inner_text_style. Needs the style engine (screenshot feature).
+#[test]
+#[cfg(feature = "screenshot")]
+fn inner_text_preserves_stylesheet_white_space_pre_wrap() {
+    let mut rt = setup_runtime(
+        "<html><head><style>div.p { white-space: pre-wrap; }</style></head>\
+         <body><div class=\"p\">x  y   z</div><p>after</p></body></html>",
+    );
+    let t = rt.evaluate("document.body.innerText").unwrap();
+    assert_eq!(t, serde_json::json!("x  y   z\nafter"), "got: {t}");
+}
+
 #[test]
 fn inner_text_br_forces_line_break() {
     let mut rt = setup_runtime("<html><body><div>one<br>two</div></body></html>");

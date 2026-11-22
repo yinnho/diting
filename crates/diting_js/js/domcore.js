@@ -780,9 +780,13 @@ const _innerTextCollect = (node, out, st) => {
   // an undeclared child inherits whatever state it walked into.
   const visDeclared = visibility != null || !!(el.style && el.style.visibility);
   if (visibility == null) visibility = (el.style && el.style.visibility) || 'visible';
-  const ws = cs && typeof cs['white-space'] === 'string' ? cs['white-space'] : '';
-  // Cascade first (it already folds the inline style); the inline read only
-  // serves elements the style engine hasn't answered for yet.
+  // Cascade first, inline style as the fallback for elements the style
+  // engine hasn't answered for — and in fetch-tier builds the cascade op
+  // answers null for EVERYTHING (no layout stack in the binary), making the
+  // inline read the only source. Same posture as text-transform below.
+  // diting#79: pre*/break-spaces spacing must survive into innerText.
+  let ws = cs && typeof cs['white-space'] === 'string' ? cs['white-space'] : '';
+  if (!ws) ws = (el.style && el.style.whiteSpace) || '';
   let tt = cs && typeof cs['text-transform'] === 'string' ? cs['text-transform'] : null;
   if (tt == null) tt = (el.style && el.style.textTransform) || null;
   const prevHidden = st.hidden;
@@ -790,7 +794,7 @@ const _innerTextCollect = (node, out, st) => {
   const prevTt = st.tt;
   if (visibility === 'hidden' || visibility === 'collapse') st.hidden = true;
   else if (visDeclared && visibility === 'visible') st.hidden = false;
-  if (_IT_PRE_TAGS.has(tag) || ws.startsWith('pre')) st.pre = true;
+  if (_IT_PRE_TAGS.has(tag) || ws.startsWith('pre') || ws === 'break-spaces') st.pre = true;
   if (tt) st.tt = tt;
   // Cells separate on CLOSE only — the previous cell's close already laid
   // the tab, an open-push would double it, and an empty cell still
@@ -933,10 +937,11 @@ class Element extends Node {
       const cs = _itCascade(this);
       let tt0 = cs && typeof cs['text-transform'] === 'string' ? cs['text-transform'] : null;
       if (tt0 == null) tt0 = (this.style && this.style.textTransform) || null;
-      const ws = cs && typeof cs['white-space'] === 'string' ? cs['white-space'] : '';
+      let ws = cs && typeof cs['white-space'] === 'string' ? cs['white-space'] : '';
+      if (!ws) ws = (this.style && this.style.whiteSpace) || '';
       const st = { hidden: false, pre: false };
       if (tt0) st.tt = tt0;
-      if (_IT_PRE_TAGS.has(this.localName) || ws.startsWith('pre')) st.pre = true;
+      if (_IT_PRE_TAGS.has(this.localName) || ws.startsWith('pre') || ws === 'break-spaces') st.pre = true;
       const out = [];
       const kids = this.childNodes;
       for (let i = 0; i < kids.length; i++) {
