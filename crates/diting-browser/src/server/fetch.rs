@@ -61,6 +61,19 @@ fn navigation_uses_direct(url: &str, use_proxy: bool, proxy_configured: bool) ->
     !((use_proxy || crate::config::should_auto_proxy(url)) && proxy_configured)
 }
 
+/// The proxy fallback is starting after direct died. Pin the host to the
+/// proxy for a short window (`route_table::note_proxy_pending`): the retry
+/// this fetch's caller fires right after our failure must go straight
+/// through the tunnel with a full budget — waiting for this leg's own
+/// success to sentence the host (`note_proxy_win`) is too late when the
+/// direct leg already ate most of the budget. A proxy win supersedes the
+/// pin; a later direct success clears it.
+fn note_proxy_fallback_started(url: &str, pending: impl FnOnce(&str)) {
+    if let Some(host) = diting::route_table::host_of(url) {
+        pending(&host);
+    }
+}
+
 /// Check if the current page is a Cloudflare challenge.
 fn is_cloudflare_challenge(page: &mut crate::page::Page) -> bool {
     let title_val = page.evaluate("document.title");
@@ -757,6 +770,9 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                         return Err(e.into());
                     }
                     tracing::info!(url = %req.url, "fetch: direct navigation died at transport; retrying through the proxy");
+                    note_proxy_fallback_started(&req.url, |host| {
+                        diting::route_table::note_proxy_pending(host);
+                    });
                     drop(page);
                     drop(browser);
                     let browser2 = build_browser(true, &req.url, req.tls_fingerprint.as_deref())
@@ -886,6 +902,9 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                     url = %req.url,
                     "fetch: geo-block stub on the direct route; retrying through the proxy"
                 );
+                note_proxy_fallback_started(&req.url, |host| {
+                    diting::route_table::note_proxy_pending(host);
+                });
                 drop(page);
                 drop(browser);
                 let browser2 = build_browser(true, &req.url, req.tls_fingerprint.as_deref())
@@ -1468,7 +1487,7 @@ pub fn do_eval(req: EvalRequest) -> Result<EvalResponse> {
 mod tests {
     use super::{
         collapse_whitespace, fetch_nav_timeout_override, navigation_uses_direct,
-        note_direct_navigation_outcome_with, rendered_text_is_short,
+        note_direct_navigation_outcome_with, note_proxy_fallback_started, rendered_text_is_short,
     };
 
     #[test]
@@ -1525,6 +1544,23 @@ mod tests {
             false,
             false
         ));
+    }
+
+    #[test]
+    fn proxy_fallback_start_pins_the_host_once() {
+        let mut calls = Vec::new();
+        note_proxy_fallback_started("https://direct.example/path", |host| {
+            calls.push(host.to_string());
+        });
+        assert_eq!(calls, ["direct.example".to_string()]);
+        note_proxy_fallback_started("not a url", |host| {
+            calls.push(host.to_string());
+        });
+        assert_eq!(
+            calls.len(),
+            1,
+            "unparseable URLs carry no host, so no pin may land"
+        );
     }
 
     #[test]
