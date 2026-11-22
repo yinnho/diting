@@ -30,6 +30,37 @@ fn fetch_nav_timeout_override(env_nav_timeout: Option<&str>) -> Option<u64> {
     }
 }
 
+/// Direct navigation outcomes update the route table only when the transport
+/// really was direct. `use_proxy=false` can still mean a proxy leg through
+/// should_auto_proxy; conversely, a requested proxy with no proxy configured
+/// is still a direct leg. Proxy wins must stay sentenced, and proxy failures
+/// are not evidence against the direct route.
+fn note_direct_navigation_outcome(url: &str, was_direct: bool, ok: bool) {
+    note_direct_navigation_outcome_with(url, was_direct, ok, |host, ok| {
+        diting::route_table::note_direct(host, ok);
+    });
+}
+
+fn note_direct_navigation_outcome_with(
+    url: &str,
+    was_direct: bool,
+    ok: bool,
+    note: impl FnOnce(&str, bool),
+) {
+    if !was_direct {
+        return;
+    }
+    if let Some(host) = diting::route_table::host_of(url) {
+        note(&host, ok);
+    }
+}
+
+/// The route build_browser will actually take, including the no-proxy-
+/// configured fallback to direct.
+fn navigation_uses_direct(url: &str, use_proxy: bool, proxy_configured: bool) -> bool {
+    !((use_proxy || crate::config::should_auto_proxy(url)) && proxy_configured)
+}
+
 /// Check if the current page is a Cloudflare challenge.
 fn is_cloudflare_challenge(page: &mut crate::page::Page) -> bool {
     let title_val = page.evaluate("document.title");
@@ -675,6 +706,11 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             // Request clock: the content-stability tail below budgets itself
             // against what navigation already spent of the caller's deadline.
             let started = std::time::Instant::now();
+            // Freeze the route decision before build_browser: an explicit
+            // use_proxy=false may still be auto-proxied by a domain rule or
+            // an existing route-table sentence.
+            let proxy_configured = crate::config::proxy_from_env().is_some();
+            let mut direct_leg = navigation_uses_direct(&req.url, req.use_proxy, proxy_configured);
             let mut browser =
                 build_browser(req.use_proxy, &req.url, req.tls_fingerprint.as_deref())?;
             inject_cookies(&browser, &req.cookies, &req.url);
@@ -701,6 +737,7 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                         url = %req.url,
                         "fetch: navigation deadline after the document committed; reading the live page"
                     );
+                    note_direct_navigation_outcome(&req.url, direct_leg, true);
                 } else {
                     // Transport-class death (connect/timeout/refused) on the
                     // direct route: the wall is a property of the box, not of
@@ -710,15 +747,13 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                     // carries the page sentences the host (note_proxy_win), so
                     // the next fetch goes straight to the proxy. The geo-stub
                     // retry below is the content-level sibling of this block.
-                    if let Some(h) = diting::route_table::host_of(&req.url) {
-                        diting::route_table::note_direct(&h, false);
-                    }
+                    note_direct_navigation_outcome(&req.url, direct_leg, false);
                     let transport = msg.contains("Connect")
                         || msg.contains("TimedOut")
                         || msg.contains("timed out")
                         || msg.contains("Connection refused")
                         || msg.contains("error sending request");
-                    if !transport || req.use_proxy || crate::config::proxy_from_env().is_none() {
+                    if !transport || !direct_leg || !proxy_configured {
                         return Err(e.into());
                     }
                     tracing::info!(url = %req.url, "fetch: direct navigation died at transport; retrying through the proxy");
@@ -749,10 +784,13 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                     }
                     page = page2;
                     browser = browser2;
+                    direct_leg = false;
                     // The live proxy pair replaces the dropped direct pair:
                     // the geo-stub retry below drops `browser` again, so the
                     // binding must stay owned across this fallback.
                 }
+            } else {
+                note_direct_navigation_outcome(&req.url, direct_leg, true);
             }
 
             // Non-text documents (PDF/DOCX/…) must not reach the renderer:
@@ -843,10 +881,7 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             // is still alive (v8::OwnedIsolate panics otherwise). The
             // stub is worthless anyway; if the proxy leg fails the error
             // says what happened.
-            if !req.use_proxy
-                && crate::config::proxy_from_env().is_some()
-                && geo_block_stub(&mut page)
-            {
+            if direct_leg && proxy_configured && geo_block_stub(&mut page) {
                 tracing::info!(
                     url = %req.url,
                     "fetch: geo-block stub on the direct route; retrying through the proxy"
@@ -1431,7 +1466,66 @@ pub fn do_eval(req: EvalRequest) -> Result<EvalResponse> {
 
 #[cfg(test)]
 mod tests {
-    use super::{collapse_whitespace, fetch_nav_timeout_override, rendered_text_is_short};
+    use super::{
+        collapse_whitespace, fetch_nav_timeout_override, navigation_uses_direct,
+        note_direct_navigation_outcome_with, rendered_text_is_short,
+    };
+
+    #[test]
+    fn direct_navigation_outcomes_only_record_direct_evidence() {
+        let mut calls = Vec::new();
+        note_direct_navigation_outcome_with(
+            "https://direct.example/path",
+            true,
+            true,
+            |host, ok| {
+                calls.push((host.to_string(), ok));
+            },
+        );
+        note_direct_navigation_outcome_with(
+            "https://direct.example/path",
+            true,
+            false,
+            |host, ok| {
+                calls.push((host.to_string(), ok));
+            },
+        );
+        assert_eq!(
+            calls,
+            [
+                ("direct.example".to_string(), true),
+                ("direct.example".to_string(), false),
+            ]
+        );
+
+        let mut proxied = false;
+        for ok in [true, false] {
+            note_direct_navigation_outcome_with("https://proxy.example/path", false, ok, |_, _| {
+                proxied = true;
+            });
+        }
+        assert!(
+            !proxied,
+            "proxy outcomes must not alter direct-route evidence"
+        );
+    }
+
+    #[test]
+    fn navigation_route_accounts_for_auto_proxy_and_missing_proxy_config() {
+        assert!(navigation_uses_direct("https://example.com/", false, true));
+        assert!(navigation_uses_direct("https://example.com/", true, false));
+        assert!(!navigation_uses_direct("https://example.com/", true, true));
+        assert!(!navigation_uses_direct(
+            "https://en.wikipedia.org/wiki/Rust",
+            false,
+            true
+        ));
+        assert!(navigation_uses_direct(
+            "https://en.wikipedia.org/wiki/Rust",
+            false,
+            false
+        ));
+    }
 
     #[test]
     fn fetch_read_extends_the_nav_ceiling_unless_the_operator_set_one() {
