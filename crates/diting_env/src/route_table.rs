@@ -14,6 +14,17 @@
 //! evidence than a bare probe failure, so it sentences longer
 //! ([`PROXY_WIN_SKIP_SECS`]). Sentences expire and the next direct probe is
 //! allowed through — networks change.
+//!
+//! Between the two sits [`note_proxy_pending`]: the moment a fetch starts
+//! its proxy fallback after direct died at transport, the host is pinned to
+//! the proxy for a short window ([`PROXY_PENDING_SECS`]). Without it the
+//! streak is still below the threshold, so a caller's immediate retry (the
+//! benchmark harness retries once, right away) walks the same dead direct
+//! route again and burns its whole budget there — the proxy fallback only
+//! ever gets the leftovers, and both attempts die. The pin is suspicion, not
+//! proof: a proxy win supersedes it with the six-hour sentence, a later
+//! direct success clears it, and if the proxy leg dies too the pin simply
+//! expires and direct is probed again.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -27,6 +38,11 @@ pub const DIRECT_SKIP_SECS: u64 = 600;
 /// Proxy-confirmed sentence: the proxy leg carrying the page after direct
 /// died is proof, not suspicion — the sentence runs six hours, not minutes.
 pub const PROXY_WIN_SKIP_SECS: u64 = 6 * 3600;
+/// How long a *started* proxy fallback pins the host to the proxy: long
+/// enough that the caller's immediate retry goes straight through the tunnel
+/// instead of re-burning its budget on the route that just died, short
+/// enough that a fluke direct failure self-heals if the proxy leg dies too.
+pub const PROXY_PENDING_SECS: u64 = 120;
 /// Hosts tracked before eviction (expired first, then soonest-to-expire).
 pub const DIRECT_FAILS_CAP: usize = 64;
 
@@ -97,6 +113,27 @@ pub fn note_direct_outcome(
             };
             map.remove(&k);
         }
+    }
+}
+
+/// The proxy fallback is starting after direct died (transport death or a
+/// geo-stub body). Pin the host to the proxy for [`PROXY_PENDING_SECS`] —
+/// never shortening a longer sentence already on the books, and never
+/// touching the failure streak: the pin is about route timing, the streak
+/// about direct-route health, and the direct failure itself was already
+/// noted (or, on the geo path, wasn't one to note).
+pub fn note_proxy_pending_outcome(
+    map: &mut HashMap<String, DirectFailState>,
+    host: &str,
+    now: u64,
+) {
+    let st = map.entry(host.to_string()).or_insert(DirectFailState {
+        fails: 0,
+        skip_until: 0,
+    });
+    let until = now.saturating_add(PROXY_PENDING_SECS);
+    if st.skip_until < until {
+        st.skip_until = until;
     }
 }
 
@@ -201,6 +238,17 @@ pub fn note_proxy_win(host: &str) {
     });
 }
 
+/// The proxy fallback for this host just started. Pin it to the proxy for
+/// [`PROXY_PENDING_SECS`] so an immediate retry rides the tunnel with a full
+/// budget instead of dying on direct twice. Superseded by
+/// [`note_proxy_win`], cleared by a direct success.
+pub fn note_proxy_pending(host: &str) {
+    with_table(|m| {
+        note_proxy_pending_outcome(m, host, now_secs());
+        persist(m);
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,6 +285,37 @@ mod tests {
         // Expired entries stop sentencing.
         let past = 1000 + DIRECT_SKIP_SECS + 1;
         assert_eq!(direct_skip_remaining(&m, "h1.example", past + 1), 0);
+    }
+
+    #[test]
+    fn proxy_pending_pins_briefly_then_lifts_or_hardens() {
+        let mut m = HashMap::new();
+        // The transport path: direct failed once (below threshold, no
+        // sentence), then the fallback starts — the pin is the only sentence.
+        note_direct_outcome(&mut m, "x.com", false, 1000);
+        assert_eq!(direct_skip_remaining(&m, "x.com", 1000), 0);
+        note_proxy_pending_outcome(&mut m, "x.com", 1000);
+        assert_eq!(direct_skip_remaining(&m, "x.com", 1000), PROXY_PENDING_SECS);
+        assert_eq!(m["x.com"].fails, 1, "pending must not touch the streak");
+        // The pin expires on its own — a fluke direct failure self-heals.
+        assert_eq!(
+            direct_skip_remaining(&m, "x.com", 1000 + PROXY_PENDING_SECS),
+            0
+        );
+        // A later direct success clears the pin like any other sentence.
+        note_proxy_pending_outcome(&mut m, "x.com", 1100);
+        note_direct_outcome(&mut m, "x.com", true, 1100);
+        assert!(!m.contains_key("x.com"));
+        // The geo path: direct transport was fine, so the pin lands on a
+        // fresh entry — and never shortens a longer sentence already there.
+        note_direct_outcome(&mut m, "geo.example", false, 2000);
+        note_direct_outcome(&mut m, "geo.example", false, 2000);
+        let sentenced_until = m["geo.example"].skip_until;
+        note_proxy_pending_outcome(&mut m, "geo.example", 2010);
+        assert_eq!(
+            m["geo.example"].skip_until, sentenced_until,
+            "pending must not move an existing longer sentence"
+        );
     }
 
     #[test]
