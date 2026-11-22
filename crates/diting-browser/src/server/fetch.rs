@@ -7,9 +7,9 @@
 use super::browser::{build_browser, inject_cookies, run_on_local_runtime};
 use super::fetch_splice::{collapse_whitespace, MARKDOWN_SPLICE_JS};
 use super::route_fallback::{
-    nav_deadline_ms, navigation_uses_direct, note_direct_navigation_outcome,
-    note_proxy_fallback_started, proxy_retry_pair, starve_bail_ms, wait_for_load_or_deadline,
-    FETCH_NAV_TIMEOUT_MS,
+    nav_deadline_hit_before_commit, nav_deadline_ms, navigation_uses_direct,
+    note_direct_navigation_outcome, note_proxy_fallback_started, proxy_retry_pair, starve_bail_ms,
+    wait_for_load_or_deadline, FETCH_NAV_TIMEOUT_MS,
 };
 use crate::{
     ClickRequest, ClickResponse, EvalRequest, EvalResponse, FetchRequest, FetchResponse,
@@ -749,6 +749,40 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                             );
                         }
                     }
+                } else if starve_ms > 0 && direct_leg && nav_deadline_hit_before_commit(&msg) {
+                    // The starvation bail's pre-commit face: the deadline
+                    // fired before the document committed (slow TTFB, first
+                    // bytes trickling). `about:blank` gives the pending-
+                    // scripts probe nothing to read and the transport arm
+                    // below does not match a deadline error, so without this
+                    // arm the fetch is a bare 500 at bail time where the 60s
+                    // ceiling it replaced committed at 20-25s. Same cure as a
+                    // starving download: jump for the proxy while the
+                    // worker's retry budget is still alive.
+                    tracing::info!(
+                        url = %req.url,
+                        "fetch: direct leg starved before the document committed; retrying through the proxy"
+                    );
+                    note_direct_navigation_outcome(&req.url, direct_leg, false);
+                    note_proxy_fallback_started(&req.url, |host| {
+                        diting::route_table::note_proxy_pending(host);
+                    });
+                    drop(page);
+                    drop(browser);
+                    let (page2, browser2) = proxy_retry_pair(
+                        &req,
+                        &format!(
+                            "direct navigation starved {starve_ms}ms before the document committed"
+                        ),
+                    )
+                    .await?;
+                    page = page2;
+                    browser = browser2;
+                    direct_leg = false;
+                    // The live proxy pair replaces the dropped direct pair:
+                    // the geo-stub retry below drops `browser` again, so the
+                    // binding stays owned across this fallback, like the two
+                    // arms above.
                 } else {
                     // Transport-class death (connect/timeout/refused) on the
                     // direct route: the wall is a property of the box, not of

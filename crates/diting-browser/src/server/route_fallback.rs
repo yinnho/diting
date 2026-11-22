@@ -127,6 +127,25 @@ pub(super) fn pending_remote_scripts(page: &mut crate::page::Page) -> Option<u64
     None
 }
 
+/// Did the navigation die at the deadline without the document ever
+/// committing? The deadline error names its phase (`navigate.rs`): "document
+/// received, not yet committed" (bytes trickling in) or "document fetch in
+/// flight" (not even headers yet). That is the starvation bail's pre-commit
+/// face — the direct network leg starves before there is a page at all, so
+/// the pending-scripts probe has nothing to read (`about:blank` carries no
+/// script elements) and the transport-death arm does not match a deadline
+/// error. Without this discriminator such fetches are a bare 500 at bail
+/// time, where the 60s ceiling they replaced would have committed at
+/// 20-25s (openwrt/musicbrainz in the 11-22 flip43 retest). Committed
+/// shapes (`document committed, scripts/settle still running`, `loaded
+/// after the deadline raced`) must not match — the probe branch owns
+/// those — and neither must transport-class deaths, which the transport
+/// arm owns. Matched on substrings, not prefixes: `e.to_string()` wraps
+/// the deadline text in outer error prefixes.
+pub(super) fn nav_deadline_hit_before_commit(msg: &str) -> bool {
+    msg.contains("not yet committed") || msg.contains("document fetch in flight")
+}
+
 /// Build the proxy fallback leg shared by every retry arm: fresh proxied
 /// browser + page, cookies injected, full navigation deadline, tolerant of
 /// a committed-document deadline, and a route-table proxy win on success.
@@ -181,9 +200,9 @@ pub(super) fn wait_for_load_or_deadline(page: &mut crate::page::Page, until: std
 #[cfg(test)]
 mod tests {
     use super::{
-        fetch_nav_timeout_override, nav_deadline_ms, navigation_uses_direct,
-        note_direct_navigation_outcome_with, note_proxy_fallback_started, pending_remote_scripts,
-        starve_bail_ms,
+        fetch_nav_timeout_override, nav_deadline_hit_before_commit, nav_deadline_ms,
+        navigation_uses_direct, note_direct_navigation_outcome_with, note_proxy_fallback_started,
+        pending_remote_scripts, starve_bail_ms,
     };
     use crate::browser::Browser;
 
@@ -268,6 +287,45 @@ mod tests {
             false,
             false
         ));
+    }
+
+    /// The pre-commit discriminator's contract, pinned on the exact field
+    /// shapes from `navigate.rs` (including the outer error prefixes
+    /// `e.to_string()` adds — the flip43 openwrt/musicbrainz kills). Only
+    /// the two never-committed phases match; committed pages belong to the
+    /// pending-scripts probe and transport deaths to the transport arm.
+    #[test]
+    fn nav_deadline_before_commit_matches_only_the_uncommitted_phases() {
+        let received = "navigation error: Network error: navigation exceeded 10000ms deadline \
+             (document received, not yet committed; active document: about:blank; requested: \
+             https://openwrt.org/start; navigation #2 — /network rows carry the generation as \
+             \"nav\")";
+        let in_flight = "navigation error: Network error: navigation exceeded 10000ms deadline \
+             (document fetch in flight; active document: about:blank; requested: \
+             https://openwrt.org/start; navigation #2 — /network rows carry the generation as \
+             \"nav\")";
+        assert!(nav_deadline_hit_before_commit(received));
+        assert!(nav_deadline_hit_before_commit(in_flight));
+        let committed = "navigation exceeded 10000ms deadline (document committed, \
+             scripts/settle still running; active document: https://example.com/; requested: \
+             https://example.com/; navigation #2)";
+        let raced = "navigation exceeded 10000ms deadline (loaded after the deadline raced; \
+             active document: https://example.com/; requested: https://example.com/; \
+             navigation #2)";
+        assert!(
+            !nav_deadline_hit_before_commit(committed),
+            "the probe branch owns committed pages"
+        );
+        assert!(
+            !nav_deadline_hit_before_commit(raced),
+            "a raced load already committed — not starvation"
+        );
+        assert!(
+            !nav_deadline_hit_before_commit(
+                "error sending request for url (https://x.example/): Connection refused"
+            ),
+            "transport-class deaths belong to the transport arm"
+        );
     }
 
     #[test]
