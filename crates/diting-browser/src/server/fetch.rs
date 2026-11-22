@@ -6,73 +6,17 @@
 
 use super::browser::{build_browser, inject_cookies, run_on_local_runtime};
 use super::fetch_splice::{collapse_whitespace, MARKDOWN_SPLICE_JS};
+use super::route_fallback::{
+    nav_deadline_ms, navigation_uses_direct, note_direct_navigation_outcome,
+    note_proxy_fallback_started, proxy_retry_pair, starve_bail_ms, wait_for_load_or_deadline,
+    FETCH_NAV_TIMEOUT_MS,
+};
 use crate::{
     ClickRequest, ClickResponse, EvalRequest, EvalResponse, FetchRequest, FetchResponse,
     OutputFormat,
 };
 use anyhow::{Context, Result};
 use std::sync::Arc;
-
-/// `/fetch` read ceiling. Interactive navigation stays at 30s so a hung
-/// CDP session cannot wedge the dispatcher. This path holds no session
-/// lock, and the dynamic-column client waits 100s. Angular Material's
-/// autocomplete page commits, then spends the rest of a ~50s debug-engine
-/// load on the module compile and the lazy route wave; the 30s ceiling
-/// cancels that work and the live read is the title shell.
-const FETCH_NAV_TIMEOUT_MS: u64 = 60_000;
-
-/// Page-scoped navigation ceiling for one `/fetch`. `None` leaves the
-/// process default, so an explicit `DITING_NAV_TIMEOUT_MS` still wins.
-fn fetch_nav_timeout_override(env_nav_timeout: Option<&str>) -> Option<u64> {
-    match env_nav_timeout.map(str::trim).filter(|s| !s.is_empty()) {
-        Some(_) => None,
-        None => Some(FETCH_NAV_TIMEOUT_MS),
-    }
-}
-
-/// Direct navigation outcomes update the route table only when the transport
-/// really was direct. `use_proxy=false` can still mean a proxy leg through
-/// should_auto_proxy; conversely, a requested proxy with no proxy configured
-/// is still a direct leg. Proxy wins must stay sentenced, and proxy failures
-/// are not evidence against the direct route.
-fn note_direct_navigation_outcome(url: &str, was_direct: bool, ok: bool) {
-    note_direct_navigation_outcome_with(url, was_direct, ok, |host, ok| {
-        diting::route_table::note_direct(host, ok);
-    });
-}
-
-fn note_direct_navigation_outcome_with(
-    url: &str,
-    was_direct: bool,
-    ok: bool,
-    note: impl FnOnce(&str, bool),
-) {
-    if !was_direct {
-        return;
-    }
-    if let Some(host) = diting::route_table::host_of(url) {
-        note(&host, ok);
-    }
-}
-
-/// The route build_browser will actually take, including the no-proxy-
-/// configured fallback to direct.
-fn navigation_uses_direct(url: &str, use_proxy: bool, proxy_configured: bool) -> bool {
-    !((use_proxy || crate::config::should_auto_proxy(url)) && proxy_configured)
-}
-
-/// The proxy fallback is starting after direct died. Pin the host to the
-/// proxy for a short window (`route_table::note_proxy_pending`): the retry
-/// this fetch's caller fires right after our failure must go straight
-/// through the tunnel with a full budget — waiting for this leg's own
-/// success to sentence the host (`note_proxy_win`) is too late when the
-/// direct leg already ate most of the budget. A proxy win supersedes the
-/// pin; a later direct success clears it.
-fn note_proxy_fallback_started(url: &str, pending: impl FnOnce(&str)) {
-    if let Some(host) = diting::route_table::host_of(url) {
-        pending(&host);
-    }
-}
 
 /// Check if the current page is a Cloudflare challenge.
 fn is_cloudflare_challenge(page: &mut crate::page::Page) -> bool {
@@ -728,9 +672,19 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                 build_browser(req.use_proxy, &req.url, req.tls_fingerprint.as_deref())?;
             inject_cookies(&browser, &req.cookies, &req.url);
             let mut page = browser.new_page().await?;
-            if let Some(ms) =
-                fetch_nav_timeout_override(std::env::var("DITING_NAV_TIMEOUT_MS").ok().as_deref())
-            {
+            // Starvation bail deadline: only a true direct leg with a proxy
+            // behind it, and only when the operator has not pinned an
+            // explicit DITING_NAV_TIMEOUT_MS (nav_deadline_ms ranks: env >
+            // starve bail > 60s default).
+            let starve_ms = if direct_leg && proxy_configured {
+                starve_bail_ms(std::env::var("DITING_STARVE_BAIL_MS").ok().as_deref())
+            } else {
+                0
+            };
+            if let Some(ms) = nav_deadline_ms(
+                std::env::var("DITING_NAV_TIMEOUT_MS").ok().as_deref(),
+                starve_ms,
+            ) {
                 page.inner.set_navigation_timeout(Some(ms));
             }
             // Geometry facts are the caller's opt-in. The page stays Mock
@@ -746,11 +700,55 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             if let Err(e) = page.goto(&req.url).await {
                 let msg = e.to_string();
                 if msg.contains("document committed") {
-                    tracing::warn!(
-                        url = %req.url,
-                        "fetch: navigation deadline after the document committed; reading the live page"
-                    );
-                    note_direct_navigation_outcome(&req.url, direct_leg, true);
+                    // Early deadline on a direct leg: distinguish a starving
+                    // download (remote scripts still pending = throttled CDN
+                    // trickle) from JS-bound work (PoW challenge, hydration
+                    // — nothing left to download). Starving legs jump ship
+                    // for the proxy while the worker's retry budget is
+                    // still alive; JS-bound pages get their original budget
+                    // back below.
+                    if starve_ms > 0
+                        && direct_leg
+                        && super::route_fallback::pending_remote_scripts(&mut page).unwrap_or(0) > 0
+                    {
+                        tracing::info!(
+                            url = %req.url,
+                            "fetch: direct leg starving (remote scripts still pending); retrying through the proxy"
+                        );
+                        note_direct_navigation_outcome(&req.url, direct_leg, false);
+                        note_proxy_fallback_started(&req.url, |host| {
+                            diting::route_table::note_proxy_pending(host);
+                        });
+                        drop(page);
+                        drop(browser);
+                        let (page2, browser2) = proxy_retry_pair(
+                            &req,
+                            &format!("direct navigation starved after {starve_ms}ms"),
+                        )
+                        .await?;
+                        page = page2;
+                        browser = browser2;
+                        direct_leg = false;
+                        // The live proxy pair replaces the dropped direct
+                        // pair: the geo-stub retry below drops `browser`
+                        // again, so the binding stays owned across this
+                        // fallback, exactly like the transport-death arm.
+                    } else {
+                        tracing::warn!(
+                            url = %req.url,
+                            "fetch: navigation deadline after the document committed; reading the live page"
+                        );
+                        note_direct_navigation_outcome(&req.url, direct_leg, true);
+                        // The early deadline only shortens the wait when the
+                        // page is JS-bound: hand the original budget back
+                        // before reading the live page.
+                        if starve_ms > 0 {
+                            wait_for_load_or_deadline(
+                                &mut page,
+                                started + std::time::Duration::from_millis(FETCH_NAV_TIMEOUT_MS),
+                            );
+                        }
+                    }
                 } else {
                     // Transport-class death (connect/timeout/refused) on the
                     // direct route: the wall is a property of the box, not of
@@ -775,29 +773,8 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                     });
                     drop(page);
                     drop(browser);
-                    let browser2 = build_browser(true, &req.url, req.tls_fingerprint.as_deref())
-                        .map_err(|e2| {
-                            anyhow::anyhow!("direct navigation failed ({msg}); proxy retry failed to start: {e2}")
-                        })?;
-                    inject_cookies(&browser2, &req.cookies, &req.url);
-                    let mut page2 = browser2.new_page().await.map_err(|e2| {
-                        anyhow::anyhow!("direct navigation failed ({msg}); proxy retry failed to open a page: {e2}")
-                    })?;
-                    if let Some(ms) = fetch_nav_timeout_override(
-                        std::env::var("DITING_NAV_TIMEOUT_MS").ok().as_deref(),
-                    ) {
-                        page2.inner.set_navigation_timeout(Some(ms));
-                    }
-                    if let Err(e2) = page2.goto(&req.url).await {
-                        if !e2.to_string().contains("document committed") {
-                            return Err(anyhow::anyhow!(
-                                "direct navigation failed ({msg}); proxy retry: {e2}"
-                            ));
-                        }
-                    }
-                    if let Some(h) = diting::route_table::host_of(&req.url) {
-                        diting::route_table::note_proxy_win(&h);
-                    }
+                    let cause = format!("direct navigation failed ({msg})");
+                    let (page2, browser2) = proxy_retry_pair(&req, &cause).await?;
                     page = page2;
                     browser = browser2;
                     direct_leg = false;
@@ -907,36 +884,9 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                 });
                 drop(page);
                 drop(browser);
-                let browser2 = build_browser(true, &req.url, req.tls_fingerprint.as_deref())
-                    .map_err(|e| {
-                        anyhow::anyhow!("geo-block stub and the proxy retry failed to start: {e}")
-                    })?;
-                inject_cookies(&browser2, &req.cookies, &req.url);
-                let mut page2 = browser2.new_page().await.map_err(|e| {
-                    anyhow::anyhow!("geo-block stub and the proxy retry failed to open a page: {e}")
-                })?;
-                if let Some(ms) = fetch_nav_timeout_override(
-                    std::env::var("DITING_NAV_TIMEOUT_MS").ok().as_deref(),
-                ) {
-                    page2.inner.set_navigation_timeout(Some(ms));
-                }
-                // Same committed-document tolerance as the primary
-                // navigation above: a deadline after commit still leaves
-                // a readable live page.
-                if let Err(e) = page2.goto(&req.url).await {
-                    if !e.to_string().contains("document committed") {
-                        return Err(anyhow::anyhow!(
-                            "geo-block stub and the proxy retry failed to navigate: {e}"
-                        ));
-                    }
-                }
-                // The proxy leg carried the real page — sentence the host so
-                // the next fetch skips the doomed direct navigation.
-                if let Some(h) = diting::route_table::host_of(&req.url) {
-                    diting::route_table::note_proxy_win(&h);
-                }
+                let (page2, _browser2) = proxy_retry_pair(&req, "geo-block stub").await?;
                 page = page2;
-                // browser2 may drop here: Page owns its Arc<BrowserContext>,
+                // _browser2 may drop here: Page owns its Arc<BrowserContext>,
                 // the page outlives the factory that built it.
             }
 
@@ -1485,92 +1435,7 @@ pub fn do_eval(req: EvalRequest) -> Result<EvalResponse> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        collapse_whitespace, fetch_nav_timeout_override, navigation_uses_direct,
-        note_direct_navigation_outcome_with, note_proxy_fallback_started, rendered_text_is_short,
-    };
-
-    #[test]
-    fn direct_navigation_outcomes_only_record_direct_evidence() {
-        let mut calls = Vec::new();
-        note_direct_navigation_outcome_with(
-            "https://direct.example/path",
-            true,
-            true,
-            |host, ok| {
-                calls.push((host.to_string(), ok));
-            },
-        );
-        note_direct_navigation_outcome_with(
-            "https://direct.example/path",
-            true,
-            false,
-            |host, ok| {
-                calls.push((host.to_string(), ok));
-            },
-        );
-        assert_eq!(
-            calls,
-            [
-                ("direct.example".to_string(), true),
-                ("direct.example".to_string(), false),
-            ]
-        );
-
-        let mut proxied = false;
-        for ok in [true, false] {
-            note_direct_navigation_outcome_with("https://proxy.example/path", false, ok, |_, _| {
-                proxied = true;
-            });
-        }
-        assert!(
-            !proxied,
-            "proxy outcomes must not alter direct-route evidence"
-        );
-    }
-
-    #[test]
-    fn navigation_route_accounts_for_auto_proxy_and_missing_proxy_config() {
-        assert!(navigation_uses_direct("https://example.com/", false, true));
-        assert!(navigation_uses_direct("https://example.com/", true, false));
-        assert!(!navigation_uses_direct("https://example.com/", true, true));
-        assert!(!navigation_uses_direct(
-            "https://en.wikipedia.org/wiki/Rust",
-            false,
-            true
-        ));
-        assert!(navigation_uses_direct(
-            "https://en.wikipedia.org/wiki/Rust",
-            false,
-            false
-        ));
-    }
-
-    #[test]
-    fn proxy_fallback_start_pins_the_host_once() {
-        let mut calls = Vec::new();
-        note_proxy_fallback_started("https://direct.example/path", |host| {
-            calls.push(host.to_string());
-        });
-        assert_eq!(calls, ["direct.example".to_string()]);
-        note_proxy_fallback_started("not a url", |host| {
-            calls.push(host.to_string());
-        });
-        assert_eq!(
-            calls.len(),
-            1,
-            "unparseable URLs carry no host, so no pin may land"
-        );
-    }
-
-    #[test]
-    fn fetch_read_extends_the_nav_ceiling_unless_the_operator_set_one() {
-        assert_eq!(fetch_nav_timeout_override(None), Some(60_000));
-        assert_eq!(fetch_nav_timeout_override(Some("")), Some(60_000));
-        assert_eq!(fetch_nav_timeout_override(Some("   ")), Some(60_000));
-        assert_eq!(fetch_nav_timeout_override(Some("30000")), None);
-        assert_eq!(fetch_nav_timeout_override(Some(" 45000 ")), None);
-    }
+    use super::{collapse_whitespace, rendered_text_is_short};
 
     #[test]
     fn chinese_nav_shell_is_still_short() {

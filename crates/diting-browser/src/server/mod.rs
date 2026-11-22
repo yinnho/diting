@@ -19,6 +19,10 @@ mod outputs;
 /// Salvage PDF → text (benchmark document column): linear object scan +
 /// ObjStm expansion + ToUnicode replay of text operators.
 mod pdf_text;
+/// Route-decision and proxy-fallback seams for [`fetch`]: nav deadlines
+/// (full ceiling + starvation bail), route chooser, route-table
+/// bookkeeping, shared proxy retry leg.
+mod route_fallback;
 mod search;
 
 // Façade re-exports — names exist for other modules / future callers even when
