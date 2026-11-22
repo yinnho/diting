@@ -850,3 +850,132 @@ mod cost_knob_tests {
         assert_eq!((rows[1].width, rows[1].height), (Some(7), Some(5)));
     }
 }
+
+/// The starvation bail's pre-commit face (11-22 flip43: openwrt/musicbrainz
+/// were bare 500s at exactly 10s). A direct leg whose document never commits
+/// by the bail deadline must jump to the proxy — the pending-scripts probe
+/// has nothing to read on `about:blank` and the transport arm does not match
+/// a deadline error. Pinned end-to-end: blackhole origin (accepts, never
+/// responds) + a local forward proxy that serves the real page.
+#[cfg(test)]
+mod starve_before_commit_tests {
+    use crate::server::do_fetch;
+    use crate::server::test_util::net_env_guard;
+    use crate::FetchRequest;
+    use std::io::{Read as _, Write as _};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
+
+    /// Removes one env var when the test ends, panic or not.
+    struct ScrubEnv(&'static str);
+    impl Drop for ScrubEnv {
+        fn drop(&mut self) {
+            unsafe { std::env::remove_var(self.0) };
+        }
+    }
+
+    #[test]
+    fn uncommitted_starvation_bails_to_the_proxy_and_lands() {
+        let _net = net_env_guard();
+        let stop = Arc::new(AtomicBool::new(false));
+
+        // Blackhole origin: accepts the connection and never answers — the
+        // direct navigation can neither commit nor die at transport.
+        let bh = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let bh_port = bh.local_addr().unwrap().port();
+        let bh_saw = Arc::new(AtomicBool::new(false));
+        {
+            let stop = stop.clone();
+            let bh_saw = bh_saw.clone();
+            std::thread::spawn(move || {
+                for stream in bh.incoming() {
+                    let Ok(mut s) = stream else { continue };
+                    bh_saw.store(true, Ordering::SeqCst);
+                    let mut buf = [0u8; 1024];
+                    let _ = s.read(&mut buf); // consume the request bytes
+                    while !stop.load(Ordering::SeqCst) {
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                    }
+                }
+            });
+        }
+
+        // Forward proxy: answers every absolute-form GET with the rescue
+        // page, recording the request line so the test can prove the retry
+        // really went through the proxy.
+        let px = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let px_port = px.local_addr().unwrap().port();
+        let px_log: Arc<Mutex<Vec<String>>> = Arc::default();
+        {
+            let stop = stop.clone();
+            let px_log = px_log.clone();
+            std::thread::spawn(move || {
+                for stream in px.incoming() {
+                    let Ok(mut s) = stream else { continue };
+                    let mut buf = Vec::new();
+                    let mut chunk = [0u8; 2048];
+                    // Read exactly the request head; the proxied GET carries
+                    // no body.
+                    loop {
+                        let n = s.read(&mut chunk).unwrap_or(0);
+                        if n == 0 {
+                            break;
+                        }
+                        buf.extend_from_slice(&chunk[..n]);
+                        if buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                            break;
+                        }
+                    }
+                    let head = String::from_utf8_lossy(&buf).to_string();
+                    px_log
+                        .lock()
+                        .unwrap()
+                        .push(head.lines().next().unwrap_or("").to_string());
+                    let body = "<html><head><title>proxied rescue</title></head>\
+                                <body>PROXY-RESCUE-OK through the tunnel leg</body></html>";
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\n\
+                         connection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = s.write_all(resp.as_bytes());
+                    let _ = s.flush();
+                    if stop.load(Ordering::SeqCst) {
+                        break;
+                    }
+                }
+            });
+        }
+
+        unsafe { std::env::set_var("DITING_PROXY", format!("http://127.0.0.1:{px_port}")) };
+        unsafe { std::env::set_var("DITING_STARVE_BAIL_MS", "1500") };
+        // Memory-only route table: the direct-fail bookkeeping below must
+        // not leak a sentence for 127.0.0.1 into other tests' on-disk table.
+        unsafe { std::env::set_var("DITING_EPHEMERAL", "1") };
+        let _scrub_proxy = ScrubEnv("DITING_PROXY");
+        let _scrub_bail = ScrubEnv("DITING_STARVE_BAIL_MS");
+        let _scrub_ephemeral = ScrubEnv("DITING_EPHEMERAL");
+
+        let req: FetchRequest = serde_json::from_value(serde_json::json!({
+            "url": format!("http://127.0.0.1:{bh_port}/doc"),
+        }))
+        .unwrap();
+        let resp = do_fetch(req).expect("the proxy retry must rescue the fetch");
+
+        assert!(
+            resp.content.contains("PROXY-RESCUE-OK"),
+            "content must come from the proxied page, got: {:?}",
+            &resp.content[..resp.content.len().min(200)]
+        );
+        let log = px_log.lock().unwrap();
+        assert!(
+            log.iter()
+                .any(|l| l.contains(&format!("127.0.0.1:{bh_port}"))),
+            "the retry must go through the proxy in absolute form: {log:?}"
+        );
+        drop(log);
+        assert!(bh_saw.load(Ordering::SeqCst), "the direct leg really ran");
+        stop.store(true, Ordering::SeqCst);
+    }
+}
