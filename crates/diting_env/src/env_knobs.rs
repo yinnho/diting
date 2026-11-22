@@ -137,7 +137,10 @@ pub fn should_auto_proxy(url: &str) -> bool {
             return true;
         }
     }
-    false
+    // Learned routes (route_table): a host whose direct leg keeps dying — or
+    // whose proxy leg carried the page after direct failed — is sentenced to
+    // proxy until the sentence expires.
+    crate::route_table::skip_direct_remaining(host) > 0
 }
 
 /// Locale-variant domains: the direct route works, but the site negotiates

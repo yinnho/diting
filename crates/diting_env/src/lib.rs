@@ -6,3 +6,6 @@ pub mod chrome_target;
 // Engine runtime knobs (DITING_* env), owned by the engine since the
 // workspace split; the product re-exports them from `config`.
 pub mod env_knobs;
+// Per-host route memory (direct-fail sentences + proxy-win marks), shared by
+// every transport and persisted under app_data_dir.
+pub mod route_table;

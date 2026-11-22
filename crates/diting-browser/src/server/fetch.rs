@@ -675,7 +675,8 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             // Request clock: the content-stability tail below budgets itself
             // against what navigation already spent of the caller's deadline.
             let started = std::time::Instant::now();
-            let browser = build_browser(req.use_proxy, &req.url, req.tls_fingerprint.as_deref())?;
+            let mut browser =
+                build_browser(req.use_proxy, &req.url, req.tls_fingerprint.as_deref())?;
             inject_cookies(&browser, &req.cookies, &req.url);
             let mut page = browser.new_page().await?;
             if let Some(ms) =
@@ -694,13 +695,64 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             // page; dropping it turns a finished read into a 500. A deadline
             // before commit is still a hard error.
             if let Err(e) = page.goto(&req.url).await {
-                if !e.to_string().contains("document committed") {
-                    return Err(e.into());
+                let msg = e.to_string();
+                if msg.contains("document committed") {
+                    tracing::warn!(
+                        url = %req.url,
+                        "fetch: navigation deadline after the document committed; reading the live page"
+                    );
+                } else {
+                    // Transport-class death (connect/timeout/refused) on the
+                    // direct route: the wall is a property of the box, not of
+                    // the request — note it in the route table, then retry the
+                    // navigation through the tunnel once when a proxy exists
+                    // and this leg wasn't already proxied. A proxy leg that
+                    // carries the page sentences the host (note_proxy_win), so
+                    // the next fetch goes straight to the proxy. The geo-stub
+                    // retry below is the content-level sibling of this block.
+                    if let Some(h) = diting::route_table::host_of(&req.url) {
+                        diting::route_table::note_direct(&h, false);
+                    }
+                    let transport = msg.contains("Connect")
+                        || msg.contains("TimedOut")
+                        || msg.contains("timed out")
+                        || msg.contains("Connection refused")
+                        || msg.contains("error sending request");
+                    if !transport || req.use_proxy || crate::config::proxy_from_env().is_none() {
+                        return Err(e.into());
+                    }
+                    tracing::info!(url = %req.url, "fetch: direct navigation died at transport; retrying through the proxy");
+                    drop(page);
+                    drop(browser);
+                    let browser2 = build_browser(true, &req.url, req.tls_fingerprint.as_deref())
+                        .map_err(|e2| {
+                            anyhow::anyhow!("direct navigation failed ({msg}); proxy retry failed to start: {e2}")
+                        })?;
+                    inject_cookies(&browser2, &req.cookies, &req.url);
+                    let mut page2 = browser2.new_page().await.map_err(|e2| {
+                        anyhow::anyhow!("direct navigation failed ({msg}); proxy retry failed to open a page: {e2}")
+                    })?;
+                    if let Some(ms) = fetch_nav_timeout_override(
+                        std::env::var("DITING_NAV_TIMEOUT_MS").ok().as_deref(),
+                    ) {
+                        page2.inner.set_navigation_timeout(Some(ms));
+                    }
+                    if let Err(e2) = page2.goto(&req.url).await {
+                        if !e2.to_string().contains("document committed") {
+                            return Err(anyhow::anyhow!(
+                                "direct navigation failed ({msg}); proxy retry: {e2}"
+                            ));
+                        }
+                    }
+                    if let Some(h) = diting::route_table::host_of(&req.url) {
+                        diting::route_table::note_proxy_win(&h);
+                    }
+                    page = page2;
+                    browser = browser2;
+                    // The live proxy pair replaces the dropped direct pair:
+                    // the geo-stub retry below drops `browser` again, so the
+                    // binding must stay owned across this fallback.
                 }
-                tracing::warn!(
-                    url = %req.url,
-                    "fetch: navigation deadline after the document committed; reading the live page"
-                );
             }
 
             // Non-text documents (PDF/DOCX/…) must not reach the renderer:
@@ -823,6 +875,11 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                             "geo-block stub and the proxy retry failed to navigate: {e}"
                         ));
                     }
+                }
+                // The proxy leg carried the real page — sentence the host so
+                // the next fetch skips the doomed direct navigation.
+                if let Some(h) = diting::route_table::host_of(&req.url) {
+                    diting::route_table::note_proxy_win(&h);
                 }
                 page = page2;
                 // browser2 may drop here: Page owns its Arc<BrowserContext>,
