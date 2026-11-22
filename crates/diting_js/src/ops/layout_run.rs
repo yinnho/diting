@@ -169,13 +169,7 @@ pub(super) fn layout_run_all(gs: &JsState, dom: &DomTree, solve: bool) -> Layout
         .hash(&mut hasher);
         hasher.finish()
     };
-    let cached: Option<
-        std::sync::Arc<(
-            Vec<diting_css::ParsedRule>,
-            diting_css::KeyframesMap,
-            Vec<diting_css::ContainerRule>,
-        )>,
-    > = gs
+    let cached: Option<super::state::ParsedSheets> = gs
         .sheet_parse_cache
         .borrow()
         .as_ref()

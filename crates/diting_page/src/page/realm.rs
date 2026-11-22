@@ -150,20 +150,19 @@ impl Page {
         let via_proxy = self.context.proxy_url.is_some()
             || (diting_env::env_knobs::proxy_from_env().is_some()
                 && diting_env::env_knobs::should_auto_proxy(&self.url_string()));
-        let lang = if diting_net::client::wants_international_language(
-            &self.url_string(),
-            via_proxy,
-        ) && !self
-            .http_client
-            .lang_pinned
-            .load(std::sync::atomic::Ordering::Relaxed)
-        {
-            diting_net::client::INTERNATIONAL_LANGUAGE.to_string()
-        } else if let Ok(l) = self.http_client.accept_language.try_read() {
-            l.clone()
-        } else {
-            "zh-CN,zh;q=0.9".to_string()
-        };
+        let lang =
+            if diting_net::client::wants_international_language(&self.url_string(), via_proxy)
+                && !self
+                    .http_client
+                    .lang_pinned
+                    .load(std::sync::atomic::Ordering::Relaxed)
+            {
+                diting_net::client::INTERNATIONAL_LANGUAGE.to_string()
+            } else if let Ok(l) = self.http_client.accept_language.try_read() {
+                l.clone()
+            } else {
+                "zh-CN,zh;q=0.9".to_string()
+            };
         rt.set_language(&lang);
 
         rt.set_cookie_jar(self.context.cookie_jar.clone());
