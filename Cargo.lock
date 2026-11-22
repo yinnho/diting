@@ -849,6 +849,8 @@ name = "diting_env"
 version = "0.11.0"
 dependencies = [
  "diting_profiles",
+ "serde",
+ "serde_json",
  "url",
 ]
 

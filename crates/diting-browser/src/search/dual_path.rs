@@ -35,86 +35,16 @@ fn err_chain(e: &diting::diting_net::wire::Error) -> String {
 /// 2m08s–2m18s, mostly waiting out direct timeouts that never succeed).
 pub(crate) const DIRECT_PROBE_TIMEOUT_SECS: u64 = 4;
 
-/// Consecutive direct failures before a host is sentenced to proxy-only.
-pub(crate) const DIRECT_FAIL_THRESHOLD: u8 = 2;
-/// How long the proxy-only sentence lasts; any direct success lifts it.
-pub(crate) const DIRECT_SKIP_SECS: u64 = 600;
-/// Hosts tracked before eviction (expired first, then soonest-to-expire).
-pub(crate) const DIRECT_FAILS_CAP: usize = 64;
-
-/// Per-host memory of direct-probe outcomes (aginxos REQ #414). The wall is
-/// a property of the box, not of the request, so the memory is process
-/// global: after `DIRECT_FAIL_THRESHOLD` consecutive unusable direct legs
-/// the host skips straight to the proxy instead of re-paying the probe
-/// timeout on every query.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct DirectFailState {
-    fails: u8,
-    skip_until: u64,
-}
-
-static DIRECT_FAILS: std::sync::OnceLock<
-    std::sync::Mutex<std::collections::HashMap<String, DirectFailState>>,
-> = std::sync::OnceLock::new();
-
-fn direct_fails() -> &'static std::sync::Mutex<std::collections::HashMap<String, DirectFailState>> {
-    DIRECT_FAILS.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
-}
-
-/// Seconds left on a host's proxy-only sentence (0 = probe allowed). Pure
-/// half — the fetch path feeds it the shared map, tests feed their own.
-pub(crate) fn direct_skip_remaining(
-    map: &std::collections::HashMap<String, DirectFailState>,
-    host: &str,
-    now: u64,
-) -> u64 {
-    match map.get(host) {
-        Some(s) if s.skip_until > now => s.skip_until - now,
-        _ => 0,
-    }
-}
-
-/// Record a direct-probe outcome. Ok clears the host; a fail bumps the
-/// streak, sentencing it once the threshold is reached, and the map is
-/// capped (expired entries first, then the soonest-to-expire).
-pub(crate) fn note_direct_outcome(
-    map: &mut std::collections::HashMap<String, DirectFailState>,
-    host: &str,
-    ok: bool,
-    now: u64,
-) {
-    if ok {
-        map.remove(host);
-        return;
-    }
-    let st = map.entry(host.to_string()).or_insert(DirectFailState {
-        fails: 0,
-        skip_until: 0,
-    });
-    st.fails = st.fails.saturating_add(1);
-    if st.fails >= DIRECT_FAIL_THRESHOLD {
-        st.skip_until = now.saturating_add(DIRECT_SKIP_SECS);
-    }
-    if map.len() > DIRECT_FAILS_CAP {
-        map.retain(|_, s| s.skip_until > now);
-        while map.len() > DIRECT_FAILS_CAP {
-            let Some(k) = map
-                .iter()
-                .min_by_key(|(_, s)| (s.skip_until, s.fails))
-                .map(|(k, _)| k.clone())
-            else {
-                break;
-            };
-            map.remove(&k);
-        }
-    }
-}
-
-/// [`note_direct_outcome`] over the process-global map.
-fn note_direct_outcome_global(host: &str, ok: bool) {
-    let mut map = direct_fails().lock().unwrap_or_else(|e| e.into_inner());
-    note_direct_outcome(&mut map, host, ok, crate::now_secs());
-}
+// The per-host route memory moved to the engine (diting_env::route_table,
+// 2026-11-22): one table shared by every transport — search, fetch, download
+// — and persisted under app_data_dir. Runtime code consults it through
+// diting::route_table directly; these re-exports keep the search-side tests
+// unchanged, so they exist in test builds only.
+#[cfg(test)]
+pub(crate) use diting::route_table::{
+    direct_skip_remaining, note_direct_outcome, DirectFailState, DIRECT_FAILS_CAP,
+    DIRECT_FAIL_THRESHOLD, DIRECT_SKIP_SECS,
+};
 
 /// Fetch `url` with GET, **direct first**; retry through the proxy when the
 /// direct attempt fails at transport level (connect/timeout — the signature
@@ -187,11 +117,7 @@ where
     let skip_direct = proxied.is_some()
         && host.as_deref().is_some_and(|h| {
             let auto = crate::config::should_auto_proxy(&format!("https://{h}/"));
-            let sentenced = direct_skip_remaining(
-                &direct_fails().lock().unwrap_or_else(|e| e.into_inner()),
-                h,
-                crate::now_secs(),
-            ) > 0;
+            let sentenced = diting::route_table::skip_direct_remaining(h) > 0;
             auto || sentenced
         });
 
@@ -216,7 +142,7 @@ where
                 Ok(body) => {
                     if body_ok(&body) {
                         if let Some(h) = &host {
-                            note_direct_outcome_global(h, true);
+                            diting::route_table::note_direct(h, true);
                         }
                         return Ok(body);
                     }
@@ -234,7 +160,7 @@ where
             }
         }
         if let Some(h) = &host {
-            note_direct_outcome_global(h, false);
+            diting::route_table::note_direct(h, false);
         }
     }
 

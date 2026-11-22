@@ -1,5 +1,5 @@
 //! Durable local store: everything fetched or searched through this process
-//! is persisted to a SQLite database (default `~/.diting/cache.db`) so
+//! is persisted to a SQLite database (default: the app data dir's cache.db) so
 //! an agent can query what it has already seen instead of re-fetching.
 //!
 //! Layout: `pages` (one row per fetched URL, FTS5-indexed) + `searches`
@@ -86,10 +86,27 @@ fn db_path() -> PathBuf {
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_default();
     if home.is_empty() {
-        PathBuf::from("cache.db")
-    } else {
-        PathBuf::from(home).join(".diting").join("cache.db")
+        return PathBuf::from("cache.db");
     }
+    // One data dir per machine (2026-11-22): the store lives in app_data_dir
+    // beside cookie-store.json and localStorage/. Carry the pre-move default
+    // (~/.diting/cache.db) over once — rename, so WAL/SHM stay coherent with
+    // the main file. A live process holding the old path keeps its handle;
+    // its next start picks up the new one.
+    let Some(dir) = crate::config::app_data_dir() else {
+        return PathBuf::from(home).join(".diting").join("cache.db");
+    };
+    let new = dir.join("cache.db");
+    let legacy = PathBuf::from(home).join(".diting");
+    if !new.exists() && legacy.join("cache.db").exists() {
+        for f in ["cache.db", "cache.db-wal", "cache.db-shm"] {
+            let from = legacy.join(f);
+            if from.exists() {
+                let _ = std::fs::rename(&from, dir.join(f));
+            }
+        }
+    }
+    new
 }
 
 fn scope_global() -> bool {

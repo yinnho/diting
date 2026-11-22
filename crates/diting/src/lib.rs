@@ -10,7 +10,7 @@
 
 pub use diting_css;
 pub use diting_dom;
-pub use diting_env::{chrome_target, env_knobs};
+pub use diting_env::{chrome_target, env_knobs, route_table};
 pub use diting_js;
 #[cfg(feature = "screenshot")]
 pub use diting_layout;
