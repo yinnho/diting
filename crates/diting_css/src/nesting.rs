@@ -144,8 +144,21 @@ fn resolve(parent: &str, nested: &str) -> String {
 
 const GROUP_AT_RULES: &[&str] = &["media", "supports", "layer", "container", "scope"];
 
+/// Real stylesheets nest a handful of levels; a hostile or malformed sheet
+/// with thousands of nested blocks would otherwise walk the native stack
+/// one `flatten_at` frame per level. Past the cap the caller keeps the raw
+/// text instead of a desugared copy.
+const MAX_NESTING_DEPTH: usize = 128;
+
 /// Flatten `sel { body }` when `body` nests rules; `None` otherwise.
 pub(crate) fn flatten(sel: &str, body: &str) -> Option<String> {
+    flatten_at(sel, body, 0)
+}
+
+fn flatten_at(sel: &str, body: &str, depth: usize) -> Option<String> {
+    if depth > MAX_NESTING_DEPTH {
+        return None;
+    }
     let parts = pieces(body)?;
     let mut own = String::new();
     let mut rest = String::new();
@@ -163,8 +176,8 @@ pub(crate) fn flatten(sel: &str, body: &str) -> Option<String> {
                 if let Some(at) = head.strip_prefix('@') {
                     let name: String = at.chars().take_while(|c| c.is_ascii_alphabetic()).collect();
                     if GROUP_AT_RULES.contains(&name.to_ascii_lowercase().as_str()) {
-                        let body_css =
-                            flatten(sel, &inner).unwrap_or_else(|| format!("{sel}{{{inner}}}"));
+                        let body_css = flatten_at(sel, &inner, depth + 1)
+                            .unwrap_or_else(|| format!("{sel}{{{inner}}}"));
                         rest.push_str(&format!("{head}{{{body_css}}}"));
                     }
                 } else if head.starts_with("--") {
@@ -172,7 +185,7 @@ pub(crate) fn flatten(sel: &str, body: &str) -> Option<String> {
                     own.push_str(&format!("{head}{{{inner}}};"));
                 } else {
                     let resolved = resolve(sel, head);
-                    let css = flatten(&resolved, &inner)
+                    let css = flatten_at(&resolved, &inner, depth + 1)
                         .unwrap_or_else(|| format!("{resolved}{{{inner}}}"));
                     rest.push_str(&css);
                 }
