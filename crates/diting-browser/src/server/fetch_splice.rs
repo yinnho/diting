@@ -1,7 +1,7 @@
 //! Markdown splice probe + text-massage helpers for /fetch, split out of
 //! fetch.rs (god-file ratchet, ARCHITECTURE.md §6 P2). Pure data and pure
-//! functions; every consumer lives one module over (fetch.rs's
-//! rendered_text / do_fetch).
+//! functions; every consumer lives one module over (`fetch_text.rs`'s
+//! rendered_text, which do_fetch reads through).
 
 ///
 /// `document.body.innerText` carries labels but never destinations, yet
@@ -426,4 +426,40 @@ fn installment_space(line: &str) -> Option<String> {
     }
     let cut = 3 + digits + 2; // "or " + digits + " x"
     Some(format!("{} {}", &line[..cut], &line[cut..]))
+}
+#[cfg(test)]
+mod tests {
+    use super::collapse_whitespace;
+
+    #[test]
+    fn nbsp_in_a_title_reads_as_a_normal_space() {
+        let raw = "Cascading Style Sheets Level 2 Revision 1 (CSS\u{00a0}2.1) Specification\n";
+        let text = collapse_whitespace(raw);
+        assert!(
+            text.contains("(CSS 2.1) Specification"),
+            "nbsp must fold to a space, got {text:?}"
+        );
+        assert!(!text.contains('\u{00a0}'));
+    }
+
+    #[test]
+    fn installment_glue_gets_its_space_back_and_nothing_else_does() {
+        // <span>or 9 x</span><b>$1.21</b> renders with no whitespace node, so
+        // the line arrives glued; the amount keeps its own word.
+        let text = collapse_whitespace("Cropped Stay Groovy off white\n$10.90\nor 9 x$1.21\n");
+        assert!(text.contains("or 9 x $1.21"), "got {text:?}");
+        // Anything outside "or <digits> x$" keeps its exact bytes.
+        let keep = collapse_whitespace("Box 4 x$2\nor x$1\nor 9x$1.21\nTorx$6\n");
+        assert!(keep.contains("4 x$2") && keep.contains("or x$1"));
+        assert!(keep.contains("or 9x$1.21") && keep.contains("Torx$6"));
+    }
+
+    #[test]
+    fn table_cell_tabs_become_markdown_pipes() {
+        let raw = "Company\t Contact\t Country\nAlfreds Futterkiste\t Maria Anders\t Germany\n";
+        let text = collapse_whitespace(raw);
+        assert!(text.contains("Company | Contact | Country"), "got {text:?}");
+        assert!(text.contains("Alfreds Futterkiste | Maria Anders | Germany"));
+        assert!(!text.contains('\t'));
+    }
 }

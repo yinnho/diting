@@ -2,18 +2,33 @@
 //!
 //! Split by **job** (not line count):
 //! - [`browser`] — jar / factory / cookie normalize / V8 host thread
-//! - [`fetch`] — do_fetch / do_click / do_eval + challenge ride-out
+//! - [`fetch`] — do_fetch / do_click / do_eval, plus its helpers by job:
+//!   [`challenge`] ride-out, [`fetch_text`] rendered-text read,
+//!   [`fetch_documents`] PDF/DOCX bytes → text, [`fetch_facts`] response
+//!   facts, [`fetch_splice`] markdown splice, [`route_fallback`] route seams
 //! - [`outputs`] — do_screenshot / do_video / do_pdf (`screenshot` feature)
 //! - [`search`] — do_search + cache + engine health
 //!
 //! Callers keep using `crate::server::…`; this module re-exports the public API.
 
 mod browser;
+/// Challenge ride-out for the acquire paths: Cloudflare Turnstile, ByteDance
+/// WAF PoW, Anubis PoW — shape detection and pumping, no site policy.
+mod challenge;
 /// Salvage DOCX → text (benchmark document column): zip local-file-header
 /// walk + `<w:t>` run extraction. DOCX family of the pdf_text salvage.
 mod docx_text;
 mod fetch;
+/// Binary and embedded documents for [`fetch`] (PDF / DOCX): byte-fetch plus
+/// salvage extraction, and the embedded-document probe.
+mod fetch_documents;
+/// Response facts for [`fetch`]: media manifest, layout geometry,
+/// resource rows.
+mod fetch_facts;
 mod fetch_splice;
+/// Rendered-text read for [`fetch`]: empty-text grace, SPA-shell probes, the
+/// innerText read.
+mod fetch_text;
 #[cfg(feature = "screenshot")]
 mod outputs;
 /// Salvage PDF → text (benchmark document column): linear object scan +
@@ -40,13 +55,13 @@ pub(crate) use browser::cookie_store_path;
 #[cfg(test)]
 pub(crate) use browser::shared_cookie_jar_for_tests;
 
-pub(crate) use fetch::maybe_bypass_challenge;
+pub(crate) use challenge::maybe_bypass_challenge;
+pub use fetch::{do_click, do_eval, do_fetch};
 #[cfg(feature = "screenshot")]
 #[allow(unused_imports)]
-pub(crate) use fetch::resource_facts;
-pub use fetch::{do_click, do_eval, do_fetch};
+pub(crate) use fetch_facts::resource_facts;
 #[cfg(test)]
-pub(crate) use fetch::{media_from_eval, parse_layout_facts};
+pub(crate) use fetch_facts::{media_from_eval, parse_layout_facts};
 #[cfg(feature = "screenshot")]
 pub use outputs::do_screenshot;
 #[cfg(all(feature = "screenshot", feature = "authoring"))]
