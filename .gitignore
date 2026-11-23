@@ -20,9 +20,6 @@ cookie-store.json
 .claude/
 skills-lock.json
 
-# Local publisher tooling binary
-mcp-publisher
-
 # Local fetch/search SQLite cache (runtime state, must never rsync to hosted instance)
 cache.db
 cache.db-shm
@@ -35,14 +32,6 @@ vendor/
 # committed, never pushed, never packaged. What the software itself reads
 # lives next to the code that reads it (workflow/, config/, crates/…).
 docs/
-
-# localStorage persistence test artifact (runtime state, must never rsync to hosted instance)
-/localStorage/
-
-# User-pulled reference bundles at repo root — never commit
-/TurnstileLogin.bundle.js
-/api.js
-/index.web-*.js
 
 # agent/local scratch (Claude memory imports, etc.) — never committed
 .local/
@@ -57,25 +46,11 @@ scripts/__pycache__/
 **/*.bak
 **/*.bak-*
 
-# Local desktop UI experiment (not part of the product tree)
-/desktop.js
-
-# Agent scratch/forensics — runtime state & credentials, never commit (2026-10-16 audit S1)
-/tmp-agent/
-
 # local artifacts — session cookies NEVER commit
 bench/peer-publish-*/
-recordings/
 templates/findings.html
 templates/gzh.html
 web/zcode*
-
-# overlay 合成构建目录（apply.py 输出的独立 target，与 /target/ 平行）
-/target-ov/
-
-# 运营脚本/探测取证的仓库根杂物（X 发帖 _post_*、探测 _probe_*）——never commit
-/_post_*
-/_probe_*
 
 # JS platform dependency analyzer deps (package-lock.json is committed)
 /tools/webplatform/analyze/node_modules/
@@ -83,3 +58,24 @@ __pycache__/
 
 # #33 brotli golden fixture — decode-side pin, must travel with the repo
 !crates/diting_profiles/tests/fixtures/*.bin
+
+# ── 根目录白名单 ──────────────────────────────────────────────────────────
+# 根下只认这 14 个目录。别的（运营脚本、日志、下载的站点脚本、起引擎留下的状态、
+# overlay 的构建目录）一律 ignore，不许再出现在 git status 里。
+# 已跟踪的根下文件不受影响——ignore 只管未跟踪的东西。
+# 新增顶层目录时在这里补一行 !/名字/，否则 git 看不见它。
+/*
+!/.cargo/
+!/.config/
+!/.github/
+!/bench/
+!/config/
+!/crates/
+!/dsh-diting/
+!/examples/
+!/scripts/
+!/templates/
+!/tests/
+!/tools/
+!/web/
+!/workflow/
