@@ -854,7 +854,7 @@ fn grid_specified(s: &diting_css::ComputedStyle, prop: &str) -> Option<String> {
     Some(slot.clone().unwrap_or_else(|| initial.to_string()))
 }
 
-/// `computed_style_value` slice `flex-wrap` … `rotate`; outer `None` =
+/// `computed_style_value` slice `flex-wrap` … `transform`; outer `None` =
 /// not this slice's property, the caller tries the next one.
 #[cfg(feature = "screenshot")]
 fn computed_flex_grid(
@@ -956,26 +956,11 @@ fn computed_flex_grid(
                 _ => None,
             },
         },
-        // CSS Transforms L2 individual properties (#140) — reflected as
-        // declared, exactly like Chrome (the computed `transform` matrix
-        // above does NOT fold them in; they compose at use time only).
-        "translate" => match s.translate_prop {
-            None => Some("none".into()),
-            Some((Length::Px(x), Length::Px(0.0))) => Some(format!("{}px", format_number(x))),
-            Some((Length::Px(x), Length::Px(y))) => {
-                Some(format!("{}px {}px", format_number(x), format_number(y)))
-            }
-            _ => None, // percent slots: no border box at this snapshot layer
-        },
-        "rotate" => match s.rotate_prop {
-            None => Some("none".into()),
-            Some(deg) => Some(format!("{}deg", format_number(deg))),
-        },
         _ => return None,
     })
 }
 
-/// `computed_style_value` slice `scale` … `transition-timing-function`; outer `None` =
+/// `computed_style_value` slice `animation-name` … `transition-timing-function`; outer `None` =
 /// not this slice's property, the caller tries the next one.
 #[cfg(feature = "screenshot")]
 fn computed_transform_motion(
@@ -986,11 +971,6 @@ fn computed_transform_motion(
 ) -> Option<Option<String>> {
     use diting_css::*;
     Some(match prop {
-        "scale" => match s.scale_prop {
-            None => Some("none".into()),
-            Some((x, y)) if (x - y).abs() < f32::EPSILON => Some(format_number(x)),
-            Some((x, y)) => Some(format!("{} {}", format_number(x), format_number(y))),
-        },
         // CSS animation longhands resolved from the shorthand's AnimationSpec
         // (the engine stores only the shorthand — parse_animation_shorthand).
         // Chrome spells durations in bare seconds ("0.1s"); direction and

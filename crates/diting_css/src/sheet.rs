@@ -132,10 +132,6 @@ pub struct ContainerRule {
 ///
 /// Error recovery mirrors browsers (and upstream): an unbalanced stray `}`
 /// at top level resynchronizes instead of scrambling every following rule.
-pub fn parse_stylesheet(css: &str) -> Vec<ParsedRule> {
-    parse_stylesheet_for(css, (1280.0, 720.0), CssMediaType::Screen)
-}
-
 pub fn parse_stylesheet_for(
     css: &str,
     viewport: (f32, f32),

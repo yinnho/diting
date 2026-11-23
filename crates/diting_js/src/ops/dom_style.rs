@@ -85,23 +85,6 @@ pub(crate) fn dom_cmd_sheets(
             }
             "null".to_string()
         }
-        // Parse CSS text into rule records for CSSOM: real selector +
-        // declaration text from the same parser the cascade uses, so
-        // sheet.cssRules agrees with what layout actually applies.
-        "parse_css_rules" => {
-            let rules = diting_css::parse_stylesheet(&arg1);
-            let arr: Vec<serde_json::Value> = rules
-                .iter()
-                .map(|r| {
-                    serde_json::json!({
-                        "selectorText": r.selector,
-                        "cssText": format!("{}{{{}}}", r.selector, r.declarations),
-                        "declarations": r.declarations,
-                    })
-                })
-                .collect();
-            serde_json::Value::Array(arr).to_string()
-        }
         _ => return Err((arg1, arg2)),
     })
 }

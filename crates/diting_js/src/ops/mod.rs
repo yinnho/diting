@@ -36,9 +36,7 @@ mod text_geom;
 #[cfg(feature = "screenshot")]
 pub use band::BandFrame;
 #[cfg(feature = "screenshot")]
-pub use band::{
-    band_frame, band_frame_cut, band_frame_cut_with_text, band_frame_scaled, band_frame_with_text,
-};
+pub use band::{band_frame, band_frame_cut, band_frame_cut_with_text, band_frame_scaled};
 pub(crate) use canvas::{op_canvas_jpeg, op_canvas_png};
 #[cfg(feature = "screenshot")]
 pub(crate) use canvas::{op_canvas_store, op_canvas_text};

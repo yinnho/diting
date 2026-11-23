@@ -18,7 +18,7 @@
 //! shell baked once, restored per instance) are wired in. See
 //! [`crate::driver`], [`crate::snapshot`], and the PRELUDE below.
 
-use crate::driver::{AfterTicks, OpDriver, WakeFlag};
+use crate::driver::{AfterTicks, OpDriver};
 use crate::modules::dynamic;
 use crate::modules::eval::ModuleEvalError;
 use crate::modules::load::RecursiveLoad;
@@ -549,10 +549,6 @@ pub struct Vm {
     /// Installed ops, kept for the isolate's lifetime — the Externals in
     /// the installed functions point into these boxes (op_reg's law).
     ops: Option<crate::op_reg::OpSet>,
-    /// The poll-driven default waker for module-load futures: a flag the
-    /// host can read advisory ("a module future woke"). A reactor-driven
-    /// host (10d) passes its real waker to [`Vm::poll_modules`] instead.
-    module_wake: std::sync::Arc<WakeFlag>,
     /// The foreground-task registry entry (wasm async compilation and other
     /// engine-side completions land here from any thread; the loop drains
     /// at pass top — [`crate::foreground`]).
@@ -680,7 +676,6 @@ impl Vm {
             settle_fn,
             queue: SettleQueue::new(),
             ops: None,
-            module_wake: std::sync::Arc::new(WakeFlag::new()),
             fg,
             fg_key,
         })
@@ -933,12 +928,6 @@ impl Vm {
         })
     }
 
-    /// Advisory: a module-load future woke since the last take (the
-    /// poll-driven default waker's flag).
-    pub fn take_module_wake(&mut self) -> bool {
-        self.module_wake.take()
-    }
-
     /// The watchdog arm: any JS currently running stops at the next
     /// checkpoint (uncatchable). Triplets already queued are untouched —
     /// parking is the queue's job. The interrupt itself is one-shot
@@ -1045,10 +1034,11 @@ impl Vm {
         crate::foreground::set_waker(&self.fg, &flag_waker);
         // Module progress (dynamic imports) rides between the Rust drive
         // and JS delivery: its loads are Rust-side futures like ops, its
-        // settlements land in JS like triplets.
+        // settlements land in JS like triplets. A sink waker is enough:
+        // the sync face re-polls every pass, so a wake has nothing to
+        // schedule.
         {
-            let waker = self.module_wake.waker();
-            let mut cx = Context::from_waker(&waker);
+            let mut cx = Context::from_waker(std::task::Waker::noop());
             self.poll_modules(&mut cx)?;
         }
         // Enter/exit discipline — see eval_string. The early-return on a

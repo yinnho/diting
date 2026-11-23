@@ -84,10 +84,6 @@ impl NavProgress {
         self.script_arrived
             .load(std::sync::atomic::Ordering::Acquire)
     }
-    /// External scripts discovered by the current parser-phase fetch wave.
-    pub fn script_phase_total(&self) -> usize {
-        self.script_total.load(std::sync::atomic::Ordering::Acquire)
-    }
     /// Parser-phase scripts were discovered and not one body has landed —
     /// the download is starving, not slow. A page with no external
     /// scripts (`total == 0`) is never starving.

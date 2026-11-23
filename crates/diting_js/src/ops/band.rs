@@ -20,7 +20,7 @@ pub struct BandFrame {
     /// CSS-pixel content size (root scrollWidth×scrollHeight).
     pub content_size: (f32, f32),
     /// PDF text-layer glyph ops for this band, band-local (vector-text
-    /// batch). Empty unless the band was painted via `band_frame_with_text`.
+    /// batch). Empty unless the band was painted via [`band_frame_cut_with_text`].
     pub text_ops: Vec<diting_layout::paint::PdfOp>,
 }
 
@@ -63,20 +63,6 @@ pub fn band_frame_scaled(
     band_frame_inner(gs, scroll_x, scroll_y, viewport, false, false, scale)
 }
 
-/// Same band paint but ALSO collects the PDF text layer (vector-text batch):
-/// vectorizable `Text` items leave the raster — the PDF layer redraws them as
-/// glyphs, and painting twice would double the antialiasing — and come back
-/// as band-local glyph ops on the frame.
-#[cfg(feature = "screenshot")]
-pub fn band_frame_with_text(
-    gs: &JsState,
-    scroll_x: f32,
-    scroll_y: f32,
-    viewport: (f32, f32),
-) -> Option<(BandFrame, Vec<String>)> {
-    band_frame_inner(gs, scroll_x, scroll_y, viewport, true, false, 1.0)
-}
-
 /// Page-cut variant for the print/slides pumps (#60): `(x, y)` is a
 /// document-space band ORIGIN, not a scroll offset. The only behavioral
 /// difference from [`band_frame`] is that the blitz#880 root-overflow
@@ -95,8 +81,7 @@ pub fn band_frame_cut(
     band_frame_inner(gs, x, y, viewport, false, true, 1.0)
 }
 
-/// [`band_frame_cut`] with the PDF text layer collected (see
-/// [`band_frame_with_text`]).
+/// [`band_frame_cut`] with the PDF text layer collected.
 #[cfg(feature = "screenshot")]
 pub fn band_frame_cut_with_text(
     gs: &JsState,

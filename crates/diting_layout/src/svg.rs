@@ -1539,7 +1539,11 @@ mod tests {
             r##"<svg viewBox="0 0 10 10"><rect x="0" y="0" width="5" height="5" fill="#ff0000"/></svg>"##,
         );
         let svg_id = tree.query_selector("svg").unwrap().unwrap();
-        let rules = diting_css::parse_stylesheet("rect { fill: #00ff00; }");
+        let rules = diting_css::parse_stylesheet_for(
+            "rect { fill: #00ff00; }",
+            (1280.0, 720.0),
+            diting_css::CssMediaType::Screen,
+        );
         let styles = super::super::compute_styles(&tree, &rules, (1280.0, 720.0));
         let r = compile_svg(&tree, &styles, svg_id);
         match r.ops.as_slice() {
@@ -1913,7 +1917,11 @@ mod tests {
         let html = r#"<svg viewBox="0 0 40 10"><path d="M 0 5 L 40 5" pathLength="1" stroke="black" stroke-dasharray="1" stroke-dashoffset="1" opacity="1"/></svg>"#;
         let tree = parse_html(html);
         let svg_id = tree.query_selector("svg").unwrap().unwrap();
-        let rules = diting_css::parse_stylesheet("path { stroke-dashoffset: 0.5; opacity: 0.5 }");
+        let rules = diting_css::parse_stylesheet_for(
+            "path { stroke-dashoffset: 0.5; opacity: 0.5 }",
+            (1280.0, 720.0),
+            diting_css::CssMediaType::Screen,
+        );
         let styles = super::super::compute_styles(&tree, &rules, (1280.0, 720.0));
         let r = compile_svg(&tree, &styles, svg_id);
         match r.ops.as_slice() {

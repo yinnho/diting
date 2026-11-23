@@ -83,14 +83,6 @@ impl JsRuntime {
         self.state.borrow().document.set_url(url);
     }
 
-    /// Seed the JS history stack for the document being committed
-    /// (obscura#1105): `pos` is this document's entry index in the session
-    /// history, `total` the whole history length. Bootstrap reads them via
-    /// the dom-parse channel before any page script runs.
-    pub fn set_history_seed(&self, pos: i32, total: i32) {
-        self.state.borrow().document.set_history(pos, total);
-    }
-
     /// Commit this realm onto the page's document. Called after
     /// construction (`__diting_init` has already run) so the swap matches
     /// the old setter order: page scripts see the attached document, the

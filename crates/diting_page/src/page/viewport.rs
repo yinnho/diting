@@ -191,16 +191,6 @@ impl Page {
         }
     }
 
-    /// Browser.setContentsSize path: resize the window *contents* (the
-    /// viewport) without disturbing the emulation knobs — a pinned mobile
-    /// flag or dpr survives, only the dimensions move (Chrome's resize is a
-    /// contents-size change, not a device-metrics re-pin). With nothing
-    /// pinned, this is a plain desktop viewport pin.
-    pub fn resize_contents(&mut self, w: f32, h: f32) {
-        let mobile = self.viewport_override.map(|(_, _, m)| m).unwrap_or(false);
-        self.set_viewport_override(w, h, mobile, self.dpr_override);
-    }
-
     /// The pinned device-pixel ratio, if any — read back so scoped viewport
     /// changes (Page.printToPDF pins paper size for the render) restore the
     /// session's emulation exactly, dpr included.
@@ -256,20 +246,6 @@ impl Page {
         js.with_state(|st| {
             diting_js::ops::band_frame_scaled(st, scroll_x, scroll_y, viewport, scale)
         })
-    }
-
-    /// Same band frame but also collecting the PDF text layer (vector-text
-    /// batch): `frame.text_ops` carries the band-local glyph ops and the
-    /// raster pass skips those items.
-    #[cfg(feature = "screenshot")]
-    pub fn viewport_band_frame_with_text(
-        &self,
-        scroll_x: f32,
-        scroll_y: f32,
-        viewport: (f32, f32),
-    ) -> Option<(diting_js::ops::BandFrame, Vec<String>)> {
-        let js = self.js.as_ref()?;
-        js.with_state(|st| diting_js::ops::band_frame_with_text(st, scroll_x, scroll_y, viewport))
     }
 
     /// Page-cut band frame (print/slides pumps, #60): `(x, y)` is a
