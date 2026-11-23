@@ -6,8 +6,9 @@
 //! need: every loop pass polls every in-flight op future once, completions
 //! enter the [`SettleQueue`] in completion order, and the settle pipeline
 //! takes it from there. The loop cadence belongs to the embedder (the
-//! diting runtime pumps us per command / per pump tick; a real reactor
-//! will wake it through [`OpDriver::take_wake`]).
+//! diting runtime pumps us per command / per pump tick; a reactor host
+//! hands the futures its own waker through [`OpDriver::drive_with`] and is
+//! woken by the op body itself).
 //!
 //! Scope verdict (2026-10-17 recon): diting uses NONE of deno_core's other
 //! loop phases — no setImmediate anywhere in the tree, no close callbacks;
@@ -24,25 +25,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll, Wake, Waker};
 
-/// A future woke us since the last check — a reactor-driven embedder uses
-/// this to decide "poll again now" vs "sleep until the reactor says so".
-/// Poll-driven embedders (our current loop) can ignore it: they re-drive
-/// every pass anyway.
+/// The sync face's waker: every wake only sets a flag, and nothing in
+/// production reads it — the poll-driven sync loop re-drives every pass,
+/// so a wake has nothing to schedule. The flag buys a cheap, cloneable
+/// sink that satisfies `Future::poll`; [`OpDriver::take_wake`] reads it
+/// for tests.
 pub(crate) struct WakeFlag(AtomicBool);
-
-impl WakeFlag {
-    pub(crate) fn new() -> Self {
-        Self(AtomicBool::new(false))
-    }
-
-    pub(crate) fn take(&self) -> bool {
-        self.0.swap(false, Ordering::AcqRel)
-    }
-
-    pub(crate) fn waker(self: &Arc<Self>) -> Waker {
-        Waker::from(self.clone())
-    }
-}
 
 impl Wake for WakeFlag {
     fn wake(self: Arc<Self>) {

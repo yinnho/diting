@@ -3,9 +3,7 @@
 //! `cascade_element` stays re-exported from the crate root. This module
 //! names the declaration applier, the UA defaults, and the length resolver.
 
-use crate::apply_decl::{
-    apply_declarations, apply_declarations_importance, scheme_dark_of, Importance,
-};
+use crate::apply_decl::{apply_declarations_importance, scheme_dark_of, Importance};
 use crate::computed::ComputedStyle;
 use crate::geom::{
     resolve_len, Color, CssLength, FontCtx, Length, LineHeightSpec, DEFAULT_ROOT_FONT_SIZE,
@@ -492,9 +490,4 @@ fn last_font_size_decl(declarations: &str) -> (Option<CssLength>, bool) {
         }
     }
     (found, inherit)
-}
-
-/// Inline styles use the same declaration grammar.
-pub fn apply_inline_declarations(style: &mut ComputedStyle, css: &str) -> bool {
-    apply_declarations(style, css)
 }

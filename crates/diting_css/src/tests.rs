@@ -3619,10 +3619,7 @@ fn calc_width_min_max_and_sides_parse() {
 
     // Inline styles share the grammar.
     let mut s = ComputedStyle::default();
-    assert!(apply_inline_declarations(
-        &mut s,
-        "margin-left: calc(2 * 8px)"
-    ));
+    assert!(apply_declarations(&mut s, "margin-left: calc(2 * 8px)"));
     assert_eq!(s.margin.left, Some(Length::Px(16.0)));
 }
 

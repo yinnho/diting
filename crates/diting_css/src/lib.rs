@@ -25,7 +25,9 @@ pub mod props;
 mod scope;
 mod supports;
 mod vars;
-pub use calc::{eval_calc, eval_math_call, eval_width_expr};
+#[cfg(test)]
+use calc::eval_calc_with;
+pub use calc::{eval_math_call, eval_width_expr};
 mod anim_sample;
 mod apply_decl;
 mod apply_layout;
@@ -50,10 +52,16 @@ pub use animation::{KeyframeStop, Keyframes, KeyframesMap};
 pub use apply_decl::{apply_declarations, apply_declarations_with, scale_computed_px};
 #[cfg(test)]
 use apply_decl::{apply_one, css_wide_copy_field};
-pub use cascade::{apply_inline_declarations, cascade_element, rule_layer_ranks};
+pub use cascade::{cascade_element, rule_layer_ranks};
 pub use computed::ComputedStyle;
 #[cfg(test)]
 use font_shorthand::parse_font_shorthand;
+/// Test convenience: a calc body with no percentage base — what the 22
+/// `eval_calc` assertions in `tests.rs` read through `use super::*`.
+#[cfg(test)]
+fn eval_calc(expr: &str, fonts: &FontCtx) -> Option<Length> {
+    eval_calc_with(expr, fonts, None)
+}
 pub use geom::{Color, CssLength, FontCtx, Length, LineHeightSpec, Sides, SvgPaint, Transform2D};
 pub use geom::{DEFAULT_ROOT_FONT_SIZE, DEFAULT_VIEWPORT};
 pub use media::{media_query_applies, media_query_applies_with, CssMediaType, MediaOverrides};
@@ -63,8 +71,15 @@ pub use shadow_parse::{
 };
 #[cfg(test)]
 use sheet::parse_container_condition;
+#[cfg(test)]
+fn parse_stylesheet(css: &str) -> Vec<ParsedRule> {
+    // Test convenience: the default 1280×720 screen parse, once the only
+    // caller of the old `parse_stylesheet` (the dead `parse_css_rules` op)
+    // was deleted. Tests read this via `use super::*`.
+    parse_stylesheet_for(css, (1280.0, 720.0), CssMediaType::Screen)
+}
 pub use sheet::{
-    collect_selector_attr_names, parse_stylesheet, parse_stylesheet_for, parse_stylesheet_full,
+    collect_selector_attr_names, parse_stylesheet_for, parse_stylesheet_full,
     parse_stylesheet_timed, parse_stylesheet_timed_with, ContainerAxis, ContainerCmp,
     ContainerCondition, ContainerFeature, ContainerRule, ContainerType, ParsedRule,
 };

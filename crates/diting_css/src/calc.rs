@@ -46,13 +46,10 @@ impl CalcVal {
 /// the font context like bare declarations. The grammar is the CSS one —
 /// `+`/`-` need whitespace on both sides, `*`/`/` take one number operand,
 /// parentheses and nested calc() group.
-pub fn eval_calc(expr: &str, fonts: &FontCtx) -> Option<Length> {
-    eval_calc_with(expr, fonts, None)
-}
-
-/// [`eval_calc`] with the percentage base known (px of the containing block):
+///
+/// `base` is the percentage base when known (px of the containing block):
 /// percentages then fold to px, so min()/max()/clamp() over mixed units can
-/// be ordered.
+/// be ordered. `None` keeps them symbolic.
 pub fn eval_calc_with(expr: &str, fonts: &FontCtx, base: Option<f32>) -> Option<Length> {
     let mut p = CalcParser {
         s: expr.as_bytes(),
