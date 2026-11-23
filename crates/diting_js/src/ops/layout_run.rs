@@ -460,7 +460,15 @@ pub(crate) fn ensure_layout_run(gs: &JsState, dom: &DomTree, epoch: u64) {
         // still rebuild, so a class change stays visible to getComputedStyle.
         const MOCK_CASCADE_FREEZE: usize = 600;
         if gs.mock_cascade_done.get() && dom.len() > MOCK_CASCADE_FREEZE {
-            if let Some((_, styles)) = gs.style_cache.borrow_mut().take() {
+            // Take in its own statement. The `if let` scrutinee's `RefMut`
+            // temporary lives through the block (edition 2021), so
+            // re-stamping inside it borrowed a cell that was still
+            // borrowed. It fired once per page — the first epoch change
+            // after the page crossed the freeze line (six hits in the
+            // field, 2026-11-20/21) — and `take` had already emptied the
+            // cache, so later style reads on that page found nothing.
+            let taken = gs.style_cache.borrow_mut().take();
+            if let Some((_, styles)) = taken {
                 *gs.style_cache.borrow_mut() = Some((epoch, styles));
             }
             return;
