@@ -261,6 +261,54 @@ fn style_write_paint_only_diff_matrix() {
     assert_eq!(m["transform"], "none");
 }
 
+/// The Mock cascade freeze (c6dd2720) re-stamps the cached styles under
+/// the new epoch instead of re-running the cascade. Its first shape
+/// re-stamped inside the `if let` that held the `RefMut` — the scrutinee's
+/// temporary lives through the block in edition 2021 — so it panicked
+/// "RefCell already borrowed" (six hits in the field, 2026-11-20/21). The
+/// op poison wall swallowed each one, and `take` had already emptied the
+/// cache: the page's styles were gone from then on, with nothing to show
+/// for it. Reverting the fix fails this test.
+#[cfg(feature = "screenshot")]
+#[test]
+fn mock_cascade_freeze_restamps_without_double_borrow() {
+    use super::layout_run::ensure_layout_run;
+    use super::state::JsState;
+
+    let body: String = (0..700)
+        .map(|i| format!("<p class='c{}'>x</p>", i % 7))
+        .collect();
+    let dom = diting_dom::parse_html(&format!("<html><body>{body}</body></html>"));
+    assert!(dom.len() > 600, "fixture must clear MOCK_CASCADE_FREEZE");
+
+    let gs = JsState {
+        layout_policy: crate::LayoutPolicy::Mock,
+        ..Default::default()
+    };
+
+    // First call: the one real cascade.
+    ensure_layout_run(&gs, &dom, 7);
+    let (epoch, n_styles) = gs
+        .style_cache
+        .borrow()
+        .as_ref()
+        .map(|(e, s)| (*e, s.len()))
+        .expect("first call cascades");
+    assert_eq!(epoch, 7);
+
+    // A later epoch on the same tree: frozen, so the map is re-stamped —
+    // not rebuilt, not dropped, and above all not a panic.
+    ensure_layout_run(&gs, &dom, 9);
+    let (epoch, n_after) = gs
+        .style_cache
+        .borrow()
+        .as_ref()
+        .map(|(e, s)| (*e, s.len()))
+        .expect("freeze keeps the map");
+    assert_eq!(epoch, 9);
+    assert_eq!(n_after, n_styles);
+}
+
 // Ephemeral deployments must not persist login tokens: storage_file is
 // the single choke point every localStorage flush goes through.
 #[test]

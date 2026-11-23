@@ -381,7 +381,11 @@ impl ModuleMap {
     /// Wake the host loop (module-side completion: TLA handler ran,
     /// evaluation promise settled).
     pub(crate) fn wake(&self) {
-        if let Some(waker) = self.waker.borrow_mut().take() {
+        // Take first, wake after: the waker runs synchronously, and a
+        // `RefMut` temporary in an `if let` scrutinee lives through the
+        // block (edition 2021) — the layout_run double-borrow shape.
+        let waker = self.waker.borrow_mut().take();
+        if let Some(waker) = waker {
             waker.wake();
         }
     }
