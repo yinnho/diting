@@ -951,8 +951,13 @@ mod starve_before_commit_tests {
         unsafe { std::env::set_var("DITING_PROXY", format!("http://127.0.0.1:{px_port}")) };
         unsafe { std::env::set_var("DITING_STARVE_BAIL_MS", "1500") };
         // Memory-only route table: the direct-fail bookkeeping below must
-        // not leak a sentence for 127.0.0.1 into other tests' on-disk table.
+        // not leak a sentence for 127.0.0.1 into other tests' on-disk
+        // table. The process-global table is shared across tests — lift
+        // any sentence an earlier test left for this host, or this fetch
+        // starts proxy-first and the direct leg (and the blackhole assert)
+        // never runs.
         unsafe { std::env::set_var("DITING_EPHEMERAL", "1") };
+        diting::route_table::note_direct("127.0.0.1", true);
         let _scrub_proxy = ScrubEnv("DITING_PROXY");
         let _scrub_bail = ScrubEnv("DITING_STARVE_BAIL_MS");
         let _scrub_ephemeral = ScrubEnv("DITING_EPHEMERAL");
@@ -977,5 +982,205 @@ mod starve_before_commit_tests {
         drop(log);
         assert!(bh_saw.load(Ordering::SeqCst), "the direct leg really ran");
         stop.store(true, Ordering::SeqCst);
+    }
+}
+
+/// The committed-face refinement (run14 melon/microsoft/shopify): when
+/// the starvation checkpoint fires with the document committed and
+/// script delivery PROGRESSING (some bodies landed, one still
+/// streaming), the leg must stay direct — the navigation future is
+/// resumed, not dropped, and the read carries the late script's
+/// marker. The old any-pending discriminator would have bailed this
+/// shape to the proxy; the stub proxy below answers with a telltale
+/// page so a regression fails loudly instead of silently passing on
+/// rescued content. The checkpoint window is deliberately generous
+/// (8s): under the full suite's parallel load even a localhost commit
+/// plus one script arrival can take seconds, and the test must pin the
+/// KEEP path, not the load. The bail face has its own robust test in
+/// `starve_before_commit_tests` plus the engine-counter unit pins.
+#[cfg(test)]
+mod starve_zero_progress_tests {
+    use crate::server::do_fetch;
+    use crate::server::test_util::net_env_guard;
+    use crate::FetchRequest;
+    use std::io::{Read as _, Write as _};
+    use std::sync::{Arc, Mutex};
+
+    /// Removes one env var when the test ends, panic or not.
+    struct ScrubEnv(&'static str);
+    impl Drop for ScrubEnv {
+        fn drop(&mut self) {
+            unsafe { std::env::remove_var(self.0) };
+        }
+    }
+
+    #[test]
+    fn progressing_scripts_keep_the_direct_leg_and_late_marker_lands() {
+        let _net = net_env_guard();
+
+        // Origin: doc commits instantly, /fast.js delivers instantly,
+        // /late.js holds its body ~10s — past the 8s checkpoint, so the
+        // cell reads committed=true, script arrivals ≥1 (progressing, not
+        // starving) and the resumed navigation must run the late body's
+        // marker.
+        let origin = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = origin.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            // Thread per connection: /late.js parks its connection for ~10s
+            // while /fast.js must still be served the instant it arrives —
+            // a single-threaded accept loop with the trickle inline would
+            // starve the fast script and fake a zero-progress shape.
+            for stream in origin.incoming() {
+                let Ok(s) = stream else { continue };
+                std::thread::spawn(move || {
+                    let mut s = s;
+                    let mut buf = [0u8; 2048];
+                    let n = s.read(&mut buf).unwrap_or(0);
+                    let req = String::from_utf8_lossy(&buf[..n]).to_string();
+                    let path = req
+                        .lines()
+                        .next()
+                        .unwrap_or("")
+                        .split_whitespace()
+                        .nth(1)
+                        .unwrap_or("")
+                        .to_string();
+                    let mime = if path.ends_with(".js") {
+                        "application/javascript"
+                    } else {
+                        "text/html"
+                    };
+                    if path == "/doc.html" {
+                        let body = r#"<html><head>
+                            <script src="/fast.js"></script>
+                            <script src="/late.js"></script>
+                        </head><body>BASE-PAGE</body></html>"#;
+                        let resp = format!(
+                            "HTTP/1.1 200 OK\r\ncontent-type: {mime}\r\ncontent-length: {}\r\n\
+                             connection: close\r\n\r\n{}",
+                            body.len(),
+                            body
+                        );
+                        let _ = s.write_all(resp.as_bytes());
+                        let _ = s.flush();
+                    } else if path == "/fast.js" {
+                        let body = "window.__fast=1;";
+                        let resp = format!(
+                            "HTTP/1.1 200 OK\r\ncontent-type: {mime}\r\ncontent-length: {}\r\n\
+                             connection: close\r\n\r\n{}",
+                            body.len(),
+                            body
+                        );
+                        let _ = s.write_all(resp.as_bytes());
+                        let _ = s.flush();
+                    } else if path == "/late.js" {
+                        // Real melon CDN-trickle shape: headers + first body
+                        // byte go out immediately (track_response_start sees
+                        // the fetch as live; the read-stall timeout only
+                        // fires when bytes STOP flowing), then the rest of
+                        // the body lands after ~10s — past the 8s
+                        // checkpoint. A pure pre-header delay instead kills
+                        // the fetch at the transport's response-start
+                        // timeout and tests nothing.
+                        let body = "document.body.innerHTML+='LATE-LANDED';";
+                        let head = format!(
+                            "HTTP/1.1 200 OK\r\ncontent-type: {mime}\r\ncontent-length: {}\r\n\
+                             connection: close\r\n\r\n",
+                            body.len()
+                        );
+                        let _ = s.write_all(head.as_bytes());
+                        let _ = s.write_all(&body.as_bytes()[..10]);
+                        let _ = s.flush();
+                        std::thread::sleep(std::time::Duration::from_millis(10_000));
+                        let _ = s.write_all(&body.as_bytes()[10..]);
+                        let _ = s.flush();
+                    } else {
+                        let resp = "HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\n\
+                                    connection: close\r\n\r\n";
+                        let _ = s.write_all(resp.as_bytes());
+                        let _ = s.flush();
+                    }
+                });
+            }
+        });
+
+        // Proxy stub that must never be asked anything on this shape.
+        let px = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let px_port = px.local_addr().unwrap().port();
+        let px_log: Arc<Mutex<Vec<String>>> = Arc::default();
+        {
+            let px_log = px_log.clone();
+            std::thread::spawn(move || {
+                for stream in px.incoming() {
+                    let Ok(mut s) = stream else { continue };
+                    let mut buf = Vec::new();
+                    let mut chunk = [0u8; 2048];
+                    loop {
+                        let n = s.read(&mut chunk).unwrap_or(0);
+                        if n == 0 {
+                            break;
+                        }
+                        buf.extend_from_slice(&chunk[..n]);
+                        if buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                            break;
+                        }
+                    }
+                    let head = String::from_utf8_lossy(&buf).to_string();
+                    px_log
+                        .lock()
+                        .unwrap()
+                        .push(head.lines().next().unwrap_or("").to_string());
+                    let body = "<html><body>PROXY-MUST-NOT-RUN</body></html>";
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\n\
+                         connection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = s.write_all(resp.as_bytes());
+                    let _ = s.flush();
+                }
+            });
+        }
+
+        unsafe { std::env::set_var("DITING_PROXY", format!("http://127.0.0.1:{px_port}")) };
+        unsafe { std::env::set_var("DITING_STARVE_BAIL_MS", "8000") };
+        // Memory-only route table: this test's bookkeeping must not leak a
+        // sentence for 127.0.0.1 into other tests' on-disk table. The
+        // process-global table is SHARED across tests though — a sibling
+        // starve test's proxy win sentences 127.0.0.1 to the proxy for
+        // minutes, which would route this fetch's leg before the
+        // checkpoint even arms. Lift any inherited sentence first.
+        unsafe { std::env::set_var("DITING_EPHEMERAL", "1") };
+        diting::route_table::note_direct("127.0.0.1", true);
+        let _scrub_proxy = ScrubEnv("DITING_PROXY");
+        let _scrub_bail = ScrubEnv("DITING_STARVE_BAIL_MS");
+        let _scrub_ephemeral = ScrubEnv("DITING_EPHEMERAL");
+
+        let req: FetchRequest = serde_json::from_value(serde_json::json!({
+            "url": format!("http://127.0.0.1:{port}/doc.html"),
+        }))
+        .unwrap();
+        let resp = do_fetch(req).expect("the progressing direct leg must complete");
+
+        assert!(
+            resp.content.contains("BASE-PAGE"),
+            "the base document must be read: {:?}",
+            &resp.content[..resp.content.len().min(200)]
+        );
+        assert!(
+            resp.content.contains("LATE-LANDED"),
+            "the resumed navigation must fetch and run the late script: {:?}",
+            &resp.content[..resp.content.len().min(200)]
+        );
+        assert!(
+            !resp.content.contains("PROXY-MUST-NOT-RUN"),
+            "a progressing leg must never bail to the proxy"
+        );
+        let log = px_log.lock().unwrap();
+        assert!(
+            log.is_empty(),
+            "the proxy must not see a single request: {log:?}"
+        );
     }
 }

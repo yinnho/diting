@@ -28,6 +28,78 @@ mod viewport;
 #[cfg(test)]
 mod tests;
 
+/// Engine-side progress of the in-flight navigation, shared with the
+/// navigation's caller as an `Arc` so an observer can poll it WHILE the
+/// navigation future is still running (the `/fetch` starvation
+/// checkpoint). A JS probe cannot serve this job: our performance
+/// resource timings are only pushed when a whole fetch phase completes,
+/// so a live navigation's script deliveries are invisible to JS — the
+/// engine is the only side that sees bodies land as they land. All
+/// fields are atomics because the observer thread/future is not the one
+/// driving the navigation.
+#[derive(Debug, Default)]
+pub struct NavProgress {
+    /// The realm swap (`realm_epoch` catching up) has happened: the
+    /// requested document is the live page.
+    doc_committed: std::sync::atomic::AtomicBool,
+    /// Parser-phase external scripts discovered by the current
+    /// `execute_scripts` phase, and how many of their bodies have
+    /// arrived. `total > 0 && arrived == 0` at a checkpoint = the script
+    /// trickle never moved.
+    script_total: std::sync::atomic::AtomicUsize,
+    script_arrived: std::sync::atomic::AtomicUsize,
+}
+
+impl NavProgress {
+    fn reset(&self) {
+        self.doc_committed
+            .store(false, std::sync::atomic::Ordering::Release);
+        self.script_total
+            .store(0, std::sync::atomic::Ordering::Release);
+        self.script_arrived
+            .store(0, std::sync::atomic::Ordering::Release);
+    }
+    fn note_committed(&self) {
+        self.doc_committed
+            .store(true, std::sync::atomic::Ordering::Release);
+    }
+    fn note_script_phase(&self, total: usize) {
+        self.script_total
+            .store(total, std::sync::atomic::Ordering::Release);
+        self.script_arrived
+            .store(0, std::sync::atomic::Ordering::Release);
+    }
+    fn note_script_arrival(&self) {
+        self.script_arrived
+            .fetch_add(1, std::sync::atomic::Ordering::Release);
+    }
+
+    /// Did the requested document commit? (The realm swap happened.)
+    pub fn committed(&self) -> bool {
+        self.doc_committed
+            .load(std::sync::atomic::Ordering::Acquire)
+    }
+    /// Bodies landed by the current parser-phase script fetch wave.
+    pub fn script_arrivals(&self) -> usize {
+        self.script_arrived
+            .load(std::sync::atomic::Ordering::Acquire)
+    }
+    /// External scripts discovered by the current parser-phase fetch wave.
+    pub fn script_phase_total(&self) -> usize {
+        self.script_total.load(std::sync::atomic::Ordering::Acquire)
+    }
+    /// Parser-phase scripts were discovered and not one body has landed —
+    /// the download is starving, not slow. A page with no external
+    /// scripts (`total == 0`) is never starving.
+    pub fn script_zero_progress(&self) -> bool {
+        self.script_total.load(std::sync::atomic::Ordering::Acquire) > 0
+            && self
+                .script_arrived
+                .load(std::sync::atomic::Ordering::Acquire)
+                == 0
+    }
+}
+
 /// #276 memory forensics: prove which layer holds a closed session's
 /// realm alive. Gated by DITING_REALM_HEAP_STATS.
 impl Drop for Page {
@@ -224,6 +296,10 @@ pub struct Page {
     /// realm re-freezes one window after the last command; a parked burner
     /// (no commands) keeps the original containment.
     busy_probe_pending: bool,
+    /// Progress of the navigation currently in flight on this page, polled
+    /// by the `/fetch` starvation checkpoint while `goto` still runs. See
+    /// [`NavProgress`].
+    nav_progress: std::sync::Arc<NavProgress>,
     pub stealth_client: Option<Arc<StealthHttpClient>>,
 }
 
@@ -314,8 +390,16 @@ impl Page {
             busy_mark: None,
             busy_frozen: false,
             busy_probe_pending: false,
+            nav_progress: std::sync::Arc::new(NavProgress::default()),
             stealth_client,
         }
+    }
+
+    /// Share the navigation progress cell with an observer while a
+    /// navigation runs (the `/fetch` starvation checkpoint clones this
+    /// before `goto` and polls it without touching the page).
+    pub fn nav_progress(&self) -> std::sync::Arc<NavProgress> {
+        std::sync::Arc::clone(&self.nav_progress)
     }
 
     /// In-flight navigation draft. The first staging write creates it so

@@ -130,6 +130,17 @@ pub fn should_auto_proxy(url: &str) -> bool {
         "eui.elastic.co",
         "quasar.dev",
         "material.angular.dev",
+        // Direct-leg in-flight walls (LexBench run14, 2026-11-22 both
+        // segments): the direct navigation sits at "document fetch in
+        // flight" — not even headers — at the 12s starvation deadline, so
+        // every fetch first burns the direct leg then retries through the
+        // tunnel at ~27s, past the worker's cut. chatgpt.com: tunnel curl
+        // 200 in ~6s; nytimes.com: tunnel curl 301 in ~1.5s (direct curl
+        // dead). Route them where the road exists from t=0. yahoo.com is
+        // already listed above — its run14 failure is an empty-body-on-
+        // proxy disease, not routing (do not "fix" it here).
+        "chatgpt.com",
+        "nytimes.com",
     ];
 
     for domain in BLOCKED_DOMAINS {
