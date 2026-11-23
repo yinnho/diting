@@ -1,6 +1,6 @@
 # Gate contract (#64)
 
-Every Rust/Cargo change passes all four local gates before commit. CI runs
+Every Rust/Cargo change passes all five local gates before commit. CI runs
 the same jobs — a red `CI` check on main is a breakage, not noise (the
 `Plugin Security Scan` check that also appears next to commits is a separate
 scan job, not CI; don't read it as green).
@@ -8,6 +8,7 @@ scan job, not CI; don't read it as green).
 ```sh
 ./scripts/gate_fmt.sh             # fmt over house crates; vendored trees keep upstream shape
 python3 scripts/audit_layers.py   # layering R1-R3 + god-file ratchet (grandfathered files only shrink)
+python3 scripts/gate_borrow.py    # RefCell guard in an `if let` / `match` / `for` head, re-borrowed in the block
 tools/webplatform/check_fresh.sh  # generated JS must equal what the checked-in generators emit
 cargo test --workspace --features screenshot   # if the rusty_v8 fetch stalls, point RUSTY_V8_ARCHIVE at a local copy
 ```

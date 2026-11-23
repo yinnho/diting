@@ -145,3 +145,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Audit
         run: python3 scripts/audit_layers.py
+      - name: RefCell re-borrow gate
+        # 0e1c0304: a RefCell guard held by an `if let` scrutinee and borrowed
+        # again in the block compiles, panics at run time, and under an op
+        # poison wall the panic is swallowed (six field hits, 2026-11-20/21).
+        # Self-test first, so the detector itself is under test.
+        run: |
+          python3 scripts/gate_borrow.py --self-test
+          python3 scripts/gate_borrow.py
