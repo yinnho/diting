@@ -337,6 +337,10 @@ mod cookie_store_tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         let _dir = UnsetEnv::now("DITING_COOKIE_STORE_DIR");
+        // STORAGE_DIR sits in the chain too (the route-table batch put it
+        // there): an exported pin turned the "default location" assertion
+        // into a red that pointed at the test's own environment.
+        let _storage = UnsetEnv::now("DITING_STORAGE_DIR");
         if std::env::var_os("HOME").is_none() && std::env::var_os("XDG_DATA_HOME").is_none() {
             return; // no platform anchor; "." fallback covers this host
         }

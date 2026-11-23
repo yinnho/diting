@@ -25,6 +25,6 @@ pub use diting_layout::diting_fonts;
 /// DITING_BUILD_COMMIT overrides for the .git-less 86quan tree).
 /// Lives HERE because our build script's `rustc-env` only reaches this
 /// crate's compilation — dependent crates' `option_env!` never see it
-/// (the local /health "unknown" face). The .git/HEAD rerun pins keep it
-/// fresh per commit.
+/// (the local /health "unknown" face). The build script's watches on git's
+/// HEAD and refs/heads keep it fresh per commit.
 pub const BUILD_COMMIT: &str = env!("DITING_BUILD_COMMIT");

@@ -737,8 +737,14 @@ const SNAPSHOT_SCRIPTS: &[(&str, &str)] = &[
 ];
 
 fn main() {
+    // Only the file-backed scripts have a path to watch. `deno_shell` is
+    // inline: its watch pointed at a `js/deno_shell` that never existed, and
+    // a missing watched file reads as dirty forever — this crate and the
+    // four downstream of it recompiled on every cargo call.
     for (name, _) in SNAPSHOT_SCRIPTS {
-        println!("cargo:rerun-if-changed=js/{name}");
+        if name.ends_with(".js") {
+            println!("cargo:rerun-if-changed=js/{name}");
+        }
     }
     println!("cargo:rerun-if-changed=build.rs");
 
