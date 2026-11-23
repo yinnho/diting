@@ -1552,31 +1552,39 @@ async fn docmisc_matches_chrome_truth() {
         bad.len(),
         bad.join("\n")
     );
-    // `document.lastModified` is the wall clock *at each read*, formatted
-    // "%02d/%02d/%04d %02d:%02d:%02d" in local time. Hold `Date` still, move it:
-    // the next read has to follow. A value cached per document fails this.
+    // `document.lastModified` is the wall clock *at each read* (a value cached
+    // per document fails this), formatted "%02d/%02d/%04d %02d:%02d:%02d" in
+    // the page's zone — the persona zone, whatever the host's TZ is (#221).
+    // The getter reads the page-visible `Date` (`new Date()`), so the clock is
+    // pinned by swapping that binding. The expected strings must be formatted
+    // BEFORE the swap: the persona wraps decide with `instanceof Date` against
+    // the *current* global, so once the stub is in place a Date built through
+    // the saved original falls back to the native getters and reads the host
+    // zone (identical in Shanghai, 8h off on the UTC CI runner).
+    // Blink reads the C++ clock, so a page swapping `Date` cannot move Blink's
+    // value — a known engine gap, not something this test pins.
     let clock = rt
         .evaluate(
             r#"(() => {
   const Real = Date;
+  const p = (n) => String(n).padStart(2, '0');
+  const fmt = (d) => p(d.getMonth() + 1) + '/' + p(d.getDate()) + '/' + d.getFullYear()
+    + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
   const t0 = Real.now();
+  const want = [t0, t0 + 37 * 60 * 60 * 1000, t0 + 37 * 60 * 60 * 1000 - 90 * 1000]
+    .map((t) => fmt(new Real(t)));
   let now = t0;
   globalThis.Date = class extends Real {
     constructor(...args) { super(...(args.length ? args : [now])); }
     static now() { return now; }
   };
   try {
-    const p = (n) => String(n).padStart(2, '0');
-    const fmt = (d) => p(d.getMonth() + 1) + '/' + p(d.getDate()) + '/' + d.getFullYear()
-      + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
     const first = document.lastModified;
     now += 37 * 60 * 60 * 1000;
     const later = document.lastModified;
     now -= 90 * 1000;
     const back = document.lastModified;
     const got = [first, later, back];
-    const want = [t0, t0 + 37 * 60 * 60 * 1000, t0 + 37 * 60 * 60 * 1000 - 90 * 1000]
-      .map((t) => fmt(new Real(t)));
     return got.every((s, i) => s === want[i]) ? 'ok' : JSON.stringify([got, want]);
   } finally {
     globalThis.Date = Real;
