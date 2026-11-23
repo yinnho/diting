@@ -13,18 +13,22 @@ use crate::render::smart_fetch;
 use crate::{AppError, FetchRequest, OutputFormat};
 
 /// Firecrawl `/v1/scrape` request.
-#[allow(dead_code)] // only_main_content/timeout accepted for API compat, not yet wired
+///
+/// Unknown fields are ignored (serde's default), so clients may keep sending
+/// the ones this face has no counterpart for — `onlyMainContent` among them:
+/// there is no main-content extractor here, so it was never more than a
+/// no-op. Narrow the extraction with `selector` instead.
 #[derive(Debug, Deserialize)]
 pub struct ScrapeRequest {
     pub url: String,
     #[serde(default = "default_formats")]
     pub formats: Vec<String>,
-    /// Firecrawl allows targeting a sub-section; we map it to our `selector`.
-    #[serde(default)]
-    pub only_main_content: bool,
     /// Milliseconds to wait for JS rendering.
     #[serde(default)]
     pub wait_for: Option<u64>,
+    /// Overall cap for the whole scrape, in milliseconds (Firecrawl defaults
+    /// to 30000). A miss answers `success:false` with `metadata.status_code`
+    /// 504. `None` or `0` leaves each path to its own budgets.
     #[serde(default)]
     pub timeout: Option<u32>,
     /// Pre-extraction actions, executed sequentially on a single page.
@@ -144,11 +148,99 @@ pub async fn scrape_handler(Json(req): Json<ScrapeRequest>) -> Result<impl IntoR
     // wait_secs entirely, so a Wait-only scrape of a JS-rendered page would
     // miss the JS-injected content. Plain scrapes (no actions) stay fast.
     let needs_session = !req.actions.is_empty() || (wants_screenshot && screenshot_available);
+    let deadline = scrape_deadline(&req);
 
     if needs_session {
-        return Ok(scrape_with_session(&req, wants_html, wants_markdown, wants_screenshot).await);
+        return Ok(scrape_with_session(
+            &req,
+            wants_html,
+            wants_markdown,
+            wants_screenshot,
+            deadline,
+        )
+        .await);
     }
-    Ok(scrape_with_fetch(&req, wants_html, wants_markdown).await)
+    Ok(scrape_with_fetch(&req, wants_html, wants_markdown, deadline).await)
+}
+
+/// The request's overall budget: the instant it runs out and the millisecond
+/// count it was set from. `None` = no cap.
+type ScrapeDeadline = Option<(tokio::time::Instant, u64)>;
+
+/// The scrape ran past its `timeout`. Its own type so a miss answers 504
+/// instead of the generic 500.
+#[derive(Debug)]
+struct ScrapeTimeout(u64);
+
+impl std::fmt::Display for ScrapeTimeout {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "timed out after {} ms", self.0)
+    }
+}
+
+impl std::error::Error for ScrapeTimeout {}
+
+/// Start the clock for `req.timeout`. Taken here, before either path does
+/// any work, so the cap covers the whole scrape.
+fn scrape_deadline(req: &ScrapeRequest) -> ScrapeDeadline {
+    req.timeout.filter(|ms| *ms > 0).map(|ms| {
+        (
+            tokio::time::Instant::now() + std::time::Duration::from_millis(u64::from(ms)),
+            u64::from(ms),
+        )
+    })
+}
+
+/// Run `fut` under the request deadline. An expired future is dropped where
+/// it is awaited — for the session path that is the V8 thread, so the page
+/// and browser are freed there.
+async fn under_deadline<T>(
+    deadline: ScrapeDeadline,
+    fut: impl std::future::Future<Output = anyhow::Result<T>>,
+) -> anyhow::Result<T> {
+    match deadline {
+        Some((at, ms)) => tokio::time::timeout_at(at, fut)
+            .await
+            .unwrap_or_else(|_| Err(ScrapeTimeout(ms).into())),
+        None => fut.await,
+    }
+}
+
+/// `metadata.status_code` for a failed scrape: a timeout is 504, the rest 500.
+fn failure_code(e: &anyhow::Error) -> u16 {
+    if e.is::<ScrapeTimeout>() {
+        504
+    } else {
+        500
+    }
+}
+
+/// Firecrawl's failure shape: HTTP 200, `success:false`, the reason in
+/// `metadata.error` — never a bare transport error.
+fn scrape_failure(
+    url: &str,
+    status_code: u16,
+    error: String,
+) -> (StatusCode, Json<ScrapeResponse>) {
+    (
+        StatusCode::OK,
+        Json(ScrapeResponse {
+            success: false,
+            data: ScrapeData {
+                markdown: None,
+                html: None,
+                links: None,
+                screenshot: None,
+                metadata: ScrapeMetadata {
+                    title: None,
+                    source_url: url.to_string(),
+                    description: None,
+                    status_code,
+                    error: Some(error),
+                },
+            },
+        }),
+    )
 }
 
 /// Fast path: plain scrape with no interactive actions. Uses the layered
@@ -157,6 +249,7 @@ async fn scrape_with_fetch(
     req: &ScrapeRequest,
     wants_html: bool,
     wants_markdown: bool,
+    deadline: ScrapeDeadline,
 ) -> (StatusCode, Json<ScrapeResponse>) {
     let format = if wants_html {
         OutputFormat::Html
@@ -203,7 +296,7 @@ async fn scrape_with_fetch(
         resources: false,
     };
 
-    match smart_fetch(fetch_req).await {
+    match under_deadline(deadline, smart_fetch(fetch_req)).await {
         Ok(resp) => {
             let (markdown, html) = match format {
                 OutputFormat::Html => {
@@ -254,29 +347,7 @@ async fn scrape_with_fetch(
                 }),
             )
         }
-        Err(e) => {
-            // Firecrawl returns success:false on failure rather than an HTTP error.
-            let data = ScrapeData {
-                markdown: None,
-                html: None,
-                links: None,
-                screenshot: None,
-                metadata: ScrapeMetadata {
-                    title: None,
-                    source_url: req.url.clone(),
-                    description: None,
-                    status_code: 500,
-                    error: Some(format!("{}", e)),
-                },
-            };
-            (
-                StatusCode::OK,
-                Json(ScrapeResponse {
-                    success: false,
-                    data,
-                }),
-            )
-        }
+        Err(e) => scrape_failure(&req.url, failure_code(&e), e.to_string()),
     }
 }
 
@@ -297,31 +368,12 @@ async fn scrape_with_session(
     wants_html: bool,
     wants_markdown: bool,
     wants_screenshot: bool,
+    deadline: ScrapeDeadline,
 ) -> (StatusCode, Json<ScrapeResponse>) {
     // Per-domain page budget — the actions path must not become a scrape
-    // side door around the plain path's gate in smart_fetch. Firecrawl shape:
-    // success:false with the reason in metadata.error (see plain path below).
+    // side door around the plain path's gate in smart_fetch.
     if let Err(e) = crate::rate::check_domain(&req.url) {
-        let data = ScrapeData {
-            markdown: None,
-            html: None,
-            links: None,
-            screenshot: None,
-            metadata: ScrapeMetadata {
-                title: None,
-                source_url: req.url.clone(),
-                description: None,
-                status_code: 429,
-                error: Some(e),
-            },
-        };
-        return (
-            StatusCode::OK,
-            Json(ScrapeResponse {
-                success: false,
-                data,
-            }),
-        );
+        return scrape_failure(&req.url, 429, e);
     }
     let url = req.url.clone();
     let actions = req.actions.clone();
@@ -336,6 +388,12 @@ async fn scrape_with_session(
     let outcome = tokio::task::spawn_blocking(move || {
         crate::server::run_on_local_runtime(move |_rt| {
             Box::pin(async move {
+            // The deadline is enforced INSIDE the local runtime. An outer
+            // `timeout` around the blocking task would only abandon it — the
+            // V8 page keeps running on its own thread. Expiring here drops
+            // the future at its next await point on the owning thread, which
+            // is where page and browser must be freed.
+            under_deadline(deadline, async {
             let browser = crate::server::build_browser(false, &url, tls_fingerprint.as_deref())?;
             let mut page = browser.new_page().await?;
             if screenshot_full_page {
@@ -544,6 +602,8 @@ async fn scrape_with_session(
                 screenshot_png,
             })
             })
+            .await
+            })
         })
     })
     .await;
@@ -587,50 +647,8 @@ async fn scrape_with_session(
                 }),
             )
         }
-        Ok(Err(e)) => {
-            let data = ScrapeData {
-                markdown: None,
-                html: None,
-                links: None,
-                screenshot: None,
-                metadata: ScrapeMetadata {
-                    title: None,
-                    source_url: req.url.clone(),
-                    description: None,
-                    status_code: 500,
-                    error: Some(format!("{}", e)),
-                },
-            };
-            (
-                StatusCode::OK,
-                Json(ScrapeResponse {
-                    success: false,
-                    data,
-                }),
-            )
-        }
-        Err(e) => {
-            let data = ScrapeData {
-                markdown: None,
-                html: None,
-                links: None,
-                screenshot: None,
-                metadata: ScrapeMetadata {
-                    title: None,
-                    source_url: req.url.clone(),
-                    description: None,
-                    status_code: 500,
-                    error: Some(format!("{}", e)),
-                },
-            };
-            (
-                StatusCode::OK,
-                Json(ScrapeResponse {
-                    success: false,
-                    data,
-                }),
-            )
-        }
+        Ok(Err(e)) => scrape_failure(&req.url, failure_code(&e), e.to_string()),
+        Err(e) => scrape_failure(&req.url, 500, e.to_string()),
     }
 }
 /// Encode a Rust string as a JSON string literal (also a valid JS string literal).
@@ -695,5 +713,129 @@ fn extract_description(html: &str) -> Option<String> {
     } else {
         // Pull from the original (non-lowered) string at the same offsets.
         Some(desc.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A loopback server that accepts every connection and never answers —
+    /// a page that hangs. The sockets are held open: dropping one closes
+    /// the connection, and the hang turns into a fast transport error.
+    fn black_hole() -> u16 {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            let mut held = Vec::new();
+            for stream in listener.incoming().flatten() {
+                held.push(stream);
+            }
+        });
+        port
+    }
+
+    /// `DITING_EPHEMERAL=1` for the test's duration. A dying direct leg is
+    /// exactly what sentences a host in the route table, and that table is
+    /// shared with every real instance through `app_data_dir` — ephemeral
+    /// keeps it (and the cookie jar) in memory.
+    struct Ephemeral {
+        /// Held, never read: the guard itself is the point.
+        _lock: std::sync::MutexGuard<'static, ()>,
+        saved: Option<std::ffi::OsString>,
+    }
+
+    impl Ephemeral {
+        fn on() -> Self {
+            let lock = crate::config::EPHEMERAL_ENV_LOCK
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let saved = std::env::var_os("DITING_EPHEMERAL");
+            std::env::set_var("DITING_EPHEMERAL", "1");
+            Self { _lock: lock, saved }
+        }
+    }
+
+    impl Drop for Ephemeral {
+        fn drop(&mut self) {
+            match &self.saved {
+                Some(v) => std::env::set_var("DITING_EPHEMERAL", v),
+                None => std::env::remove_var("DITING_EPHEMERAL"),
+            }
+        }
+    }
+
+    fn hanging_request(port: u16, timeout_ms: u32) -> ScrapeRequest {
+        serde_json::from_value(serde_json::json!({
+            "url": format!("http://127.0.0.1:{port}/"),
+            "formats": ["markdown"],
+            "timeout": timeout_ms,
+        }))
+        .unwrap()
+    }
+
+    /// `timeout` used to be accepted and ignored. A miss is now Firecrawl's
+    /// failure shape with 504 — on both paths.
+    #[tokio::test(flavor = "current_thread")]
+    async fn timeout_caps_the_fast_path() {
+        let _net = crate::server::test_util::net_env_guard();
+        let _ephemeral = Ephemeral::on();
+        let req = hanging_request(black_hole(), 300);
+        let (status, Json(resp)) =
+            scrape_with_fetch(&req, false, true, scrape_deadline(&req)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(!resp.success, "{resp:?}");
+        assert_eq!(resp.data.metadata.status_code, 504, "{resp:?}");
+        assert_eq!(
+            resp.data.metadata.error.as_deref(),
+            Some("timed out after 300 ms")
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn timeout_caps_the_session_path() {
+        let _net = crate::server::test_util::net_env_guard();
+        let _ephemeral = Ephemeral::on();
+        let mut req = hanging_request(black_hole(), 500);
+        // Any action routes the scrape through the single-page session.
+        req.actions = vec![ScrapeAction::Wait {
+            milliseconds: 30_000,
+        }];
+        let (status, Json(resp)) =
+            scrape_with_session(&req, false, true, false, scrape_deadline(&req)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(!resp.success, "{resp:?}");
+        assert_eq!(resp.data.metadata.status_code, 504, "{resp:?}");
+        assert_eq!(
+            resp.data.metadata.error.as_deref(),
+            Some("timed out after 500 ms")
+        );
+    }
+
+    #[test]
+    fn missing_or_zero_timeout_is_no_cap() {
+        let req: ScrapeRequest = serde_json::from_value(serde_json::json!({
+            "url": "http://example.com/",
+            "timeout": 0,
+        }))
+        .unwrap();
+        assert!(scrape_deadline(&req).is_none());
+        let req: ScrapeRequest =
+            serde_json::from_value(serde_json::json!({ "url": "http://example.com/" })).unwrap();
+        assert!(scrape_deadline(&req).is_none());
+    }
+
+    /// Fields this face has no counterpart for keep parsing — a Firecrawl
+    /// client must be able to switch by changing only the base URL.
+    #[test]
+    fn unknown_firecrawl_fields_still_parse() {
+        let req: ScrapeRequest = serde_json::from_value(serde_json::json!({
+            "url": "http://example.com/",
+            "onlyMainContent": false,
+            "includeTags": ["main"],
+        }))
+        .unwrap();
+        assert_eq!(req.url, "http://example.com/");
+        assert_eq!(req.formats, ["markdown"]);
     }
 }
