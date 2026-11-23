@@ -73,6 +73,7 @@ impl Page {
         // the live document is the new one (init_js runs once the response
         // arrived and parsed — #101's phase evidence).
         self.realm_epoch = self.navigation_epoch;
+        self.nav_progress.note_committed();
 
         // Thread the BrowserContext's proxy through to the ES-module loader
         // and op_fetch_url so dynamic imports and JS fetch() honour the

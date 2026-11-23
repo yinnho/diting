@@ -456,6 +456,11 @@ impl Page {
         // the automation request already has an explicit timeout.
         let nav_timeout = self.navigation_timeout();
         let nav_timeout_ms = nav_timeout.as_millis() as u64;
+        // Fresh progress cell contents for this attempt: the observer (the
+        // /fetch starvation checkpoint) may have cloned the Arc before
+        // calling in, and must not see the previous attempt's commit or
+        // script counts.
+        self.nav_progress.reset();
 
         let result = match tokio::time::timeout(
             nav_timeout,

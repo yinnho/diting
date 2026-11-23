@@ -7,9 +7,9 @@
 use super::browser::{build_browser, inject_cookies, run_on_local_runtime};
 use super::fetch_splice::{collapse_whitespace, MARKDOWN_SPLICE_JS};
 use super::route_fallback::{
-    nav_deadline_hit_before_commit, nav_deadline_ms, navigation_uses_direct,
+    fetch_nav_ceiling_ms, nav_deadline_hit_before_commit, navigation_uses_direct,
     note_direct_navigation_outcome, note_proxy_fallback_started, proxy_retry_pair, starve_bail_ms,
-    wait_for_load_or_deadline, FETCH_NAV_TIMEOUT_MS,
+    wait_for_load_or_deadline,
 };
 use crate::{
     ClickRequest, ClickResponse, EvalRequest, EvalResponse, FetchRequest, FetchResponse,
@@ -672,21 +672,20 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
                 build_browser(req.use_proxy, &req.url, req.tls_fingerprint.as_deref())?;
             inject_cookies(&browser, &req.cookies, &req.url);
             let mut page = browser.new_page().await?;
-            // Starvation bail deadline: only a true direct leg with a proxy
-            // behind it, and only when the operator has not pinned an
-            // explicit DITING_NAV_TIMEOUT_MS (nav_deadline_ms ranks: env >
-            // starve bail > 60s default).
+            // Starvation checkpoint window: only a true direct leg with a
+            // proxy behind it. The nav ceiling itself stays at the full
+            // default (or the operator's explicit DITING_NAV_TIMEOUT_MS) —
+            // the checkpoint below is an observer, not a deadline.
             let starve_ms = if direct_leg && proxy_configured {
                 starve_bail_ms(std::env::var("DITING_STARVE_BAIL_MS").ok().as_deref())
             } else {
                 0
             };
-            if let Some(ms) = nav_deadline_ms(
+            let nav_ceiling_ms = fetch_nav_ceiling_ms(
                 std::env::var("DITING_NAV_TIMEOUT_MS").ok().as_deref(),
-                starve_ms,
-            ) {
-                page.inner.set_navigation_timeout(Some(ms));
-            }
+                &req.url,
+            );
+            page.inner.set_navigation_timeout(Some(nav_ceiling_ms));
             // Geometry facts are the caller's opt-in. The page stays Mock
             // until then, so scrollHeight is the synthetic grid.
             if req.layout {
@@ -697,68 +696,115 @@ pub fn do_fetch(req: FetchRequest) -> Result<FetchResponse> {
             // running past the navigation deadline. The live document is the
             // page; dropping it turns a finished read into a 500. A deadline
             // before commit is still a hard error.
-            if let Err(e) = page.goto(&req.url).await {
-                let msg = e.to_string();
-                if msg.contains("document committed") {
-                    // Early deadline on a direct leg: distinguish a starving
-                    // download (remote scripts still pending = throttled CDN
-                    // trickle) from JS-bound work (PoW challenge, hydration
-                    // — nothing left to download). Starving legs jump ship
-                    // for the proxy while the worker's retry budget is
-                    // still alive; JS-bound pages get their original budget
-                    // back below.
-                    if starve_ms > 0
-                        && direct_leg
-                        && super::route_fallback::pending_remote_scripts(&mut page).unwrap_or(0) > 0
-                    {
+            //
+            // Starvation checkpoint (starve_ms > 0): poll the page's shared
+            // NavProgress cell at the window WITHOUT consuming the
+            // navigation future. The engine-side counters are the only
+            // honest progress signal — a JS probe cannot see deliveries on
+            // a live navigation (our resource timings are only pushed when
+            // a whole fetch phase completes), and the old design that
+            // SWAPPED the nav ceiling down to the bail dropped the whole
+            // goto future at the deadline, killing every in-flight script
+            // fetch with it, so a progressing trickle (run14 melon: 19/20
+            // script bodies landed by 10s, the last at ~17s; microsoft
+            // ~21.6s; shopify's stylesheet wave ~17.2s) could never finish
+            // on the leg that was already carrying it. Zero progress —
+            // the document never committed, or a discovered script wave
+            // delivered not one body (petstore3's single 420KB bundle
+            // trickling at ~11KB/s) — still jumps ship for the proxy while
+            // the worker's retry budget is alive; anything else resumes
+            // the SAME future under the full ceiling.
+            let nav_progress = page.inner.nav_progress();
+            let nav_result = if starve_ms > 0 {
+                let mut goto_fut = Box::pin(page.goto(&req.url));
+                let finished = tokio::select! {
+                    r = goto_fut.as_mut() => Some(r),
+                    _ = tokio::time::sleep(std::time::Duration::from_millis(starve_ms)) => None,
+                };
+                match finished {
+                    Some(r) => r,
+                    None if !nav_progress.committed() || nav_progress.script_zero_progress() => {
+                        let why = if !nav_progress.committed() {
+                            "document not committed"
+                        } else {
+                            "script wave delivered no bodies"
+                        };
                         tracing::info!(
                             url = %req.url,
-                            "fetch: direct leg starving (remote scripts still pending); retrying through the proxy"
+                            "fetch: direct leg starving at the {starve_ms}ms checkpoint ({why}); retrying through the proxy"
                         );
                         note_direct_navigation_outcome(&req.url, direct_leg, false);
                         note_proxy_fallback_started(&req.url, |host| {
                             diting::route_table::note_proxy_pending(host);
                         });
+                        // Drop the pinned future first: it holds the &mut
+                        // borrow of `page`, and the direct pair must be
+                        // fully gone before the proxied pair exists (V8
+                        // isolates drop in reverse creation order).
+                        drop(goto_fut);
                         drop(page);
                         drop(browser);
                         let (page2, browser2) = proxy_retry_pair(
                             &req,
-                            &format!("direct navigation starved after {starve_ms}ms"),
+                            &format!(
+                                "direct navigation starved {starve_ms}ms at the checkpoint ({why})"
+                            ),
                         )
                         .await?;
                         page = page2;
                         browser = browser2;
                         direct_leg = false;
-                        // The live proxy pair replaces the dropped direct
-                        // pair: the geo-stub retry below drops `browser`
-                        // again, so the binding stays owned across this
-                        // fallback, exactly like the transport-death arm.
-                    } else {
-                        tracing::warn!(
+                        Ok(())
+                    }
+                    None => {
+                        tracing::info!(
                             url = %req.url,
-                            "fetch: navigation deadline after the document committed; reading the live page"
+                            "fetch: direct leg progressing at the {starve_ms}ms checkpoint; holding the navigation to the full ceiling"
                         );
-                        note_direct_navigation_outcome(&req.url, direct_leg, true);
-                        // The early deadline only shortens the wait when the
-                        // page is JS-bound: hand the original budget back
-                        // before reading the live page.
-                        if starve_ms > 0 {
-                            wait_for_load_or_deadline(
-                                &mut page,
-                                started + std::time::Duration::from_millis(FETCH_NAV_TIMEOUT_MS),
-                            );
-                        }
+                        goto_fut.await
+                    }
+                }
+            } else {
+                page.goto(&req.url).await
+            };
+            if let Err(e) = nav_result {
+                let msg = e.to_string();
+                if msg.contains("document committed") {
+                    // Full-ceiling deadline after the document committed:
+                    // the live document is the page (GitHub-class, a PoW
+                    // challenge riding inline scripts, or a progressing
+                    // trickle that outlived the ceiling) — read it.
+                    tracing::warn!(
+                        url = %req.url,
+                        "fetch: navigation deadline after the document committed; reading the live page"
+                    );
+                    note_direct_navigation_outcome(&req.url, direct_leg, true);
+                    // Hand the SAME ceiling to the wait pump before
+                    // reading: a cancelled pipeline reports readyState
+                    // "complete" long before its subresources land, so
+                    // the pump also waits out pending scripts and
+                    // stylesheets (run14 shopify's stylesheet wave) — but
+                    // never past the ceiling that already cut goto (the
+                    // pump deadline and the page timeout are one number,
+                    // see fetch_nav_ceiling_ms).
+                    if starve_ms > 0 {
+                        wait_for_load_or_deadline(
+                            &mut page,
+                            started + std::time::Duration::from_millis(nav_ceiling_ms),
+                        );
                     }
                 } else if starve_ms > 0 && direct_leg && nav_deadline_hit_before_commit(&msg) {
-                    // The starvation bail's pre-commit face: the deadline
-                    // fired before the document committed (slow TTFB, first
-                    // bytes trickling). `about:blank` gives the pending-
-                    // scripts probe nothing to read and the transport arm
-                    // below does not match a deadline error, so without this
-                    // arm the fetch is a bare 500 at bail time where the 60s
-                    // ceiling it replaced committed at 20-25s. Same cure as a
-                    // starving download: jump for the proxy while the
-                    // worker's retry budget is still alive.
+                    // The starvation bail's pre-commit face, after the fact:
+                    // the deadline fired before the document committed (slow
+                    // TTFB, first bytes trickling). The checkpoint above
+                    // usually catches this face at `starve_ms` with the
+                    // engine-side progress cell; this arm remains for the
+                    // one window it cannot cover — an operator ceiling
+                    // (`DITING_NAV_TIMEOUT_MS`) shorter than the checkpoint.
+                    // `about:blank` gives nothing to read and the transport
+                    // arm below does not match a deadline error, so without
+                    // this arm the fetch is a bare 500. Same cure: jump for
+                    // the proxy while the worker's retry budget is alive.
                     tracing::info!(
                         url = %req.url,
                         "fetch: direct leg starved before the document committed; retrying through the proxy"

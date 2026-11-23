@@ -519,13 +519,18 @@ impl Page {
         // #79: count arrivals so a fetch-phase overrun can say how much of
         // the page's script surface landed before the deadline — the item-
         // wise loop below keeps those bodies, and the warn names the count.
-        let arrivals = std::rc::Rc::new(std::cell::Cell::new(0usize));
-        let arrivals_counter = arrivals.clone();
+        // The count lives on the page's shared `NavProgress` cell, not a
+        // local: the /fetch starvation checkpoint polls it while this
+        // phase's futures are still in flight, and a local counter would
+        // be invisible (and dead the moment the navigation future is
+        // dropped).
+        self.nav_progress.note_script_phase(external_total);
+        let arrivals_counter = std::sync::Arc::clone(&self.nav_progress);
         let fetch_stream = futures::stream::iter(fetch_futures)
             .buffer_unordered(16)
             .inspect(move |(_, result)| {
                 if result.is_some() {
-                    arrivals_counter.set(arrivals_counter.get() + 1);
+                    arrivals_counter.note_script_arrival();
                 }
             });
         // #79: drive the stream item-wise instead of collect() — collect is
@@ -582,9 +587,9 @@ impl Page {
                 "execute_scripts: fetch deadline reached after {}/{} script bodies \
                  arrived; the {} arrived bodies and all inline scripts still execute \
                  on a fresh budget — raise via DITING_SCRIPT_DEADLINE_MS",
-                arrivals.get(),
+                self.nav_progress.script_arrivals(),
                 external_total,
-                arrivals.get(),
+                self.nav_progress.script_arrivals(),
             );
         }
 
