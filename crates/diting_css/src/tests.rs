@@ -112,6 +112,64 @@ fn container_condition_matches_and_semantics() {
 // ---- stylesheet parsing ----
 
 #[test]
+fn custom_property_braces_do_not_reflatten_forever() {
+    // globo.com 2026-11-23 native stack overflow: a nested rule whose
+    // prelude starts with `--` makes flatten re-emit the braces into a
+    // declaration (`div { --a { color: red } }` → `div{--a{color: red};}`),
+    // and the parser's flatten reparse saw `{` in decls again and called
+    // flatten on its own output — a fixed point, ~700k native frames, the
+    // v8-page thread's 32MB stack gone. The reparse now runs with flatten
+    // disabled, so the braces land as literal declaration text.
+    let rules = parse_stylesheet("div { --a { color: red } }");
+    assert_eq!(rules.len(), 1);
+    assert_eq!(rules[0].selector, "div");
+    assert!(rules[0].declarations.contains("--a"));
+
+    // Same poison inside a group rule: the @media body is fresh text, so
+    // flatten may run there once — but its output must not loop.
+    let rules = parse_stylesheet("@media screen { div { --a { c: red } span { c: blue } } }");
+    assert!(rules.iter().any(|r| r.selector == "div"));
+    assert!(rules.iter().any(|r| r.selector.contains("span")));
+
+    // Ordinary nesting still desugars after the fix.
+    let rules = parse_stylesheet("div { span { color: blue } color: red; }");
+    assert!(rules.iter().any(|r| r.selector == "div"
+        && r.declarations.contains("color")
+        && r.declarations.contains("red")));
+    assert!(rules
+        .iter()
+        .any(|r| r.selector.contains(":is(div)") && r.selector.contains("span")));
+}
+
+#[test]
+fn pathological_nesting_caps_instead_of_blowing_the_stack() {
+    // Two adversarial shapes, both one native frame per level on the old
+    // code: @media nested 5000 deep (parser recursion) and selector nesting
+    // 5000 deep (flatten recursion). The caps turn them into drops; the
+    // test process surviving at all is the assertion.
+    let mut media = String::new();
+    for _ in 0..5000 {
+        media.push_str("@media screen{");
+    }
+    media.push_str("a{color:red}");
+    for _ in 0..5000 {
+        media.push('}');
+    }
+    assert!(parse_stylesheet(&media).is_empty());
+
+    let mut nest = String::from("a{");
+    for _ in 0..5000 {
+        nest.push_str("a{");
+    }
+    nest.push_str("color:red");
+    for _ in 0..5001 {
+        nest.push('}');
+    }
+    let rules = parse_stylesheet(&nest);
+    assert!(rules.is_empty() || rules.len() == 1);
+}
+
+#[test]
 fn grid_areas_minmax_and_shorthand_parse() {
     // Vector 2022's scaffold: minmax + rem tracks, the rows/columns
     // shorthand, the areas matrix, and named-area item placement.

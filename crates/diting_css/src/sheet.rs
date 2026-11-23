@@ -167,7 +167,15 @@ pub fn parse_stylesheet_timed_with(
 ) -> (Vec<ParsedRule>, KeyframesMap) {
     props::reset_for_parse();
     layers::reset();
-    parse_stylesheet_with_containers(css, viewport, media_type, overrides, &mut Vec::new())
+    parse_stylesheet_with_containers(
+        css,
+        viewport,
+        media_type,
+        overrides,
+        &mut Vec::new(),
+        true,
+        0,
+    )
 }
 
 /// [`parse_stylesheet_timed_with`] plus the `@container` table. Container
@@ -183,10 +191,24 @@ pub fn parse_stylesheet_full(
     let mut containers = Vec::new();
     props::reset_for_parse();
     layers::reset();
-    let (rules, keyframes) =
-        parse_stylesheet_with_containers(css, viewport, media_type, overrides, &mut containers);
+    let (rules, keyframes) = parse_stylesheet_with_containers(
+        css,
+        viewport,
+        media_type,
+        overrides,
+        &mut containers,
+        true,
+        0,
+    );
     (rules, keyframes, containers)
 }
+
+/// `@media`-style nesting consumes one native stack frame per level here; a
+/// hostile sheet with thousands of nested group rules would otherwise blow
+/// the v8-page thread stack (the globo.com 2026-11-23 crash was the sibling
+/// fixed point in the flatten reparse). Real sheets nest a handful of
+/// levels; deeper than this the inner rules are dropped.
+const MAX_PARSE_DEPTH: usize = 96;
 
 fn parse_stylesheet_with_containers(
     css: &str,
@@ -194,6 +216,8 @@ fn parse_stylesheet_with_containers(
     media_type: CssMediaType,
     overrides: &MediaOverrides,
     containers: &mut Vec<ContainerRule>,
+    allow_flatten: bool,
+    depth: usize,
 ) -> (Vec<ParsedRule>, KeyframesMap) {
     let mut rules = Vec::new();
     let mut keyframes = KeyframesMap::new();
@@ -240,14 +264,29 @@ fn parse_stylesheet_with_containers(
                         media_type,
                         overrides,
                         containers,
+                        depth,
                     );
-                } else if let Some(flat) = decls
-                    .contains('{')
-                    .then(|| nesting::flatten(sel, decls))
-                    .flatten()
+                } else if let Some(flat) =
+                    // Custom-property values legitimately hold braces, and
+                    // flatten re-emits them (`--a{b}` stays `--a{b};`), so the
+                    // flattened text can still contain `{`. Re-parsing that
+                    // output WITH flatten re-enabled is a fixed point: same
+                    // input out as in, one native frame per cycle, 32MB stack
+                    // gone (globo.com, 2026-11-23). The reparse therefore runs
+                    // with flatten disabled — the braces land as literal
+                    // declaration text, which is their real meaning.
+                    (allow_flatten && depth < MAX_PARSE_DEPTH && decls.contains('{'))
+                            .then(|| nesting::flatten(sel, decls))
+                            .flatten()
                 {
                     let (r, k) = parse_stylesheet_with_containers(
-                        &flat, viewport, media_type, overrides, containers,
+                        &flat,
+                        viewport,
+                        media_type,
+                        overrides,
+                        containers,
+                        false,
+                        depth + 1,
                     );
                     rules.extend(r);
                     keyframes.extend(k);
@@ -295,15 +334,27 @@ fn flush_at_rule(
     media_type: CssMediaType,
     overrides: &MediaOverrides,
     containers: &mut Vec<ContainerRule>,
+    depth: usize,
 ) {
     let recurse = |rules: &mut Vec<ParsedRule>,
                    keyframes: &mut KeyframesMap,
                    containers: &mut Vec<ContainerRule>| {
+        if depth >= MAX_PARSE_DEPTH {
+            eprintln!("diting: css nesting over {MAX_PARSE_DEPTH} deep - inner rules dropped");
+            return;
+        }
         // Nested @container inside @media/@supports/@layer must surface in
         // the caller's container table, not a throwaway vec (the failing
         // branch simply never recurses — drop semantics hold there).
-        let (inner_rules, inner_kf) =
-            parse_stylesheet_with_containers(inner, viewport, media_type, overrides, containers);
+        let (inner_rules, inner_kf) = parse_stylesheet_with_containers(
+            inner,
+            viewport,
+            media_type,
+            overrides,
+            containers,
+            true,
+            depth + 1,
+        );
         rules.extend(inner_rules);
         for (k, v) in inner_kf {
             keyframes.entry(k).or_insert(v);
@@ -323,8 +374,18 @@ fn flush_at_rule(
         layers::leave();
     } else if let Some(prelude) = at_rule_prelude(at, "scope") {
         if let Some((root, limit)) = scope::parse_prelude(prelude) {
+            if depth >= MAX_PARSE_DEPTH {
+                eprintln!("diting: css nesting over {MAX_PARSE_DEPTH} deep - inner rules dropped");
+                return;
+            }
             let (mut inner_rules, inner_kf) = parse_stylesheet_with_containers(
-                inner, viewport, media_type, overrides, containers,
+                inner,
+                viewport,
+                media_type,
+                overrides,
+                containers,
+                true,
+                depth + 1,
             );
             for r in &mut inner_rules {
                 r.selector = scope::rewrite(&r.selector, &root, limit.as_deref());
@@ -346,7 +407,9 @@ fn flush_at_rule(
     } else if let Some(prelude) = at_rule_prelude(at, "property") {
         props::define_from_rule(prelude, inner);
     } else if let Some(prelude) = at_rule_prelude(at, "container") {
-        parse_container_rule(prelude, inner, viewport, media_type, overrides, containers);
+        parse_container_rule(
+            prelude, inner, viewport, media_type, overrides, containers, depth,
+        );
     }
     // Other at-rules carry no layout-relevant rules for us; drop them.
 }
@@ -365,6 +428,7 @@ fn parse_container_rule(
     media_type: CssMediaType,
     overrides: &MediaOverrides,
     containers: &mut Vec<ContainerRule>,
+    depth: usize,
 ) {
     let prelude = prelude.trim();
     let (name, cond_text) = split_container_prelude(prelude);
@@ -376,8 +440,19 @@ fn parse_container_rule(
     let mut nested = Vec::new();
     // v1: @keyframes inside a container body is dropped (rare in practice;
     // the plain rules are what the gated cascade needs).
-    let (plain, _) =
-        parse_stylesheet_with_containers(inner, viewport, media_type, overrides, &mut nested);
+    if depth >= MAX_PARSE_DEPTH {
+        eprintln!("diting: css nesting over {MAX_PARSE_DEPTH} deep - inner rules dropped");
+        return;
+    }
+    let (plain, _) = parse_stylesheet_with_containers(
+        inner,
+        viewport,
+        media_type,
+        overrides,
+        &mut nested,
+        true,
+        depth + 1,
+    );
     let own = ContainerRule {
         name: name.clone(),
         condition: cond_text.and_then(parse_container_condition),
