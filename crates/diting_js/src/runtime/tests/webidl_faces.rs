@@ -1528,9 +1528,22 @@ async fn docmisc_matches_chrome_truth() {
     ))
     .unwrap();
     let mut bad = Vec::new();
+    // The probe's `lastModified` triple is [typeof, shape, s === document.lastModified].
+    // Its last read is a clock race, not an engine difference: with no Last-Modified
+    // response header Blink answers every read with the wall clock (Document::
+    // lastModifiedTime = value_or(Now)), so two reads straddling a second differ in
+    // Chrome too. Type and shape stay compared against the capture; the clock is
+    // pinned just below, with no real time in it.
+    let clock_race_only = |got: &serde_json::Value, want: &serde_json::Value| {
+        matches!(
+            (got.as_array(), want.as_array()),
+            (Some(g), Some(w)) if g.len() == 3 && w.len() == 3 && g[..2] == w[..2]
+        )
+    };
     for (k, want) in truth.as_object().unwrap() {
-        if &engine[k] != want {
-            bad.push(format!("{k}:\n   engine {}\n   chrome {want}", engine[k]));
+        let got = &engine[k];
+        if got != want && !(k == "lastModified" && clock_race_only(got, want)) {
+            bad.push(format!("{k}:\n   engine {got}\n   chrome {want}"));
         }
     }
     assert!(
@@ -1538,6 +1551,43 @@ async fn docmisc_matches_chrome_truth() {
         "{} probe(s) off:\n{}",
         bad.len(),
         bad.join("\n")
+    );
+    // `document.lastModified` is the wall clock *at each read*, formatted
+    // "%02d/%02d/%04d %02d:%02d:%02d" in local time. Hold `Date` still, move it:
+    // the next read has to follow. A value cached per document fails this.
+    let clock = rt
+        .evaluate(
+            r#"(() => {
+  const Real = Date;
+  const t0 = Real.now();
+  let now = t0;
+  globalThis.Date = class extends Real {
+    constructor(...args) { super(...(args.length ? args : [now])); }
+    static now() { return now; }
+  };
+  try {
+    const p = (n) => String(n).padStart(2, '0');
+    const fmt = (d) => p(d.getMonth() + 1) + '/' + p(d.getDate()) + '/' + d.getFullYear()
+      + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+    const first = document.lastModified;
+    now += 37 * 60 * 60 * 1000;
+    const later = document.lastModified;
+    now -= 90 * 1000;
+    const back = document.lastModified;
+    const got = [first, later, back];
+    const want = [t0, t0 + 37 * 60 * 60 * 1000, t0 + 37 * 60 * 60 * 1000 - 90 * 1000]
+      .map((t) => fmt(new Real(t)));
+    return got.every((s, i) => s === want[i]) ? 'ok' : JSON.stringify([got, want]);
+  } finally {
+    globalThis.Date = Real;
+  }
+})()"#,
+        )
+        .unwrap();
+    assert_eq!(
+        clock,
+        serde_json::json!("ok"),
+        "document.lastModified must read the clock at each call"
     );
 }
 
