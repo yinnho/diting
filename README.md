@@ -1,5 +1,7 @@
 # Diting
 
+[![yinnho/diting MCP server](https://glama.ai/mcp/servers/yinnho/diting/badges/score.svg)](https://glama.ai/mcp/servers/yinnho/diting)
+
 **The browser engine built for agents.** One Rust binary, zero Chromium, zero Docker. See, read, find, act, remember.
 
 ```bash
