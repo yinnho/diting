@@ -88,7 +88,8 @@ function _mqExpr(inner) {
     case 'min-height': return num <= vh;
     case 'max-height': return num >= vh;
     case 'height': return num === vh;
-    case 'orientation': return value === (vw >= vh ? 'landscape' : 'portrait');
+    // Square hangs portrait — the height is not below the width (as Chrome reads it).
+    case 'orientation': return value === (vw > vh ? 'landscape' : 'portrait');
     case 'aspect-ratio': case 'min-aspect-ratio': case 'max-aspect-ratio': {
       const m = value.match(/^(\d*\.?\d+)\s*\/\s*(\d*\.?\d+)$/);
       if (!m) return false;

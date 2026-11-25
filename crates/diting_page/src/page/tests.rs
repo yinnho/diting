@@ -2240,6 +2240,44 @@ async fn add_preload_script_appends_in_order() {
     // Push semantics: both scripts ran, in registration order, before the
     // page's own script.
     assert_eq!(p.evaluate("window.__pageRan"), serde_json::json!("12P"));
+    // Both groups carry them: the registered one is what a session
+    // recomputes the running one from before its next navigation.
+    assert_eq!(p.user_preload_scripts().len(), 2);
+    assert_eq!(p.preload_scripts.len(), 2);
+
+    // Remove drops the newest registration holding that source, from both
+    // groups; a source nobody registered is refused.
+    p.add_preload_script("window.__order = (window.__order || '') + '2';".into());
+    assert!(p.remove_preload_script("window.__order = (window.__order || '') + '2';"));
+    assert!(!p.remove_preload_script("window.__order = 'nope';"));
+    assert_eq!(p.user_preload_scripts().len(), 2);
+    assert_eq!(p.preload_scripts.len(), 2);
+}
+
+/// The session's recompute path — running group := registered group —
+/// keeps the registrations `add_preload_script` made, before and after a
+/// remove.
+#[tokio::test(flavor = "current_thread")]
+async fn preload_script_registrations_survive_the_session_recompute() {
+    let _g = net_test_guard();
+    let port = local_http_server(vec![(
+        "/target",
+        200,
+        "<html><script>window.__pageRan = (window.__order || '') + 'P';</script></html>".into(),
+    )]);
+    let url = format!("http://127.0.0.1:{port}/target");
+    let one = "window.__order = (window.__order || '') + '1';";
+    let two = "window.__order = (window.__order || '') + '2';";
+    let mut p = test_page();
+    p.add_preload_script(one.into());
+    p.add_preload_script(two.into());
+    for expected in ["12P", "1P", "P"] {
+        let registered = p.user_preload_scripts().to_vec();
+        p.set_preload_scripts(registered);
+        p.navigate(&url).await.unwrap();
+        assert_eq!(p.evaluate("window.__pageRan"), serde_json::json!(expected));
+        let _ = p.remove_preload_script(if expected == "12P" { two } else { one });
+    }
 }
 
 #[test]
@@ -2512,6 +2550,230 @@ async fn viewport_override_drives_media_queries_and_survives_navigation() {
         serde_json::json!(false)
     );
     assert_eq!(p.evaluate("navigator.maxTouchPoints").as_f64(), Some(0.0));
+}
+
+/// CDP `setDeviceMetricsOverride` carries its own panel: `screen` reports
+/// the emulated screen — all of it available — with the orientation sent.
+/// A part left out is back on the persona's. The panel rides the viewport
+/// pin's replay and leaves with its clear.
+#[tokio::test(flavor = "current_thread")]
+async fn screen_override_rides_the_viewport_pin() {
+    let _g = net_test_guard();
+    let port = local_http_server(vec![
+        ("/a", 200, "<html></html>".into()),
+        ("/b", 200, "<html></html>".into()),
+    ]);
+    let mut p = test_page();
+    p.navigate(&format!("http://127.0.0.1:{port}/a"))
+        .await
+        .unwrap();
+    let text = |p: &mut Page, expr: &str| {
+        p.evaluate(expr)
+            .as_str()
+            .expect("string answer")
+            .to_string()
+    };
+    let panel = |p: &mut Page| {
+        text(
+            p,
+            "[screen.width, screen.height, screen.availWidth, screen.availHeight, \
+              screen.orientation.type, screen.orientation.angle].join(' ')",
+        )
+    };
+    let size = |p: &mut Page| {
+        text(
+            p,
+            "[screen.width, screen.height, screen.availWidth, screen.availHeight].join(' ')",
+        )
+    };
+    let persona = panel(&mut p);
+    let persona_size = size(&mut p);
+    // The pool draws a panel hung either way: 1170x2532 is in it.
+    let hung = persona
+        .rsplit(' ')
+        .take(2)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    // A viewport pin on its own leaves the persona's panel.
+    p.set_viewport_override(390.0, 844.0, true, Some(1.0));
+    assert_eq!(panel(&mut p), persona);
+
+    p.set_screen_override(Some((390.0, 844.0)), Some(("landscape-primary", 90)));
+    assert_eq!(panel(&mut p), "390 844 390 844 landscape-primary 90");
+    // The window stays where the pin put it.
+    assert_eq!(p.evaluate("innerWidth").as_f64(), Some(390.0));
+    assert_eq!(p.evaluate("innerHeight").as_f64(), Some(844.0));
+
+    // Navigation rebuilds the realm and the persona refresh runs first;
+    // the pin's replay has to put the panel back on top.
+    p.navigate(&format!("http://127.0.0.1:{port}/b"))
+        .await
+        .unwrap();
+    assert_eq!(panel(&mut p), "390 844 390 844 landscape-primary 90");
+
+    // No orientation sent: Chrome answers the display's own way of
+    // hanging, whatever shape the panel has — here the persona's.
+    p.set_screen_override(Some((844.0, 390.0)), None);
+    assert_eq!(panel(&mut p), format!("844 390 844 390 {hung}"));
+    p.set_screen_override(Some((390.0, 844.0)), None);
+    assert_eq!(panel(&mut p), format!("390 844 390 844 {hung}"));
+    // The query still reads the panel's shape, as Chrome's does.
+    assert_eq!(
+        p.evaluate("matchMedia('(orientation: portrait)').matches"),
+        serde_json::json!(true)
+    );
+
+    // Each call replaces the whole set: no panel sent is the persona's
+    // panel, with the orientation still sent — and the other way round.
+    p.set_screen_override(None, Some(("landscape-secondary", 270)));
+    assert_eq!(
+        panel(&mut p),
+        format!("{persona_size} landscape-secondary 270")
+    );
+    p.set_screen_override(Some((390.0, 844.0)), None);
+    assert_eq!(panel(&mut p), format!("390 844 390 844 {hung}"));
+
+    // Re-pinning the window keeps the panel and the orientation: the
+    // pin's replay carries both.
+    p.set_screen_override(Some((390.0, 844.0)), Some(("portrait-secondary", 180)));
+    p.set_viewport_override(414.0, 896.0, true, None);
+    assert_eq!(panel(&mut p), "390 844 390 844 portrait-secondary 180");
+    assert_eq!(p.evaluate("innerWidth").as_f64(), Some(414.0));
+
+    // `clearDeviceMetricsOverride` returns the persona's panel.
+    p.clear_viewport_override();
+    assert_eq!(panel(&mut p), persona);
+}
+
+/// CDP `setUserAgentOverride`'s `platform` is the one field that replaces:
+/// one sent rides every realm rebuild after it, and one left out or empty
+/// puts `navigator.platform` back on what the UA says.
+#[tokio::test(flavor = "current_thread")]
+async fn platform_override_rides_realm_rebuilds_and_clears() {
+    let _g = net_test_guard();
+    let port = local_http_server(vec![
+        ("/a", 200, "<html></html>".into()),
+        ("/b", 200, "<html></html>".into()),
+    ]);
+    let mut p = test_page();
+    p.navigate(&format!("http://127.0.0.1:{port}/a"))
+        .await
+        .unwrap();
+    let platform = |p: &mut Page| {
+        p.evaluate("navigator.platform")
+            .as_str()
+            .expect("string answer")
+            .to_string()
+    };
+    let windows = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+                  (KHTML, like Gecko) Chrome/158.0.0.0 Safari/537.36";
+    p.set_user_agent_override(windows, None, Some("Linux x86_64"))
+        .await;
+    assert_eq!(platform(&mut p), "Linux x86_64");
+
+    // A new realm starts from the UA and the pin has to follow it in.
+    p.navigate(&format!("http://127.0.0.1:{port}/b"))
+        .await
+        .unwrap();
+    assert_eq!(platform(&mut p), "Linux x86_64");
+
+    // Left out: what the UA says — a Windows UA says Win32.
+    p.set_user_agent_override(windows, None, None).await;
+    assert_eq!(platform(&mut p), "Win32");
+    // Sent again, then emptied.
+    p.set_user_agent_override(windows, None, Some("MacIntel"))
+        .await;
+    assert_eq!(platform(&mut p), "MacIntel");
+    p.set_user_agent_override(windows, None, Some("")).await;
+    assert_eq!(platform(&mut p), "Win32");
+    // The clear holds over a realm rebuild too.
+    p.navigate(&format!("http://127.0.0.1:{port}/a"))
+        .await
+        .unwrap();
+    assert_eq!(platform(&mut p), "Win32");
+}
+
+/// CDP `setUserAgentOverride`: an empty `userAgent` is the page's own UA
+/// again and an `acceptLanguage` left out or empty its own language — in
+/// the page and on the wire, pin included — and it stays put over a realm
+/// rebuild. What Chrome does; the page kept a stale language here and had
+/// no UA to put back.
+#[tokio::test(flavor = "current_thread")]
+async fn empty_user_agent_override_puts_the_pages_own_back() {
+    let _g = net_test_guard();
+    let port = local_http_server(vec![
+        ("/a", 200, "<html></html>".into()),
+        ("/b", 200, "<html></html>".into()),
+    ]);
+    let mut p = test_page();
+    let url = |path: &str| format!("http://127.0.0.1:{port}{path}");
+    p.navigate(&url("/a")).await.unwrap();
+    // What the page speaks, and what its document went on the wire as.
+    let spoken = |p: &mut Page| -> Vec<String> {
+        p.evaluate("[navigator.userAgent, navigator.language, navigator.languages.join(',')]")
+            .as_array()
+            .expect("an array")
+            .iter()
+            .map(|value| value.as_str().expect("text").to_string())
+            .collect()
+    };
+    let wire = |p: &Page| -> Vec<String> {
+        let document = p
+            .network_events
+            .iter()
+            .find(|event| event.resource_type == "Document")
+            .expect("a document row");
+        ["user-agent", "accept-language"]
+            .map(|name| document.headers.get(name).cloned().unwrap_or_default())
+            .to_vec()
+    };
+    let pinned = |p: &Page| {
+        p.http_client
+            .lang_pinned
+            .load(std::sync::atomic::Ordering::Relaxed)
+    };
+    let own = (spoken(&mut p), wire(&p), pinned(&p));
+
+    p.set_user_agent_override("Probe/1", Some("fr-CA"), Some("Win32"))
+        .await;
+    assert_eq!(spoken(&mut p), ["Probe/1", "fr-CA", "fr-CA,fr"]);
+    assert!(pinned(&p));
+    p.navigate(&url("/b")).await.unwrap();
+    assert_eq!(wire(&p), ["Probe/1", "fr-CA"]);
+
+    // The language left out, then sent empty: the page's own again, pin
+    // included, and the UA stays.
+    for language in [None, Some("")] {
+        p.set_user_agent_override("Probe/1", language, None).await;
+        let back = spoken(&mut p);
+        assert_eq!(back[0], "Probe/1");
+        assert_eq!(&back[1..], &own.0[1..], "{language:?}");
+        assert_eq!(pinned(&p), own.2, "{language:?}");
+    }
+    p.navigate(&url("/a")).await.unwrap();
+    assert_eq!(
+        wire(&p),
+        ["Probe/1".to_string(), own.1[1].clone()],
+        "the header follows"
+    );
+
+    // The UA sent empty: the page's own, on its own and with a language.
+    p.set_user_agent_override("", None, None).await;
+    assert_eq!(spoken(&mut p), own.0);
+    p.set_user_agent_override("", Some("de-DE"), None).await;
+    let mut expected = own.0.clone();
+    expected[1..].clone_from_slice(&["de-DE".to_string(), "de-DE,de".to_string()]);
+    assert_eq!(spoken(&mut p), expected);
+    p.set_user_agent_override("", Some(""), None).await;
+    assert_eq!(spoken(&mut p), own.0);
+    assert_eq!(pinned(&p), own.2);
+    // And over a realm rebuild the page is what it was.
+    p.navigate(&url("/b")).await.unwrap();
+    assert_eq!((spoken(&mut p), wire(&p)), (own.0, own.1));
 }
 
 /// #151 (obscura#1101 absorption): touch emulation swaps the capability

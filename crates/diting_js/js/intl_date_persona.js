@@ -8,6 +8,7 @@
 // every use here) — _markNative's registry is a different mechanism
 // (_nativeFnAdd), so the bootstrap load-time marking sweep is untouched.
 // Load-time installs: Intl.DateTimeFormat proxy, Date prototype wraps,
+// the Number/BigInt toLocaleString and String localeCompare wraps,
 // Function.prototype.toString proxy — all member form. __ditingLangList's
 // one external reader (navigator_persona.js) calls at runtime.
 const _OrigDateTimeFormat = Intl.DateTimeFormat;
@@ -18,12 +19,11 @@ const _OrigDateTimeFormat = Intl.DateTimeFormat;
 // navigator.language must be a single BCP-47 tag and navigator.languages a
 // tag list — a q-weighted string in either is a hard headless tell.
 function __ditingLangList() {
-  // CDP Emulation.setLocaleOverride pin outranks the persona language
-  // (Chrome's locale override outranks the accept-language). Pin-over-
-  // derivation, same shape as __diting_tz over __ditingTZFromLang.
-  const pin = globalThis.__diting_locale;
-  const raw = String((typeof pin === 'string' && pin.length) ? pin
-    : (globalThis.__diting_lang || 'zh-CN'));
+  // The configured language, or the Accept-Language CDP's
+  // setUserAgentOverride wrote over it. The locale pin is not in this face:
+  // Chrome's setLocaleOverride moves Intl's default locale and leaves
+  // navigator.language alone (measured on Chrome 158).
+  const raw = String(globalThis.__diting_lang || 'zh-CN');
   const tags = raw.split(',').map((s) => s.split(';')[0].trim()).filter(Boolean);
   const out = tags.length ? tags : ['zh-CN'];
   if (out.length === 1 && out[0].indexOf('-') !== -1) out.push(out[0].split('-')[0]);
@@ -56,9 +56,16 @@ function __ditingTZ() {
 // The Rust side pins ICU's default for fresh isolates, but V8 caches the
 // resolved default per-isolate after first Intl use, so the authoritative
 // fix lives here: bind undefined/null locale args to the configured
-// language. Explicit locales pass through untouched.
+// language (an empty locale list resolves the same way). Explicit locales
+// pass through untouched. CDP Emulation.setLocaleOverride comes first — pin
+// over derivation, same shape as __diting_tz over __ditingTZFromLang.
 function __ditingLocaleArg(locales) {
-  if (locales === undefined || locales === null) return __ditingLangList()[0];
+  if (locales === undefined || locales === null ||
+      (Array.isArray(locales) && locales.length === 0)) {
+    const pin = globalThis.__diting_locale;
+    if (typeof pin === 'string' && pin.length) return pin;
+    return __ditingLangList()[0];
+  }
   return locales;
 }
 // Wrapping a native constructor with a plain JS function is itself a
@@ -173,37 +180,41 @@ function __ditingFormatZoned(date, kind) {
   if (kind === 'time') return clock + ' ' + off + ' (' + name + ')';
   return datePart + ' ' + clock + ' ' + off + ' (' + name + ')';
 }
-function __ditingWrapDate(name, impl) {
-  const orig = Date.prototype[name];
+function __ditingWrapMethod(proto, name, impl) {
+  const orig = proto[name];
   if (typeof orig !== 'function') return;
   const wrapped = new Proxy(orig, {
     apply(target, thisArg, args) {
-      if (!(thisArg instanceof Date)) return Reflect.apply(target, thisArg, args);
       return impl(target, thisArg, args);
     },
   });
   __ditingNativeOf.set(wrapped, orig);
-  Date.prototype[name] = wrapped;
+  proto[name] = wrapped;
+}
+// The Date wraps only stand in for real Dates; any other receiver goes
+// straight to the native, which owns the TypeError.
+function __ditingWrapDate(name, impl) {
+  __ditingWrapMethod(Date.prototype, name, (target, thisArg, args) =>
+    thisArg instanceof Date ? impl(target, thisArg, args)
+                            : Reflect.apply(target, thisArg, args));
 }
 __ditingWrapDate('getTimezoneOffset', (_target, date) => __ditingOffsetMinutes(date));
 __ditingWrapDate('toString', (_target, date) => __ditingFormatZoned(date, 'all'));
 __ditingWrapDate('toDateString', (_target, date) => __ditingFormatZoned(date, 'date'));
 __ditingWrapDate('toTimeString', (_target, date) => __ditingFormatZoned(date, 'time'));
-__ditingWrapDate('toLocaleString', (target, date, args) => {
+// (locales, options) for a Date locale native: the caller's options, the
+// persona zone unless they name one, the resolved default locale.
+function __ditingLocaleDateArgs(args) {
   const options = Object.assign({}, args[1]);
   if (!options.timeZone) options.timeZone = __ditingTZ();
-  return Reflect.apply(target, date, [args[0], options]);
-});
-__ditingWrapDate('toLocaleDateString', (target, date, args) => {
-  const options = Object.assign({}, args[1]);
-  if (!options.timeZone) options.timeZone = __ditingTZ();
-  return Reflect.apply(target, date, [args[0], options]);
-});
-__ditingWrapDate('toLocaleTimeString', (target, date, args) => {
-  const options = Object.assign({}, args[1]);
-  if (!options.timeZone) options.timeZone = __ditingTZ();
-  return Reflect.apply(target, date, [args[0], options]);
-});
+  return [__ditingLocaleArg(args[0]), options];
+}
+__ditingWrapDate('toLocaleString', (target, date, args) =>
+  Reflect.apply(target, date, __ditingLocaleDateArgs(args)));
+__ditingWrapDate('toLocaleDateString', (target, date, args) =>
+  Reflect.apply(target, date, __ditingLocaleDateArgs(args)));
+__ditingWrapDate('toLocaleTimeString', (target, date, args) =>
+  Reflect.apply(target, date, __ditingLocaleDateArgs(args)));
 // #221: the local-field surface must resolve in the persona zone, not the
 // host's. Above, the formatter family (toString/…) already formats in
 // __ditingTZ() — but the constructor's local-args form and the native
@@ -349,6 +360,18 @@ Object.defineProperty(_OrigDate.prototype, 'constructor', {
     });
   }
 })();
+// These natives never see the proxies above: V8 builds their formatter from
+// the intrinsic Intl constructor it keeps in the native context, so with no
+// locale argument they answered in ICU's default — the language at realm
+// build — and a locale pin, or a live acceptLanguage move, left
+// (1.5).toLocaleString() disagreeing with Intl.NumberFormat().format(1.5)
+// on one page. A string locale still hits V8's per-isolate formatter cache.
+__ditingWrapMethod(Number.prototype, 'toLocaleString', (target, receiver, args) =>
+  Reflect.apply(target, receiver, [__ditingLocaleArg(args[0]), args[1]]));
+__ditingWrapMethod(BigInt.prototype, 'toLocaleString', (target, receiver, args) =>
+  Reflect.apply(target, receiver, [__ditingLocaleArg(args[0]), args[1]]));
+__ditingWrapMethod(String.prototype, 'localeCompare', (target, receiver, args) =>
+  Reflect.apply(target, receiver, [args[0], __ditingLocaleArg(args[1]), args[2]]));
 // V8 renders Function.prototype.toString on a proxy over a native as the
 // anonymous "function () { [native code] }" — stock shows the name
 // ("function NumberFormat() { [native code] }"). Close that last gap by

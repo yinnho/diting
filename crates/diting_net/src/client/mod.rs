@@ -1216,6 +1216,15 @@ impl HttpClient {
             .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
+    /// Put the language back the way the caller found it: the string and
+    /// the pin move together, so a client that followed its route follows
+    /// it again.
+    pub async fn restore_accept_language(&self, lang: &str, pinned: bool) {
+        *self.accept_language.write().await = lang.to_string();
+        self.lang_pinned
+            .store(pinned, std::sync::atomic::Ordering::Relaxed);
+    }
+
     pub async fn set_extra_headers(&self, headers: HashMap<String, String>) {
         *self.extra_headers.write().await = headers;
     }

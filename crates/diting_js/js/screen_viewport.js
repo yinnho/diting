@@ -26,10 +26,36 @@ for (const _sk of Object.keys(__scrStore)) {
 }
 globalThis.__def(globalThis.Screen.prototype, Symbol.toStringTag, 'Screen'); // member form: bare would add a load-time (file,name) pair
 globalThis.screen = Object.create(globalThis.Screen.prototype);
-globalThis.__diting_screenApply = function(sw, sh) {
-  __scrStore.width = sw; __scrStore.height = sh;
-  __scrStore.availWidth = sw; __scrStore.availHeight = sh - 40;
+// A panel on the store; `free` is what the desktop leaves of its height.
+function __scrPanel(w, h, free) {
+  __scrStore.width = w; __scrStore.height = h;
+  __scrStore.availWidth = w; __scrStore.availHeight = free;
   __scrStore.availTop = 0; __scrStore.availLeft = 0;
+}
+// The persona's own panel and way of hanging, as its last refresh drew
+// them: an emulated panel that leaves either out goes back to them.
+let __scrOwn = null;
+let __scrOrient = "landscape-primary";
+globalThis.__diting_screenApply = function(sw, sh) {
+  __scrPanel(sw, sh, sh - 40);
+  __scrStore.orientation.type = sw >= sh ? "landscape-primary" : "portrait-primary";
+  __scrStore.orientation.angle = 0;
+  __scrOrient = __scrStore.orientation.type;
+  __scrOwn = [sw, sh];
+};
+// An emulated device's panel (Rust's screen override, CDP screenWidth /
+// screenHeight / screenOrientation). Each call replaces the whole set, as
+// the command does; a part left out comes in as `undefined` and is the
+// persona's again. An emulated panel is all available — no desktop
+// furniture to carve out.
+globalThis.__diting_screenOverride = function(w, h, type, angle) {
+  if (w !== undefined) {
+    __scrPanel(w, h, h);
+  } else if (__scrOwn) {
+    __scrPanel(__scrOwn[0], __scrOwn[1], __scrOwn[1] - 40);
+  }
+  __scrStore.orientation.type = type || __scrOrient;
+  __scrStore.orientation.angle = type ? (angle || 0) : 0;
 };
 // visualViewport is a real interface in Chrome — a detector walking
 // Object.getPrototypeOf(visualViewport).constructor.name sees "VisualViewport",

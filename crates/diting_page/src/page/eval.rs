@@ -3,6 +3,7 @@
 //! page/mod.rs (ARCHITECTURE.md P2 batch 3); behavior unchanged.
 
 use diting_dom::DomTree;
+use diting_js::runtime::EvalInput;
 
 use super::Page;
 
@@ -135,6 +136,7 @@ impl Page {
                         description: String::new(),
                         object_id: None,
                         value: None,
+                        unserializable_value: None,
                     }
                 }
             }
@@ -152,6 +154,7 @@ impl Page {
                 description: String::new(),
                 object_id: None,
                 value: Some(val),
+                unserializable_value: None,
             }
         }
     }
@@ -175,6 +178,7 @@ impl Page {
                     await_promise,
                     await_budget_ms,
                     frame_nid,
+                    EvalInput::Forgiving,
                 )
                 .await
             {
@@ -195,15 +199,13 @@ impl Page {
                             description: String::new(),
                             object_id: None,
                             value: None,
+                            unserializable_value: None,
                         },
                         exception: Some(diting_js::runtime::ExceptionInfo {
-                            text: "Uncaught".into(),
+                            in_promise: false,
                             description: e,
-                            class_name: String::new(),
-                            object_id: None,
-                            stack_first: None,
-                            line: None,
-                            col: None,
+                            frames: Vec::new(),
+                            is_error: false,
                         }),
                     }
                 }
@@ -223,6 +225,7 @@ impl Page {
                     description: String::new(),
                     object_id: None,
                     value: Some(val),
+                    unserializable_value: None,
                 },
                 exception: None,
             }

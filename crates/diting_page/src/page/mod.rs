@@ -10,7 +10,7 @@ use url::Url;
 use crate::context::BrowserContext;
 use crate::lifecycle::LifecycleState;
 
-use self::viewport::EmulatedMedia;
+use self::viewport::{EmulatedMedia, ScreenOverride};
 // Page decomposition (ARCHITECTURE.md P2 batch 3): navigation & settle,
 // script execution, viewport/band capture, JS evaluation and network
 // bookkeeping live in sibling files under this directory. The `page::`
@@ -109,6 +109,17 @@ impl Drop for Page {
     }
 }
 
+/// The page's identity as it stood before its first CDP
+/// `setUserAgentOverride`: what an empty `userAgent` or `acceptLanguage`
+/// puts back.
+#[derive(Clone)]
+struct IdentityDefaults {
+    /// The plain transport's UA and the stealth transport's.
+    user_agent: (String, Option<String>),
+    /// The language, and whether it was pinned (`DITING_ACCEPT_LANGUAGE`).
+    language: (String, bool),
+}
+
 pub struct Page {
     pub id: String,
     /// Upstream frame-realm identifier: one Page can host sub-frame realms
@@ -145,6 +156,10 @@ pub struct Page {
     /// above zero); None keeps the persona's dpr reporting through. Rides
     /// the same replay as `viewport_override`.
     dpr_override: Option<f64>,
+    /// `screenWidth`/`screenHeight`/`screenOrientation` of the same CDP
+    /// override. `None` leaves `screen` on the persona's panel. Rides
+    /// `viewport_override`'s replay and its clear.
+    screen_override: Option<ScreenOverride>,
     /// Emulated media environment from CDP `Emulation.setEmulatedMedia`
     /// (Playwright's `page.emulateMedia`). Lives on the Page for the same
     /// reason as `viewport_override` — every navigation rebuilds the realm,
@@ -162,12 +177,20 @@ pub struct Page {
     /// bootstrap's language-derived zone.
     timezone_override: Option<String>,
     /// CDP `Emulation.setLocaleOverride` (#153). Lives on the Page so a
-    /// navigation, which rebuilds the realm, replays it over the persona
-    /// language — the explicit pin outranks both persona sources (the env
-    /// accept-language at realm build and setUserAgentOverride's
-    /// acceptLanguage), the same posture Chrome gives its locale override.
-    /// Empty means the persona default.
+    /// navigation, which rebuilds the realm, replays it. It pins Intl's
+    /// default locale only — navigator.language stays with the language
+    /// (persona, or `setUserAgentOverride`'s `acceptLanguage`), the way
+    /// Chrome keeps the two pins apart. Empty means no pin: Intl's default
+    /// locale derives from the language again.
     locale_override: Option<String>,
+    /// CDP `setUserAgentOverride`'s `platform` (navigator.platform). Lives
+    /// on the Page for the same reason: the pin is a global of the realm
+    /// and every navigation builds a new one.
+    platform_override: Option<String>,
+    /// What `setUserAgentOverride` found on its first call: each
+    /// transport's UA, and the language with its pin. An empty `userAgent`
+    /// or `acceptLanguage` puts them back, as it does in Chrome.
+    identity_defaults: Option<IdentityDefaults>,
     /// 32-bit seed the JS persona draws its hardware identity from
     /// (screen/dpr/GPU/canvas). Lives on the Page because every navigation
     /// rebuilds the realm and `__diting_init` self-deletes after drawing a
@@ -368,6 +391,9 @@ impl Page {
             viewport_override: None,
             layout_policy: LayoutPolicy::Mock,
             dpr_override: None,
+            screen_override: None,
+            platform_override: None,
+            identity_defaults: None,
             emulated_media: None,
             touch_override: None,
             timezone_override: None,

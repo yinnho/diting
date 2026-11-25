@@ -4,6 +4,20 @@
 
 use super::Page;
 
+/// The panel CDP's `setDeviceMetricsOverride` puts the page on: what
+/// `screen.width/height/availWidth/availHeight` and `screen.orientation`
+/// answer. Each call replaces the whole panel, and a part left out is back
+/// on the persona's — so the two are remembered apart.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ScreenOverride {
+    /// `screenWidth`/`screenHeight`. Under mobile emulation Chrome sizes
+    /// the panel from the viewport when they are left out, so the caller
+    /// sends the viewport for that.
+    pub panel: Option<(f32, f32)>,
+    /// `screenOrientation`: a `"portrait-primary"`-style kind and its angle.
+    pub orientation: Option<(String, i64)>,
+}
+
 /// Emulated media environment from CDP `Emulation.setEmulatedMedia`
 /// (Playwright's `page.emulateMedia`). `features` holds `prefers-*`
 /// (name, value) pairs; `media` is the emulated media type, `Some(None)`
@@ -32,8 +46,9 @@ impl Page {
     }
 
     /// Set the emulated media environment (CDP `Emulation.setEmulatedMedia`).
-    /// `None` keeps a param unchanged (Chrome semantics: present replaces,
-    /// absent untouched); both `None` = clear everything back to defaults.
+    /// Each `None` keeps that param unchanged; a present list replaces the
+    /// whole feature set (an empty one clears it), and `Some(None)` clears
+    /// the media type back to `screen`.
     pub fn set_emulated_media(
         &mut self,
         features: Option<Vec<(String, String)>>,
@@ -127,40 +142,17 @@ impl Page {
 
     /// Pin `Emulation.setLocaleOverride` (#153). `None` clears back to the
     /// persona language. The effect face is `globalThis.__diting_locale` —
-    /// a pin the bootstrap's `__ditingLangList` reads ahead of the persona
-    /// `__diting_lang` (same pin-over-derivation shape as `__diting_tz`) —
-    /// so navigator.language/languages, the Intl default-locale binding
-    /// (`__ditingLocaleArg`), and even the language-derived default
-    /// timezone all move together, live, without re-pinning the
+    /// a pin the bootstrap's `__ditingLocaleArg` reads ahead of the persona
+    /// language (same pin-over-derivation shape as `__diting_tz`), so it
+    /// moves Intl's default locale live, without re-pinning the
     /// process-global ICU default (sticky per-isolate; the bootstrap
     /// binding is the authoritative fix, see `set_navigator_language`).
+    /// It moves nothing else: navigator.language follows the language —
+    /// `setUserAgentOverride`'s `acceptLanguage` moves that, as in Chrome,
+    /// where the two pins are two faces and neither outranks the other.
     pub fn set_locale_override(&mut self, locale: Option<String>) {
         self.locale_override = locale.filter(|l| !l.is_empty());
         self.apply_locale_override();
-    }
-
-    /// True when ICU accepts `locale` as a language tag. The check runs in
-    /// the page (`Intl.Locale` is the BCP 47 parser Chrome validates this
-    /// command against), so the answer matches the override's own runtime.
-    pub fn locale_supported(&mut self, locale: &str) -> bool {
-        if locale.is_empty()
-            || locale.len() > 80
-            || !locale
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
-        {
-            return false;
-        }
-        let Some(js) = &mut self.js else {
-            return false;
-        };
-        let escaped = locale.replace('\\', "\\\\").replace('\'', "\\'");
-        matches!(
-            js.evaluate(&format!(
-                "(function(){{try{{new Intl.Locale('{escaped}');return true}}catch(e){{return false}}}})()"
-            )),
-            Ok(serde_json::Value::Bool(true))
-        )
     }
 
     pub(super) fn apply_locale_override(&mut self) {
@@ -477,12 +469,68 @@ impl Page {
         }
     }
 
-    /// Drop the override and return to the persona viewport everywhere.
+    /// Put `setUserAgentOverride`'s `platform` back into the current realm.
+    /// No-op without one, so a realm rebuild on a default page costs one
+    /// branch.
+    pub(super) fn apply_platform_override(&mut self) {
+        let Some(platform) = self.platform_override.clone() else {
+            return;
+        };
+        if let Some(js) = &mut self.js {
+            js.set_navigator_platform(&platform);
+        }
+    }
+
+    /// Drop the override and return to the persona viewport everywhere —
+    /// the panel too, if the override carried one.
     pub fn clear_viewport_override(&mut self) {
         self.viewport_override = None;
         self.dpr_override = None;
+        self.screen_override = None;
         if let Some(js) = &mut self.js {
             let _ = js.execute_script("<viewport>", "__diting_clearViewport()");
+        }
+    }
+
+    /// Put an emulated device's panel on the page (see [`ScreenOverride`]).
+    /// Each call replaces the one before: a part left out is back on the
+    /// persona's. Call it while a viewport pin is in place — the pin's
+    /// replay carries the panel into every new realm, and
+    /// [`Self::clear_viewport_override`] drops it.
+    pub fn set_screen_override(
+        &mut self,
+        panel: Option<(f32, f32)>,
+        orientation: Option<(&str, i64)>,
+    ) {
+        self.screen_override = Some(ScreenOverride {
+            panel: panel.map(|(w, h)| (w.max(1.0), h.max(1.0))),
+            orientation: orientation.map(|(kind, angle)| (kind.to_string(), angle)),
+        });
+        self.apply_screen_override();
+    }
+
+    fn apply_screen_override(&mut self) {
+        let Some(screen) = self.screen_override.clone() else {
+            return;
+        };
+        // The bootstrap reads `undefined` as "left out".
+        let (w, h) = match screen.panel {
+            Some((w, h)) => (w.to_string(), h.to_string()),
+            None => ("undefined".to_string(), "undefined".to_string()),
+        };
+        let kind = match &screen.orientation {
+            Some((kind, _)) => format!("'{kind}'"),
+            None => "undefined".to_string(),
+        };
+        let angle = screen
+            .orientation
+            .map(|(_, angle)| angle.to_string())
+            .unwrap_or_else(|| "undefined".to_string());
+        if let Some(js) = &mut self.js {
+            let _ = js.execute_script(
+                "<viewport>",
+                &format!("__diting_screenOverride({w}, {h}, {kind}, {angle})"),
+            );
         }
     }
 
@@ -504,5 +552,6 @@ impl Page {
                 &format!("__diting_setViewport({w}, {h}, {mobile}, {dpr})"),
             );
         }
+        self.apply_screen_override();
     }
 }

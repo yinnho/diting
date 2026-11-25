@@ -4,6 +4,7 @@
 //! defaults live here, next to the query that reads them.
 
 use crate::len_parse::CssF32;
+use crate::supports_cond::split_top_level_keyword;
 
 /// Which media a stylesheet evaluation targets. `print` rules only apply
 /// inside `@media print` bodies; `screen` rules apply outside it.
@@ -111,8 +112,8 @@ fn single_media_query_applies_compact(
     // A bare feature list (`(min-width: 768px)`) implies media type `all`;
     // evaluate its features directly instead of walking the type-token path.
     if compact.starts_with('(') || compact.is_empty() {
-        return compact
-            .split("and")
+        return and_chain(compact)
+            .iter()
             .all(|feature| media_feature_applies(feature, viewport, overrides));
     }
 
@@ -142,15 +143,26 @@ fn single_media_query_applies_compact(
     let Some(feature_expr) = rest.strip_prefix("and") else {
         return false;
     };
-    feature_expr
-        .split("and")
+    and_chain(feature_expr)
+        .iter()
         .all(|feature| media_feature_applies(feature, viewport, overrides))
+}
+
+/// An `and`-chain of features, cut on the keyword outside the brackets.
+/// The query is compacted first — no whitespace left — so a cut on the
+/// bare substring would also cut `landscape` in half (`l-and-scape`).
+/// `@supports` conditions are cut by the same rule.
+fn and_chain(compact: &str) -> Vec<String> {
+    split_top_level_keyword(compact, "and").unwrap_or_else(|| vec![compact.to_string()])
 }
 
 /// One `(min-width: 768px)`-style expression. Width/height bounds compare
 /// against the viewport; `prefers-*` preferences answer from the emulated
 /// overrides first, then the persona defaults — evaluated before the px parse
 /// so a non-numeric value like `reduce` isn't discarded as unparseable.
+/// `orientation` reads the viewport's shape: a square hangs portrait, the
+/// height not below the width — the same reading the script face
+/// (`matchMedia`) gives, so the two cannot disagree.
 fn media_feature_applies(feature: &str, viewport: (f32, f32), overrides: &MediaOverrides) -> bool {
     let feature = feature
         .trim()
@@ -165,6 +177,14 @@ fn media_feature_applies(feature: &str, viewport: (f32, f32), overrides: &MediaO
     let value = value.trim();
     if let Some(answer) = media_pref_answer(name, value, overrides) {
         return answer;
+    }
+    if name.eq_ignore_ascii_case("orientation") {
+        let hung = if viewport.1 >= viewport.0 {
+            "portrait"
+        } else {
+            "landscape"
+        };
+        return value.eq_ignore_ascii_case(hung);
     }
     let value_px = parse_px(value);
     let value_px = match value_px {

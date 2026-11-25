@@ -1441,6 +1441,55 @@ fn media_list_is_or_and_function_commas_survive() {
     ));
 }
 
+/// `(orientation: …)` is the viewport's shape, and a square hangs
+/// portrait — the height is not below the width. Chrome 158 answers
+/// portrait at 100x100 and at 50x50; the cascade had no `orientation`
+/// at all, so rules under it never applied while `matchMedia` said they
+/// did.
+#[test]
+fn media_orientation_reads_the_viewport_shape() {
+    for (viewport, portrait, landscape) in [
+        ((500.0, 900.0), true, false),
+        ((900.0, 500.0), false, true),
+        ((500.0, 500.0), true, false),
+        ((50.0, 50.0), true, false),
+        ((500.0, 499.0), false, true),
+    ] {
+        for (query, answer) in [
+            ("(orientation: portrait)", portrait),
+            ("(ORIENTATION: LANDSCAPE)", landscape),
+        ] {
+            assert_eq!(
+                media_query_applies(query, viewport, CssMediaType::Screen),
+                answer,
+                "{query} at {viewport:?}"
+            );
+        }
+    }
+    // In a list, under a negation, behind a media type — the usual places.
+    assert!(media_query_applies(
+        "(orientation: portrait), (min-width: 10000px)",
+        (500.0, 900.0),
+        CssMediaType::Screen
+    ));
+    assert!(!media_query_applies(
+        "not (orientation: portrait)",
+        (500.0, 900.0),
+        CssMediaType::Screen
+    ));
+    assert!(media_query_applies(
+        "screen and (orientation: landscape)",
+        (900.0, 500.0),
+        CssMediaType::Screen
+    ));
+    // A value the feature does not have is not a match.
+    assert!(!media_query_applies(
+        "(orientation: square)",
+        (500.0, 500.0),
+        CssMediaType::Screen
+    ));
+}
+
 /// Issue #29: `Emulation.setEmulatedMedia` features replace the
 /// prefers-* truth tables wholesale — matching arms must start (and
 /// stop) applying through the override path.

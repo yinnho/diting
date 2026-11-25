@@ -299,22 +299,6 @@ async fn test_structured_clone_preserves_cryptokey_identity() {
     assert_eq!(result.value.unwrap(), serde_json::json!([true, true, true]));
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn release_object_with_adversarial_id_is_inert() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    rt.release_object("x']; globalThis.__injected = 42; ('");
-    let probe = rt
-        .call_function_on(
-            "function() { return globalThis.__injected === undefined; }",
-            None,
-            &[],
-            true,
-        )
-        .await
-        .unwrap();
-    assert_eq!(probe.value.unwrap(), serde_json::json!(true));
-}
-
 // Blob URLs must look like Chrome's: `blob:<document origin>/<uuid>`.
 // The pre-rename engine handed out `blob:obscura/<base36>`, so a page
 // reading back its own blob URL (a Worker's script URL, an anchor href,

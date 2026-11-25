@@ -110,6 +110,97 @@ fn set_navigator_language_moves_persona_without_repinning_icu() {
     assert_eq!(locale, serde_json::json!("fr-FR"));
 }
 
+/// Chrome 158 measured: `Emulation.setLocaleOverride` and
+/// `setUserAgentOverride.acceptLanguage` are two faces. The locale pin
+/// moves Intl's default locale and nothing else; acceptLanguage moves
+/// navigator.language(s) and nothing else. Neither outranks the other —
+/// the bootstrap used to read the pin inside `__ditingLangList`, so one
+/// setLocaleOverride call moved navigator.language and shadowed every
+/// acceptLanguage sent after it.
+#[test]
+fn locale_pin_and_accept_language_are_two_faces() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.set_language("zh-CN,zh;q=0.9,en;q=0.8");
+    assert_eq!(
+        rt.evaluate("'ö'.localeCompare('p')").unwrap(),
+        serde_json::json!(-1.0),
+        "zh-CN sorts ö with o, before p"
+    );
+    rt.set_locale(Some("de-DE"));
+    // The pin moves Intl's default locale: the constructors, and the
+    // natives that resolve one behind the caller's back (they build their
+    // formatter from the intrinsic Intl constructors, not the proxied
+    // globals — so the bootstrap hands them the resolved locale).
+    for (expression, expected) in [
+        ("Intl.DateTimeFormat().resolvedOptions().locale", "de-DE"),
+        ("(1234.5).toLocaleString()", "1.234,5"),
+        ("(1234.5).toLocaleString([])", "1.234,5"),
+        ("(1234567n).toLocaleString()", "1.234.567"),
+        (
+            "new Date(0).toLocaleDateString(undefined, { timeZone: 'UTC' })",
+            "1.1.1970",
+        ),
+    ] {
+        assert_eq!(
+            rt.evaluate(expression).unwrap(),
+            serde_json::json!(expected),
+            "{expression}"
+        );
+    }
+    // Collation follows the pin: Swedish sorts ö after z.
+    rt.set_locale(Some("sv-SE"));
+    assert_eq!(
+        rt.evaluate("'ö'.localeCompare('p')").unwrap(),
+        serde_json::json!(1.0),
+        "collation follows the pin: Swedish sorts ö after z"
+    );
+    // …while navigator.language stays with the language, as in Chrome.
+    rt.set_locale(Some("de-DE"));
+    assert_eq!(
+        rt.evaluate("navigator.language").unwrap(),
+        serde_json::json!("zh-CN")
+    );
+    // An explicit locale is the caller's; the pin never overrides it.
+    for (expression, expected) in [
+        ("(1234.5).toLocaleString('en-US')", "1,234.5"),
+        (
+            "new Date(0).toLocaleDateString('ja-JP', { timeZone: 'UTC' })",
+            "1970/1/1",
+        ),
+    ] {
+        assert_eq!(
+            rt.evaluate(expression).unwrap(),
+            serde_json::json!(expected),
+            "{expression}"
+        );
+    }
+    rt.set_navigator_language("ja-JP");
+    assert_eq!(
+        rt.evaluate("navigator.languages.join('|')").unwrap(),
+        serde_json::json!("ja-JP|ja")
+    );
+    assert_eq!(
+        rt.evaluate("Intl.DateTimeFormat().resolvedOptions().locale")
+            .unwrap(),
+        serde_json::json!("de-DE"),
+        "a later acceptLanguage does not unseat a standing locale pin"
+    );
+    // Pin cleared: Intl derives from the language again — live, on an
+    // isolate whose ICU default was cached as zh-CN at the first Intl use.
+    rt.set_locale(None);
+    rt.set_navigator_language("de-DE");
+    assert_eq!(
+        rt.evaluate("Intl.DateTimeFormat().resolvedOptions().locale")
+            .unwrap(),
+        serde_json::json!("de-DE")
+    );
+    assert_eq!(
+        rt.evaluate("(1234.5).toLocaleString()").unwrap(),
+        serde_json::json!("1.234,5"),
+        "a live acceptLanguage move reaches the natives too"
+    );
+}
+
 /// Issue #30: engine-internal `_`-prefixed state must be invisible to
 /// enumerability. Chrome keeps DOM state in native slots —
 /// `Object.keys(div)` is `[]` there — and `for..in` walkers like zone.js's

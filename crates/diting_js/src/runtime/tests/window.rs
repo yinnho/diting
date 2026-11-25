@@ -25,7 +25,7 @@ fn match_media_agrees_with_published_viewport() {
                 matchMedia("print").matches,
                 matchMedia("not print").matches,
                 matchMedia("(min-width: 99999px), (min-width: 100px)").matches,
-                matchMedia("(orientation: landscape)").matches === (vw >= vh),
+                matchMedia("(orientation: landscape)").matches === (vw > vh),
                 matchMedia("(prefers-color-scheme: light)").matches,
                 matchMedia("(prefers-color-scheme: dark)").matches,
                 matchMedia("(unknown-feature: 3)").matches,
@@ -126,6 +126,54 @@ fn matchmedia_live_objects_fire_change_on_viewport_flip() {
         out.as_str().unwrap(),
         "true|false|true|false|ac:false:(min-width: 800px);oc:true"
     );
+}
+
+/// `(orientation: …)` hangs a square viewport portrait — the height is not
+/// below the width. Chrome 158 answers portrait at 100x100 and at 50x50
+/// (`Emulation.setDeviceMetricsOverride`); the script face said landscape
+/// there, and the cascade had no `orientation` at all, so an `@media
+/// (orientation: …)` rule never applied while the script face said it
+/// did. Both faces, one viewport.
+#[cfg(feature = "screenshot")]
+#[test]
+fn orientation_feature_hangs_a_square_viewport_portrait() {
+    let mut rt = setup_runtime(
+        "<html><head><style>\
+             @media (orientation: portrait) { #t { color: rgb(0, 0, 255); } }\
+             @media (orientation: landscape) { #t { color: rgb(255, 0, 0); } }\
+             @media not all and (orientation: portrait) { #u { color: rgb(0, 128, 0); } }\
+             </style></head><body><i id='t'></i><i id='u'></i></body></html>",
+    );
+    for (width, height, portrait) in [
+        (500, 900, true),
+        (900, 500, false),
+        (500, 500, true),
+        (50, 50, true),
+        (500, 499, false),
+    ] {
+        let out = rt
+            .evaluate(&format!(
+                r#"
+                __diting_setViewport({width}, {height}, false, 1);
+                return [
+                    matchMedia('(orientation: portrait)').matches,
+                    matchMedia('(orientation: landscape)').matches,
+                    getComputedStyle(document.getElementById('t')).color,
+                    getComputedStyle(document.getElementById('u')).color,
+                ].join(' ');
+                "#
+            ))
+            .unwrap();
+        // The rule that applies is whichever hangs the way the viewport
+        // does: blue for portrait, red for landscape; `not all and` is
+        // the other way round, so green when it hangs landscape.
+        let expected = if portrait {
+            "true false rgb(0, 0, 255) rgb(0, 0, 0)"
+        } else {
+            "false true rgb(255, 0, 0) rgb(0, 128, 0)"
+        };
+        assert_eq!(out.as_str().unwrap(), expected, "{width}x{height}");
+    }
 }
 
 /// Same object surface, override half: the mobile viewport emulation

@@ -32,7 +32,7 @@ use drop_serialized::{SerializedDropRuntime, ISOLATE_CONSTRUCT_LOCK};
 use heap_guard::{install_heap_limit_guard, HeapLimitState};
 pub use watchdog::{is_zombie_thread, set_zombie_thread_for_test, spawn_watchdog, WatchdogToken};
 
-// The eval/callFunctionOn wrapper-source builders (INLINE_EVAL_JS trampoline,
+// The eval/callFunctionOn wrapper-source builders (the eval trampoline,
 // object slots, meta extraction, the #114 await-settle wrappers).
 mod eval_code;
 // Expression evaluation and the V8-value-to-JSON conversion.
@@ -42,8 +42,11 @@ mod eval;
 // constructors) — split from the module root (god-file ratchet).
 mod remote_eval;
 mod remote_object;
-pub use remote_eval::{EvalOutcome, ExceptionInfo, DEFAULT_AWAIT_BUDGET_MS};
-pub use remote_object::RemoteObjectInfo;
+pub use remote_eval::{
+    EvalInput, EvalOutcome, ExceptionInfo, ObjectIdState, BAD_CALL_ARGUMENT,
+    DEFAULT_AWAIT_BUDGET_MS, NOT_A_FUNCTION,
+};
+pub use remote_object::{RemoteObjectInfo, StackFrame};
 
 // The host→realm wiring setters/drain family — split from the module root
 // (god-file ratchet). wiring stays free of script execution.
@@ -63,6 +66,9 @@ pub struct JsRuntime {
     state: Rc<RefCell<JsState>>,
     object_store: HashMap<String, String>,
     object_counter: u64,
+    /// Which realm this runtime is, as its object ids say — see
+    /// [`ObjectIdState::Gone`].
+    realm: u64,
     /// Thread-safe handle to this runtime's V8 isolate, captured at
     /// construction. Lets a watchdog be armed from `&self` (the CDP dispatcher
     /// only holds `&Page` on the hot path) and is stable for the isolate's life.
@@ -394,6 +400,7 @@ impl JsRuntime {
             state,
             object_store: HashMap::new(),
             object_counter: 0,
+            realm: remote_eval::take_realm_serial(),
             isolate_handle,
             heap_limit_state,
             watchdog_fired_total: std::cell::Cell::new(0),
