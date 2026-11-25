@@ -5,6 +5,7 @@
 //! the realm-and-number pair it finds. Nothing here reaches into the
 //! page: the engine's own spelling of an id never crosses this boundary.
 
+use crate::session::HandleParts;
 use diting::diting_js::runtime::{JsRuntime, ObjectIdState};
 
 /// What Chrome's canonical spelling of a handle is — the strict path
@@ -62,6 +63,30 @@ fn parts(spelled: &str) -> Result<(Option<i64>, Option<i64>, bool), ()> {
     lenient_parts(spelled)
         .map(|(realm, number)| (realm, number, false))
         .ok_or(())
+}
+
+/// A wire id read once into the IR's [`HandleParts`] — for commands that
+/// cross the session boundary carrying ids the thread will have to ask
+/// the engine about. The spelling itself never leaves the face.
+pub(super) fn handle_parts(object_id: &str) -> HandleParts {
+    let spelled = object_id.trim_start();
+    match parts(spelled) {
+        Err(()) => HandleParts::NoId,
+        Ok((realm, number, strict)) => {
+            // The canonical check only matters once the realm matches and
+            // the number exists — both decided on the session thread — so
+            // it is reported for every strict spelling and ordered there.
+            let canonical = match (strict, realm, number) {
+                (true, Some(realm), Some(number)) => spelled == chrome_oid(realm, number),
+                _ => true,
+            };
+            HandleParts::Parts {
+                realm,
+                number,
+                canonical,
+            }
+        }
+    }
 }
 
 /// The two parts of an id that is no JSON, read the way Chrome's number

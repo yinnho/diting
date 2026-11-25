@@ -3,9 +3,13 @@
 //! actor.rs for the god-file cap; the by-value settle is the engine half
 //! of what the face's `serialize_by_value` does.
 
-use diting::diting_js::runtime::{EvalInput, EvalOutcome, JsRuntime, RemoteObjectInfo};
+use diting::diting_js::runtime::{
+    EvalInput, EvalOutcome, JsRuntime, ObjectIdState, RemoteObjectInfo, BAD_CALL_ARGUMENT,
+};
+use serde_json::Value;
 use tokio::sync::oneshot;
 
+use super::super::super::commands::{HandleParts, RemoteReply};
 use super::SessionActor;
 
 impl SessionActor {
@@ -85,6 +89,159 @@ impl SessionActor {
             )
         });
         let _ = reply.send(outcome);
+    }
+
+    /// `SessionCommand::CallOn`: `Runtime.callFunctionOn` — Chrome's
+    /// dead-handle order on the session thread (the face already read
+    /// each wire id into [`HandleParts`]), the unserializableValue probe,
+    /// the call itself, then the same by-value settle `on_eval_remote`
+    /// does.
+    pub(super) async fn on_call_on(
+        &mut self,
+        declaration: String,
+        object_id: Option<String>,
+        arguments: Vec<Value>,
+        await_promise: bool,
+        return_by_value: bool,
+        timeout_ms: Option<u64>,
+        receiver: Option<HandleParts>,
+        arg_ids: Vec<Option<HandleParts>>,
+        reply: RemoteReply,
+    ) {
+        let Self { page, .. } = self;
+        let outcome = if !page.inner.has_js() {
+            Err("page has no JS runtime".to_string())
+        } else {
+            let Some(js) = page.inner.js.as_mut() else {
+                let _ = reply.send(Err("page has no JS runtime".to_string()));
+                return;
+            };
+            // The receiver is asked about first, as Chrome does, then
+            // each argument in order.
+            if let Some(dead) = receiver
+                .as_ref()
+                .and_then(|parts| dead_handle_word(handle_state_of(parts, js)))
+            {
+                Err(dead.to_string())
+            } else {
+                let mut dead: Option<String> = None;
+                for (argument, parts) in arguments.iter().zip(arg_ids.iter()) {
+                    if let Some(parts) = parts {
+                        if let Some(word) = dead_argument_word(handle_state_of(parts, js)) {
+                            dead = Some(word.to_string());
+                            break;
+                        }
+                    } else if argument.get("value").is_none() {
+                        if let Some(text) =
+                            argument.get("unserializableValue").and_then(Value::as_str)
+                        {
+                            let outcome = js
+                                .evaluate_remote_outcome(
+                                    text,
+                                    false,
+                                    false,
+                                    timeout_ms.unwrap_or(30_000),
+                                    None,
+                                    EvalInput::Script,
+                                )
+                                .await;
+                            let bad = match outcome {
+                                Err(_) => true,
+                                Ok(outcome) => outcome.exception.is_some(),
+                            };
+                            if bad {
+                                dead = Some(BAD_CALL_ARGUMENT.to_string());
+                                break;
+                            }
+                        }
+                    }
+                }
+                if let Some(dead) = dead {
+                    Err(dead)
+                } else {
+                    match js
+                        .call_function_on_remote_outcome(
+                            &declaration,
+                            object_id.as_deref(),
+                            &arguments,
+                            false,
+                            await_promise,
+                            None,
+                        )
+                        .await
+                    {
+                        Err(err) => Err(err),
+                        Ok(mut outcome) => {
+                            let pre_info = (return_by_value && outcome.exception.is_some())
+                                .then(|| outcome.info.clone());
+                            if return_by_value {
+                                settle_by_value(js, &mut outcome).map(|()| (outcome, pre_info))
+                            } else {
+                                Ok((outcome, None))
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        // The same page-side drain `on_eval_remote` owes the face.
+        let outcome = outcome.map(|(outcome, pre)| {
+            (
+                outcome,
+                pre,
+                page.inner.take_pending_console_calls(),
+                page.inner.take_pending_write_nav(),
+            )
+        });
+        let _ = reply.send(outcome);
+    }
+}
+
+/// What the face's [`HandleParts`] make of an id, once the engine is
+/// asked — the same order `cdp::objects::state` reads them in: no parts
+/// at all is no id, a realm that is not this runtime's is gone whatever
+/// its number says, an empty number is released, a non-canonical
+/// spelling is no id, and only then the engine's own answer.
+fn handle_state_of(parts: &HandleParts, js: &mut JsRuntime) -> ObjectIdState {
+    match parts {
+        HandleParts::NoId => ObjectIdState::Unparseable,
+        HandleParts::Parts { realm: None, .. } => ObjectIdState::Gone,
+        HandleParts::Parts {
+            realm: Some(realm), ..
+        } if *realm != js.realm_id() => ObjectIdState::Gone,
+        HandleParts::Parts { number: None, .. } => ObjectIdState::Released,
+        HandleParts::Parts {
+            canonical: false, ..
+        } => ObjectIdState::Unparseable,
+        HandleParts::Parts {
+            realm: Some(realm),
+            number: Some(number),
+            ..
+        } => js.object_state_of(*realm, *number),
+        HandleParts::Parts { .. } => ObjectIdState::Unparseable,
+    }
+}
+
+/// What Chrome says of an `objectId` that names nothing it will run
+/// against — the same three words `cdp::runtime::dead_handle` gives,
+/// repeated here until the Cdp channel is gone and they live only here.
+fn dead_handle_word(state: ObjectIdState) -> Option<&'static str> {
+    match state {
+        ObjectIdState::Held => None,
+        ObjectIdState::Unparseable => Some("Invalid remote object id"),
+        ObjectIdState::Gone => Some("Cannot find context with specified id"),
+        ObjectIdState::Released => Some("Could not find object with given id"),
+    }
+}
+
+/// The same for an `objectId` among the arguments, where Chrome words an
+/// id of a world that is not the receiver's its own way.
+fn dead_argument_word(state: ObjectIdState) -> Option<&'static str> {
+    match state {
+        ObjectIdState::Gone => {
+            Some("Argument should belong to the same JavaScript world as target object")
+        }
+        state => dead_handle_word(state),
     }
 }
 
