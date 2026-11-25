@@ -34,6 +34,7 @@
 
 pub(crate) mod emulation;
 mod envelope;
+mod objects;
 mod params;
 pub(crate) mod runtime;
 #[cfg(feature = "screenshot")]

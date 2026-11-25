@@ -832,12 +832,23 @@ async fn release_object_with_adversarial_id_is_inert() {
 }
 
 /// An id's realm and its number.
-fn parts(id: &str) -> (u64, u64) {
+fn parts(id: &str) -> (i64, i64) {
     let fields = serde_json::from_str::<serde_json::Value>(id).expect("an id is JSON");
     (
-        fields["injectedScriptId"].as_u64().unwrap(),
-        fields["id"].as_u64().unwrap(),
+        fields["injectedScriptId"].as_i64().unwrap(),
+        fields["id"].as_i64().unwrap(),
     )
+}
+
+/// The engine's answer for a handle it minted — the wire spellings are
+/// the face's to read; here the realm-and-number pair is already known.
+fn state(rt: &mut JsRuntime, id: &str) -> ObjectIdState {
+    let (realm, number) = parts(id);
+    rt.object_state_of(realm, number)
+}
+
+fn held(rt: &mut JsRuntime, id: &str) -> bool {
+    state(rt, id) == ObjectIdState::Held
 }
 
 // What an id names, for a caller that takes ids from a wire protocol. The
@@ -866,10 +877,10 @@ async fn an_id_says_its_realm_so_a_stale_one_names_nothing() {
         "the next document counts from 1 too"
     );
     assert_ne!(parts(&again).0, parts(&id).0, "and is another realm");
-    assert_eq!(rt.object_id_state(&id), ObjectIdState::Held);
-    assert_eq!(rt.object_id_state(&again), ObjectIdState::Gone);
-    assert_eq!(next.object_id_state(&id), ObjectIdState::Gone);
-    assert!(!rt.has_object(&again));
+    assert_eq!(state(&mut rt, &id), ObjectIdState::Held);
+    assert_eq!(state(&mut rt, &again), ObjectIdState::Gone);
+    assert_eq!(state(&mut next, &id), ObjectIdState::Gone);
+    assert!(!held(&mut rt, &again));
 }
 
 // A handle is held until it is released, and what is not held is one of
@@ -886,62 +897,17 @@ async fn an_id_is_held_released_gone_or_no_id_at_all() {
         .object_id
         .expect("a handle for an object");
     let (serial, number) = parts(&id);
-    assert_eq!(rt.object_id_state(&id), ObjectIdState::Held);
-    assert!(rt.has_object(&id));
-    // A blank in front of an id is not part of it; one behind it is no id,
-    // as Chrome's number reader takes one (Chrome 158, measured).
-    assert_eq!(rt.object_id_state(&format!(" {id}")), ObjectIdState::Held);
-    assert!(rt.has_object(&format!(" {id}")));
-    assert_eq!(
-        rt.object_id_state(&format!("{id} ")),
-        ObjectIdState::Unparseable
-    );
-    assert!(!rt.has_object(&format!("{id} ")));
-    // No id of this engine's: the fields the other way round, one field
-    // more, one field short, a part that is no integer.
-    for not_an_id in [
-        "bogus".to_string(),
-        String::new(),
-        "node-7".to_string(),
-        "x']; globalThis.__injected = 42; ('".to_string(),
-        format!("{{\"id\":{number},\"injectedScriptId\":{serial}}}"),
-        format!("{{\"injectedScriptId\":{serial},\"id\":{number},\"x\":1}}"),
-        format!("{{\"injectedScriptId\":{serial}}}"),
-        format!("{{\"injectedScriptId\":\"x\",\"id\":{number}}}"),
-        format!("{{\"injectedScriptId\":1.5,\"id\":{number}}}"),
-        format!("{{\"injectedScriptId\":{serial},\"id\":\"x\"}}"),
-        format!("{{\"injectedScriptId\":{serial},\"id\":null}}"),
-        format!("{{\"injectedScriptId\":{serial},\"id\":1.0}}"),
-    ] {
-        assert_eq!(
-            rt.object_id_state(&not_an_id),
-            ObjectIdState::Unparseable,
-            "{not_an_id}"
-        );
-    }
+    assert_eq!(state(&mut rt, &id), ObjectIdState::Held);
+    assert!(held(&mut rt, &id));
     // This realm's spelling, and nothing behind it: a number it never
     // minted — or none at all, 0 or below — and one it let go of.
     for number in [number as i64 + 1_000_000, 0, -1] {
         let never = format!("{{\"injectedScriptId\":{serial},\"id\":{number}}}");
-        assert_eq!(rt.object_id_state(&never), ObjectIdState::Released);
+        assert_eq!(state(&mut rt, &never), ObjectIdState::Released);
     }
-    // A part left empty reads as 0, as Chrome's number reader takes one: the
-    // number is the 0 no realm minted, the realm the one there is none of.
-    assert_eq!(
-        rt.object_id_state(&format!("{{\"injectedScriptId\":{serial},\"id\":\"\"}}")),
-        ObjectIdState::Released
-    );
-    assert_eq!(
-        rt.object_id_state(&format!("{{\"injectedScriptId\":\"\",\"id\":{number}}}")),
-        ObjectIdState::Gone
-    );
-    rt.release_object(&format!(" {id}"));
-    assert_eq!(rt.object_id_state(&id), ObjectIdState::Released);
-    assert_eq!(
-        rt.object_id_state(&format!(" {id}")),
-        ObjectIdState::Released
-    );
-    assert!(!rt.has_object(&id));
+    rt.release_object(&id);
+    assert_eq!(state(&mut rt, &id), ObjectIdState::Released);
+    assert!(!held(&mut rt, &id));
     // An id shaped to splice is an id that is not held, nothing else.
     let probe = rt
         .call_function_on(
@@ -1150,7 +1116,7 @@ async fn an_argument_is_its_object_id_else_its_value() {
         .await
         .unwrap();
     assert_eq!(receiver.value.unwrap(), "object");
-    assert_eq!(rt.object_id_state(&padded), ObjectIdState::Held);
+    assert_eq!(state(&mut rt, &padded), ObjectIdState::Held);
 }
 
 /// `String(a)` for one argument of a call, as the call brings it back by

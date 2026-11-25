@@ -683,112 +683,28 @@ impl JsRuntime {
         }
     }
 
-    /// Whether `object_id` still names an object:
-    /// [`ObjectIdState::Held`]. [`resolve_this`](Self::resolve_this) does
-    /// not answer that — it runs an id it cannot find against the global
-    /// object — so a caller that takes ids from a wire protocol asks here
-    /// first. Ids of the `node-<nid>` spelling are not held.
-    pub fn has_object(&mut self, object_id: &str) -> bool {
-        self.object_id_state(object_id) == ObjectIdState::Held
+    /// Which realm this runtime is, as its handle ids say — the face
+    /// compares a wire id's realm part against this before asking
+    /// [`Self::object_state_of`].
+    pub fn realm_id(&self) -> i64 {
+        self.realm as i64
     }
 
-    /// Which of the four an id is ([`ObjectIdState`]). An id is the exact
-    /// spelling the engine wrote, a blank in front of it aside
-    /// ([`Self::id_key`]). A realm of this runtime's is read before its
-    /// number, as Chrome reads one: an id of a realm that is gone is `Gone`
-    /// whatever its number says. A part that is no integer makes the id no
-    /// id — `"id": "x"`, `1.5`, `null` — the way Chrome's number reader
-    /// takes it, with the one thing it takes for a number besides a number:
-    /// a part left empty reads as 0, so a realm left empty is the realm
-    /// there is none of, and a number left empty the 0 no realm minted.
-    pub fn object_id_state(&mut self, object_id: &str) -> ObjectIdState {
-        let spelled = Self::id_key(object_id);
-        // `Err(())`: not an id. The number may be `None`: it was left empty.
-        let parsed = serde_json::from_str::<serde_json::Value>(spelled)
-            .map_err(|_| ())
-            .and_then(|value| {
-                let part = |field: &str| match value.get(field) {
-                    Some(serde_json::Value::String(empty)) if empty.is_empty() => Ok(None),
-                    Some(other) => other.as_i64().map(Some).ok_or(()),
-                    None => Err(()),
-                };
-                Ok((part("injectedScriptId")?, part("id")?))
-            });
-        match parsed {
-            Ok(parts) => self.parts_state(spelled, parts, true),
-            // No JSON at all: Chrome's number reader still takes each part
-            // by itself — `"id":""2` reads an empty id, not no id.
-            Err(()) => Self::lenient_parts(spelled)
-                .map(|parts| self.parts_state(spelled, parts, false))
-                .unwrap_or(ObjectIdState::Unparseable),
-        }
-    }
-
-    /// What the parts of an id make it, once read — strictly, where the
-    /// spelling has to be the one the engine wrote, or leniently, where
-    /// only the parts name it.
-    fn parts_state(
-        &mut self,
-        spelled: &str,
-        (realm, number): (Option<i64>, Option<i64>),
-        strict: bool,
-    ) -> ObjectIdState {
-        if realm.is_none() {
+    /// Which of the three an engine handle is ([`ObjectIdState`]) — the
+    /// realm-and-number pair behind a wire id, already read by the
+    /// caller. `Unparseable` is the face's word for a spelling it could
+    /// not read; the engine only ever says Held, Gone or Released. A
+    /// realm of this runtime's is read before its number: an id of a
+    /// realm that is gone is `Gone` whatever its number says.
+    pub fn object_state_of(&mut self, realm: i64, number: i64) -> ObjectIdState {
+        if realm != self.realm as i64 {
             return ObjectIdState::Gone;
         }
-        if realm != Some(self.realm as i64) {
-            return ObjectIdState::Gone;
-        }
-        let Some(number) = number else {
-            return ObjectIdState::Released;
-        };
-        if strict && spelled != Self::oid(realm.unwrap(), number) {
-            return ObjectIdState::Unparseable;
-        }
-        if self.held_in_page(&Self::oid(realm.unwrap(), number)) {
+        if self.held_in_page(&Self::oid(realm, number)) {
             ObjectIdState::Held
         } else {
             ObjectIdState::Released
         }
-    }
-
-    /// The two parts of an id that is no JSON, read the way Chrome's number
-    /// reader takes them: each part on its own, a part that is no integer
-    /// making the whole no id, one left empty reading as none. `None` when
-    /// a part cannot be found at all.
-    fn lenient_parts(spelled: &str) -> Option<(Option<i64>, Option<i64>)> {
-        // What follows the closing brace is no id at all.
-        if !spelled.trim_end().ends_with('}') {
-            return None;
-        }
-        fn part(text: &str) -> Option<Result<Option<i64>, ()>> {
-            let text = text.trim_start().strip_prefix(':')?.trim_start();
-            if let Some(inner) = text.strip_prefix('"') {
-                let end = inner.find('"')?;
-                return Some(if inner[..end].is_empty() {
-                    Ok(None)
-                } else {
-                    Err(())
-                });
-            }
-            // Chrome's number reader: a sign and digits — leading blanks
-            // and zeroes aside — and the field's own end right after them.
-            let bytes = text.as_bytes();
-            let mut at = usize::from(matches!(bytes.first(), Some(b'+') | Some(b'-')));
-            let digits = at;
-            while bytes.get(at).is_some_and(u8::is_ascii_digit) {
-                at += 1;
-            }
-            if at == digits || !matches!(bytes.get(at), None | Some(b',') | Some(b'}')) {
-                return Some(Err(()));
-            }
-            Some(text[..at].parse::<i64>().map(Some).map_err(|_| ()))
-        }
-        let realm_at = spelled.find("\"injectedScriptId\"")?;
-        let realm = part(&spelled[realm_at + "\"injectedScriptId\"".len()..])?.ok()?;
-        let id_at = spelled[realm_at..].find("\"id\"")? + realm_at;
-        let number = part(&spelled[id_at + "\"id\"".len()..])?.ok()?;
-        Some((realm, number))
     }
 
     /// The store has the id, and the page's own table still has its object.

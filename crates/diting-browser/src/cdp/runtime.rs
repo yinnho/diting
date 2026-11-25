@@ -83,6 +83,7 @@ use serde_json::{json, Value};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::oneshot;
 
+use super::objects;
 use super::Failure;
 use crate::page::{Page, INTERACTION_EVAL_TIMEOUT};
 use crate::session::{
@@ -347,7 +348,7 @@ async fn call_function_on(page: &mut Page, params: &Value) -> Result<Value, Fail
     // about first, as Chrome does, then each argument.
     if let Some(dead) = object_id
         .as_deref()
-        .and_then(|id| dead_handle(js.object_id_state(id)))
+        .and_then(|id| dead_handle(objects::state(js, id)))
     {
         return Err(dead.into());
     }
@@ -357,7 +358,7 @@ async fn call_function_on(page: &mut Page, params: &Value) -> Result<Value, Fail
     // mask an `unserializableValue` beside them.
     for argument in &arguments {
         if let Some(id) = argument.get("objectId").and_then(Value::as_str) {
-            if let Some(dead) = dead_argument(js.object_id_state(id)) {
+            if let Some(dead) = dead_argument(objects::state(js, id)) {
                 return Err(dead.into());
             }
         } else if argument.get("value").is_none() {
@@ -550,7 +551,7 @@ fn arguments(params: &Value) -> Result<Vec<Value>, Failure> {
 fn release(page: &mut Page, params: &Value) -> Result<Value, Failure> {
     let id = string(params, "objectId")?;
     let js = page.inner.js.as_mut().ok_or("page has no JS runtime")?;
-    if let Some(dead) = dead_handle(js.object_id_state(id)) {
+    if let Some(dead) = dead_handle(objects::state(js, id)) {
         return Err(dead.into());
     }
     js.release_object(id);
@@ -955,7 +956,7 @@ async fn on_node(
         .ok_or_else(|| Refusal::Fault("page has no JS runtime".to_string()))?;
     if let Some(dead) = handle
         .as_deref()
-        .and_then(|id| dead_handle(js.object_id_state(id)))
+        .and_then(|id| dead_handle(objects::state(js, id)))
     {
         return Err(Refusal::Dead(dead));
     }
