@@ -24,7 +24,7 @@ mod state;
 #[cfg(test)]
 mod tests;
 
-pub use commands::{ScrollDirection, SessionCommand};
+pub use commands::{HandleParts, ScrollDirection, SessionCommand};
 pub(crate) use interact::{
     mouse_button_code, mouse_button_mask, mouse_down_js, mouse_move_js, mouse_up_js, INPUT_HELPERS,
 };

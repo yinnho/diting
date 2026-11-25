@@ -87,7 +87,8 @@ use super::objects;
 use super::Failure;
 use crate::page::{Page, INTERACTION_EVAL_TIMEOUT};
 use crate::session::{
-    mouse_button_code, mouse_button_mask, mouse_down_js, mouse_move_js, mouse_up_js, INPUT_HELPERS,
+    mouse_button_code, mouse_button_mask, mouse_down_js, mouse_move_js, mouse_up_js, HandleParts,
+    INPUT_HELPERS,
 };
 
 use super::params::{
@@ -243,10 +244,87 @@ pub(super) fn eval_params(params: &Value) -> Result<EvalArgs, Failure> {
     })
 }
 
-/// The wire answer for an `EvalRemote` outcome — what `settled()`
-/// builds, with the by-value read already done on the session thread.
-/// `pre_info` is the thrown value's info from before that read, which
-/// is what `exceptionDetails` shows.
+/// What `Runtime.callFunctionOn` asks the engine for, already read off
+/// the wire — the face's translation into IR vocabulary, with every id
+/// pre-read into [`HandleParts`] so the session thread never sees a
+/// spelling.
+pub(super) struct CallArgs {
+    pub declaration: String,
+    pub object_id: Option<String>,
+    pub arguments: Vec<Value>,
+    pub await_promise: bool,
+    pub return_by_value: bool,
+    pub receiver: Option<HandleParts>,
+    pub arg_ids: Vec<Option<HandleParts>>,
+}
+
+/// `Runtime.callFunctionOn`'s params, checked the way Chrome checks
+/// them — everything up to the engine call, which is the session's
+/// `CallOn` command now.
+pub(super) fn call_params(params: &Value) -> Result<CallArgs, Failure> {
+    const METHOD: &str = "Runtime.callFunctionOn";
+    let declaration = string(params, "functionDeclaration")?;
+    let object_id = optional_string(params, "objectId")?;
+    let arguments = arguments(params)?;
+    kinds(params, RUNTIME_UNREAD)?;
+    let return_by_value = by_value(METHOD, params)?;
+    let await_promise = flag(params, "awaitPromise")?;
+    no_such_flag(
+        METHOD,
+        params,
+        &[(
+            "throwOnSideEffect",
+            "nothing checks a call for side effects",
+        )],
+    )?;
+    let context = optional_integer(params, "executionContextId")?;
+    let unique = optional_string(params, "uniqueContextId")?;
+    match [object_id.is_some(), context.is_some(), unique.is_some()]
+        .iter()
+        .filter(|named| **named)
+        .count()
+    {
+        0 => {
+            return Err(invalid(
+                "Either objectId or executionContextId or uniqueContextId must be specified",
+            ))
+        }
+        // Chrome takes one of the three, never two.
+        1 => {}
+        _ => {
+            return Err(invalid(
+                "ObjectId, executionContextId and uniqueContextId must mutually exclude each other",
+            ))
+        }
+    }
+    live_context(params, context, unique)?;
+    // Every id the call names, read once here — the session thread asks
+    // the engine about the parts, never the spelling.
+    let receiver = object_id.as_deref().map(objects::handle_parts);
+    let arg_ids = arguments
+        .iter()
+        .map(|argument| {
+            argument
+                .get("objectId")
+                .and_then(Value::as_str)
+                .map(objects::handle_parts)
+        })
+        .collect();
+    Ok(CallArgs {
+        declaration: declaration.to_string(),
+        object_id: object_id.map(str::to_string),
+        arguments,
+        await_promise,
+        return_by_value,
+        receiver,
+        arg_ids,
+    })
+}
+
+/// The wire answer for an `EvalRemote`/`CallOn` outcome — what
+/// `settled()` builds, with the by-value read already done on the
+/// session thread. `pre_info` is the thrown value's info from before
+/// that read, which is what `exceptionDetails` shows.
 pub(super) fn eval_result(
     outcome: EvalOutcome,
     pre_info: Option<RemoteObjectInfo>,

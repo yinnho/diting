@@ -943,6 +943,49 @@ async fn forward(
         }
         return Ok(value);
     }
+    // `Runtime.callFunctionOn` is an IR command too — same shape as
+    // `Runtime.evaluate` above: params read here, engine work as
+    // `CallOn` on the session thread, wire shape wrapped back here.
+    if method == "Runtime.callFunctionOn" {
+        let args = runtime::call_params(&params)?;
+        let (outcome, pre_info, calls, write_nav) =
+            send_command(&engine, |reply| SessionCommand::CallOn {
+                declaration: args.declaration,
+                object_id: args.object_id,
+                arguments: args.arguments,
+                await_promise: args.await_promise,
+                return_by_value: args.return_by_value,
+                timeout_ms: None,
+                receiver: args.receiver,
+                arg_ids: args.arg_ids,
+                reply,
+            })
+            .await
+            .map_err(|err| runtime::engine_failure(session_msg(err)))?;
+        let value = runtime::eval_result(outcome, pre_info)?;
+        let console: Vec<Value> = calls
+            .into_iter()
+            .filter_map(|(level, text, url)| {
+                let kind = runtime::console_type(&level)?;
+                Some(json!({ "type": kind, "text": text, "url": url }))
+            })
+            .collect();
+        if !console.is_empty() || write_nav {
+            let context_id = params
+                .get("executionContextId")
+                .or_else(|| params.get("contextId"))
+                .and_then(|v| v.as_i64())
+                .filter(|id| *id > 0);
+            let side = json!({
+                "console": console,
+                "writeNav": write_nav,
+                "contextId": context_id,
+            });
+            let hub = HUB.lock().await;
+            side_frames(&hub, local, session, &side, out);
+        }
+        return Ok(value);
+    }
     let mut result = send_command(&engine, |reply| SessionCommand::Cdp {
         method: method.to_string(),
         params,

@@ -9,6 +9,36 @@ use tokio::sync::oneshot;
 
 use super::state::{ConsoleFilter, SessionError};
 
+/// The reply an `EvalRemote`/`CallOn` carries: the settled outcome, the
+/// pre-by-value info when an exception met `return_by_value`, and the
+/// page-side drain (console calls, write-nav) the face projects outward.
+pub type RemoteReply = oneshot::Sender<
+    Result<
+        (
+            EvalOutcome,
+            Option<RemoteObjectInfo>,
+            Vec<(String, String, String)>,
+            bool,
+        ),
+        String,
+    >,
+>;
+
+/// A wire `objectId` as the face already read it — the parts Chrome's
+/// reader took, never the spelling. The session thread asks the engine
+/// what the pair names; wire tolerance stays on the face.
+pub enum HandleParts {
+    /// No id at all — Chrome's "Invalid remote object id".
+    NoId,
+    /// The realm and number Chrome's reader took (either may be empty),
+    /// and whether the spelling passed the canonical check.
+    Parts {
+        realm: Option<i64>,
+        number: Option<i64>,
+        canonical: bool,
+    },
+}
+
 /// GetViewport's read-back: the pinned (width, height, mobile), or None.
 type ViewportOverrideReply = oneshot::Sender<Result<Option<(f32, f32, bool)>, String>>;
 
@@ -271,17 +301,23 @@ pub enum SessionCommand {
         /// last two are the page-side drain a CDP command owes its face:
         /// console calls (level, text, url) and whether a document.write
         /// asked for a load.
-        reply: oneshot::Sender<
-            Result<
-                (
-                    EvalOutcome,
-                    Option<RemoteObjectInfo>,
-                    Vec<(String, String, String)>,
-                    bool,
-                ),
-                String,
-            >,
-        >,
+        reply: RemoteReply,
+    },
+    /// `Runtime.callFunctionOn` as an IR command: the declaration, the
+    /// receiver and arguments as the wire spelled them (the engine's own
+    /// handle keys — the face canonicalizes nothing), plus each id's
+    /// [`HandleParts`] so the session thread can run Chrome's dead-handle
+    /// order without seeing a wire spelling.
+    CallOn {
+        declaration: String,
+        object_id: Option<String>,
+        arguments: Vec<Value>,
+        await_promise: bool,
+        return_by_value: bool,
+        timeout_ms: Option<u64>,
+        receiver: Option<HandleParts>,
+        arg_ids: Vec<Option<HandleParts>>,
+        reply: RemoteReply,
     },
     /// A CDP command that has to run on the session thread, where the page
     /// lives: `Runtime.*` / `Input.*` / `DOM.*` on the isolate (object ids
