@@ -110,6 +110,14 @@ impl From<String> for SessionError {
     }
 }
 
+/// A channel whose command never fails as a session error says so with
+/// `Infallible` — its own failure rides inside the reply.
+impl From<std::convert::Infallible> for SessionError {
+    fn from(never: std::convert::Infallible) -> Self {
+        match never {}
+    }
+}
+
 // Serialized into tool responses via `json!({"error": e})` — the whole
 // object, not a bare string.
 impl Serialize for SessionError {

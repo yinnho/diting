@@ -16,7 +16,7 @@
 
 use std::collections::HashMap;
 use std::io::Write as _;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// A log at or past this size is rotated out before the next record lands.
 const MAX_LOG_BYTES: u64 = 1 << 20;
@@ -31,7 +31,10 @@ const MAX_REMEMBERED: usize = 64;
 /// "RefCell already borrowed" in 84 seconds (2026-11-21), each with a forced
 /// backtrace — 92.7 of the log's 93 MB was that one line of news, and the
 /// 18 records of six other panics in it were buried.
-static WRITTEN: std::sync::Mutex<Option<HashMap<String, u64>>> = std::sync::Mutex::new(None);
+/// Fold memory, per log file: a storm is bounded per path, and one test's
+/// cap-filling log cannot evict another file's remembered identities.
+static WRITTEN: std::sync::Mutex<Option<HashMap<PathBuf, HashMap<String, u64>>>> =
+    std::sync::Mutex::new(None);
 
 /// Install the crash-log hook. Writes go to `{app_data_dir}/crash.log`
 /// (the credential-bearing state home — 0600 at creation on unix). When
@@ -107,14 +110,14 @@ fn append_entry(path: &Path, identity: &str, entry: &str) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let key = format!("{}\n{identity}", path.display());
     let repeats = {
         let mut written = WRITTEN
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let seen = written.get_or_insert_with(HashMap::new);
-        let known = seen.contains_key(&key);
-        let repeats = match seen.get_mut(&key) {
+        let files = written.get_or_insert_with(HashMap::new);
+        let seen = files.entry(path.to_path_buf()).or_default();
+        let known = seen.contains_key(identity);
+        let repeats = match seen.get_mut(identity) {
             Some(n) => {
                 *n += 1;
                 Some(*n)
@@ -122,7 +125,7 @@ fn append_entry(path: &Path, identity: &str, entry: &str) {
             None => None,
         };
         if !known && seen.len() < MAX_REMEMBERED {
-            seen.insert(key, 0);
+            seen.insert(identity.to_string(), 0);
         }
         repeats
     };
