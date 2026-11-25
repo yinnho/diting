@@ -99,7 +99,9 @@ impl Page {
     /// Like [`Self::evaluate_async`], but a thrown/rejected script comes
     /// back as `Err("TypeError: boom (line 1, col 14)\n    at <anonymous>:1:14")`
     /// instead of collapsing to Null — agents can't debug what they can't
-    /// see. The position is the user-script frame from the error's stack.
+    /// see. The position is the script's own frame from the error's stack,
+    /// and the frames after it are the script's, innermost first, as Chrome
+    /// would spell them.
     /// `timeout_ms` widens the await budget for scripts whose page-side work
     /// (uploads via the page's own fetch) legitimately outlives the default
     /// 5s; on expiry the call errors with EVAL_TIMEOUT instead of a silent
@@ -118,13 +120,13 @@ impl Page {
             .evaluate_remote_outcome(expression, true, true, budget, None)
             .await;
         if let Some(exc) = outcome.exception {
-            let mut msg = exc.description;
-            if let (Some(line), Some(col)) = (exc.line, exc.col) {
-                msg = format!("{} (line {}, col {})", msg, line, col);
+            let mut msg = exc.description.clone();
+            if let Some(frame) = exc.own_frame() {
+                msg = format!("{} (line {}, col {})", msg, frame.line, frame.column);
             }
-            if let Some(frame) = exc.stack_first {
-                msg.push_str("\n    ");
-                msg.push_str(&frame);
+            for frame in &exc.frames {
+                msg.push_str("\n    at ");
+                msg.push_str(&frame.text);
             }
             return Err(msg);
         }

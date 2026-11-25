@@ -308,6 +308,7 @@ pub(super) fn session_thread(
                     pending_storage,
                     element_map,
                     pending_replay,
+                    cdp_init_scripts: Vec::new(),
                 };
                 loop {
                     // hosted-incident 10-14: a realm the heap guard has
@@ -408,9 +409,9 @@ pub(super) fn session_thread(
                         SessionCommand::Wait { selector, predicate, timeout_ms, reply } => actor.on_wait(selector, predicate, timeout_ms, reply).await,
                         SessionCommand::Challenges { reply } => actor.on_challenges(reply).await,
                         SessionCommand::Verdict { reply } => actor.on_verdict(reply).await,
-                        SessionCommand::CdpRuntime { method, params, reply } => {
-                            crate::cdp::runtime::on_runtime(&mut actor.page, method, params, reply)
-                                .await
+                        SessionCommand::Cdp { method, params, reply } => {
+                            let init_scripts = &mut actor.cdp_init_scripts;
+                            crate::cdp::runtime::dispatch(&mut actor.page, init_scripts, method, params, reply).await
                         }
                         SessionCommand::Close { reply } => {
                             let _ = reply.send(());
@@ -473,6 +474,10 @@ struct SessionActor {
     element_map: HashMap<usize, u64>,
     /// Commands parked while a navigation owned the page (#193).
     pending_replay: std::collections::VecDeque<SessionCommand>,
+    /// CDP `Page.addScriptToEvaluateOnNewDocument` registrations:
+    /// (identifier, source). The sources live in the page's registered
+    /// document-start group; this is what maps an identifier back to one.
+    cdp_init_scripts: Vec<(String, String)>,
 }
 
 impl SessionActor {
@@ -631,8 +636,16 @@ impl SessionActor {
         let n = scripts.len();
         // The registered group stays on the page. The running group is the
         // same list until the next navigation merges host recipes over it.
-        self.page.inner.set_user_preload_scripts(scripts.clone());
-        self.page.inner.set_preload_scripts(scripts);
+        // CDP's document-start registrations ride after these: each channel
+        // keeps its own list, the page holds both.
+        let mut all = scripts;
+        all.extend(
+            self.cdp_init_scripts
+                .iter()
+                .map(|(_, source)| source.clone()),
+        );
+        self.page.inner.set_user_preload_scripts(all.clone());
+        self.page.inner.set_preload_scripts(all);
         let _ = reply.send(Ok(serde_json::json!({
             "count": n,
         })));

@@ -777,6 +777,7 @@ dependencies = [
  "futures",
  "futures-util",
  "http",
+ "icu_locale_core",
  "libc",
  "pbkdf2",
  "precomputed-hash",

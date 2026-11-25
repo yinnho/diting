@@ -1,21 +1,47 @@
-//! First-slice Chrome DevTools Protocol.
+//! Chrome DevTools Protocol bridge.
 //!
-//! Enough for Playwright `chromium.connectOverCDP` to connect, open a page,
-//! `goto`, `setContent`, `evaluate`, click, fill, and `screenshot`.
 //! `/json/version` names this engine `diting`; the page's own user agent
-//! stays the Chrome 157 pin. This is not the 1,740-task driver matrix — a
-//! method outside the slice returns a protocol error naming itself.
+//! stays the Chrome pin it was built with.
 //!
 //! Each browser socket owns the pages it opens. A second connection does
 //! not see those pages, and disconnecting one does not close the other's.
 //! The hub lock is never held across a session await. The session thread
 //! does not know about the hub, but an HTTP handler can hold `SESSIONS`
 //! while another task wants the hub.
+//!
+//! A socket's root level is the browser. `Target.attachToTarget` and
+//! `Target.attachToBrowserTarget` mint a session on it, a new id for each
+//! call, and a page websocket (`/devtools/page/<id>`) is a socket whose
+//! root level is that page. A session is its socket's: on another socket
+//! its id names nothing. Reporting domains are switched on per session:
+//! navigation and load events go to the sessions that ran `Page.enable`,
+//! world announcements and console calls to those that ran `Runtime.enable`,
+//! on whichever socket they live ([`to_sessions`]). A page closed — by
+//! command, or because the socket that owned it left — ends every session
+//! on it, each with `Inspector.detached`.
+//!
+//! A command lands in one of four places: a handler here — the `Target` and
+//! `Browser` domains and navigation in [`target`], screenshots in
+//! [`screenshot`] — on a build with that feature; [`PAGE_CHANNEL`], the
+//! session thread running it on the
+//! page; [`STATELESS`], an empty ok because the engine has no state for it
+//! to flip; or `-32601`, the method named. A frame is read the way Chrome
+//! reads one ([`envelope`]), and so is every parameter ([`params`]): one
+//! Chrome would not read is `-32602`. A command that arrives and cannot be
+//! applied as sent is `-32000` with the reason — an empty ok would be a lie
+//! the client cannot detect. A `sessionId` this bridge did not mint is
+//! `-32001`.
 
+pub(crate) mod emulation;
+mod envelope;
+mod params;
 pub(crate) mod runtime;
+#[cfg(feature = "screenshot")]
+mod screenshot;
+mod target;
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::Path;
@@ -24,50 +50,68 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 use serde_json::{json, Value};
+use tokio::sync::mpsc;
 
-use crate::session::{send_command, send_screenshot, SessionCommand, SESSIONS};
+use crate::session::{send_command, SessionCommand};
+
+use params::{boolean, invalid, kinds, optional_string, Kind};
 
 #[cfg(test)]
 mod tests;
 
 const CONTEXT_ID: &str = "default";
+/// What `Page.captureScreenshot` answers on a build without the feature.
+#[cfg(not(feature = "screenshot"))]
+const NEEDS_SCREENSHOT: &str =
+    "Page.captureScreenshot needs the `screenshot` feature: this build cannot rasterize";
+/// How the session a page websocket's root level files under is spelled.
+/// The id never leaves the bridge: no frame carries it ([`framed`]).
+const HOME_PREFIX: &str = "home:";
+const UNKNOWN_SESSION: &str = "Session with given id not found.";
 
-static BROWSER_ID: std::sync::LazyLock<String> =
-    std::sync::LazyLock::new(|| uuid::Uuid::new_v4().simple().to_string());
+static BROWSER_ID: std::sync::LazyLock<String> = std::sync::LazyLock::new(new_id);
 static SCRIPT_IDS: AtomicU64 = AtomicU64::new(1);
 static HUB: std::sync::LazyLock<tokio::sync::Mutex<Hub>> =
     std::sync::LazyLock::new(|| tokio::sync::Mutex::new(Hub::default()));
 
+/// Everything the bridge remembers, under one lock: the open sockets, the
+/// pages, and the sessions attached to either.
 #[derive(Default)]
 struct Hub {
     next_client: u64,
     clients: HashMap<u64, ClientSlot>,
     pages: HashMap<String, PageSlot>,
-    /// CDP session id → target id.
-    sessions: HashMap<String, String>,
+    /// CDP session id → session. Ids are minted here and mean nothing on
+    /// another socket.
+    sessions: HashMap<String, SessionSlot>,
 }
 
-#[derive(Clone, Default)]
+/// An open socket. `outbox` is how another socket's command reaches it:
+/// dropping the hub's copy closes the socket, after what is queued goes out.
 struct ClientSlot {
+    outbox: mpsc::UnboundedSender<String>,
     auto_attach: bool,
     wait_debugger: bool,
     discover: bool,
 }
 
 struct PageSlot {
+    /// The browser socket that created the page. It is the only one that
+    /// can name it.
     owner: u64,
     target_id: String,
-    session_id: String,
-    cdp_session: String,
-    frame_id: String,
+    /// The engine session that holds the page.
+    engine_session: String,
     url: String,
     title: String,
     loader: u64,
     next_ctx: i64,
-    runtime_on: bool,
-    attached: bool,
+    /// The next number `DOM.describeNode` hands a node that has none.
+    /// Counting goes on through a navigation: a number of a document gone
+    /// names nothing in the next one (Chrome counts each document from 1,
+    /// so an old number names whatever sits there now).
+    dom_next: i64,
     worlds: Vec<World>,
-    viewport: (u32, u32),
 }
 
 struct World {
@@ -76,10 +120,72 @@ struct World {
     name: Option<String>,
 }
 
+/// What a session is attached to. A browser session gets a target id of its
+/// own, the way each `Target.attachToBrowserTarget` in Chrome does.
+#[derive(Clone, PartialEq)]
+enum Attached {
+    Browser(String),
+    Page(String),
+}
+
+impl Attached {
+    fn id(&self) -> &str {
+        match self {
+            Attached::Browser(id) | Attached::Page(id) => id,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct SessionSlot {
+    id: String,
+    client: u64,
+    attached: Attached,
+    /// The session `Target.attachToTarget` ran on. `None` at the root
+    /// level of a browser socket.
+    parent: Option<String>,
+    /// `Target.setAutoAttach` made it, so `autoAttach: false` takes it back.
+    auto: bool,
+    /// The root level of a page websocket. Its events carry no `sessionId`.
+    home: bool,
+    /// `Page.enable`: navigation and load events.
+    page_on: bool,
+    /// `Runtime.enable`: world announcements and console calls.
+    runtime_on: bool,
+    /// `Page.setLifecycleEventsEnabled`.
+    lifecycle_on: bool,
+}
+
+impl SessionSlot {
+    fn new(client: u64, attached: Attached, parent: Option<&str>, auto: bool, home: bool) -> Self {
+        Self {
+            id: new_id(),
+            client,
+            attached,
+            parent: parent.map(str::to_string),
+            auto,
+            home,
+            page_on: false,
+            runtime_on: false,
+            lifecycle_on: false,
+        }
+    }
+
+    fn on(&self, target: &str) -> bool {
+        matches!(&self.attached, Attached::Page(id) if id == target)
+    }
+}
+
+/// For other sockets, each with the outbox that reaches it.
+type Spill = Vec<(mpsc::UnboundedSender<String>, String)>;
+
+/// What one command leaves behind.
+#[derive(Default)]
 struct Out {
+    /// For the socket the command came in on, in this order.
     frames: Vec<String>,
-    created: Vec<String>,
-    closed: Vec<String>,
+    spill: Spill,
+    /// The socket the command came in on is done.
     close_socket: bool,
 }
 
@@ -87,10 +193,258 @@ impl Out {
     fn from_frames(frames: Vec<String>) -> Self {
         Self {
             frames,
-            created: Vec::new(),
-            closed: Vec::new(),
+            spill: Vec::new(),
             close_socket: false,
         }
+    }
+}
+
+impl Hub {
+    /// Register a socket as it is upgraded. With a page, the session its
+    /// root level is.
+    fn open(
+        &mut self,
+        page: Option<String>,
+    ) -> (u64, Option<String>, mpsc::UnboundedReceiver<String>) {
+        let (outbox, inbox) = mpsc::unbounded_channel();
+        self.next_client += 1;
+        let client = self.next_client;
+        self.clients.insert(
+            client,
+            ClientSlot {
+                outbox,
+                auto_attach: false,
+                wait_debugger: false,
+                discover: false,
+            },
+        );
+        let home = page.map(|target| {
+            let mut slot =
+                SessionSlot::new(client, Attached::Page(target.clone()), None, false, true);
+            let id = format!("{HOME_PREFIX}{target}");
+            slot.id = id.clone();
+            self.sessions.insert(id.clone(), slot);
+            id
+        });
+        (client, home, inbox)
+    }
+
+    /// A socket is gone: its sessions, and the pages it owned. Engine
+    /// sessions to close, and the frames owed to other sockets — a page
+    /// websocket on one of those pages — once the lock is up.
+    fn close_client(&mut self, client: u64) -> (Vec<String>, Spill) {
+        self.clients.remove(&client);
+        let sessions: Vec<String> = self
+            .sessions
+            .values()
+            .filter(|slot| slot.client == client)
+            .map(|slot| slot.id.clone())
+            .collect();
+        let mut out = Out::default();
+        for session in sessions {
+            self.detach(&session, client, &mut out);
+        }
+        let owned = self.owned(client);
+        (
+            self.close_pages(&owned, client, &mut out),
+            std::mem::take(&mut out.spill),
+        )
+    }
+
+    /// Whether a socket may name a page: it created the page, or the
+    /// session it speaks through is attached to that page.
+    fn owns(&self, client: u64, session: Option<&str>, target: &str) -> bool {
+        self.pages
+            .get(target)
+            .is_some_and(|page| page.owner == client)
+            || session
+                .and_then(|session| self.sessions.get(session))
+                .is_some_and(|slot| slot.on(target))
+    }
+
+    fn owned(&self, client: u64) -> Vec<String> {
+        self.pages
+            .values()
+            .filter(|page| page.owner == client)
+            .map(|page| page.target_id.clone())
+            .collect()
+    }
+
+    /// `(discover, auto_attach, wait_debugger)` of a socket.
+    fn flags(&self, client: u64) -> (bool, bool, bool) {
+        self.clients
+            .get(&client)
+            .map(|slot| (slot.discover, slot.auto_attach, slot.wait_debugger))
+            .unwrap_or((false, false, false))
+    }
+
+    fn discovering(&self, client: u64) -> bool {
+        self.clients.get(&client).is_some_and(|slot| slot.discover)
+    }
+
+    /// The level a session's own events are written on: its socket, and the
+    /// session — except a page websocket's root level, which is the socket's.
+    fn level(&self, session: Option<&str>) -> Option<String> {
+        session
+            .filter(|session| self.sessions.get(*session).is_some_and(|slot| !slot.home))
+            .map(str::to_string)
+    }
+
+    /// The level a session's `Target.*` events go to: the one it was
+    /// attached on.
+    fn parent_level(&self, slot: &SessionSlot) -> (u64, Option<String>) {
+        (
+            slot.client,
+            slot.parent
+                .as_deref()
+                .and_then(|parent| self.level(Some(parent))),
+        )
+    }
+
+    /// Mint a session on `target` for `client`, attached from `parent`, and
+    /// queue its `Target.attachedToTarget` on that level — before the
+    /// reply, as Chrome does.
+    fn attach_page(
+        &mut self,
+        target: &str,
+        client: u64,
+        parent: Option<&str>,
+        auto: bool,
+        waiting: bool,
+        out: &mut Out,
+    ) -> Result<String, Failure> {
+        self.pages
+            .get(target)
+            .filter(|_| self.owns(client, parent, target))
+            .ok_or_else(|| Failure::Invalid("No target with given id found".to_string()))?;
+        let level = self.level(parent);
+        let slot = SessionSlot::new(
+            client,
+            Attached::Page(target.to_string()),
+            parent,
+            auto,
+            false,
+        );
+        let id = slot.id.clone();
+        self.sessions.insert(id.clone(), slot);
+        // The session is in when the page is described: it says `attached`.
+        let info = info_of(self, &self.pages[target]);
+        out.frames.push(event(
+            level.as_deref(),
+            "Target.attachedToTarget",
+            json!({
+                "sessionId": id,
+                "waitingForDebugger": waiting,
+                "targetInfo": info,
+            }),
+        ));
+        Ok(id)
+    }
+
+    /// End a session, and every session attached through it. The level it
+    /// was attached on hears `Target.detachedFromTarget` for that one; the
+    /// rest go with it, unannounced — as in Chrome.
+    fn detach(&mut self, session: &str, local: u64, out: &mut Out) {
+        let Some(slot) = self.sessions.remove(session) else {
+            return;
+        };
+        // A page websocket's root level was never attached: nothing to hear
+        // that it is gone, and its id leaves the bridge in no frame.
+        if slot.home {
+            return;
+        }
+        let to = self.parent_level(&slot);
+        deliver(
+            self,
+            out,
+            local,
+            to,
+            "Target.detachedFromTarget",
+            json!({ "sessionId": slot.id, "targetId": slot.attached.id() }),
+        );
+        let mut gone = vec![slot];
+        while let Some(parent) = gone.pop() {
+            let children: Vec<SessionSlot> = self
+                .sessions
+                .values()
+                .filter(|other| other.parent.as_deref() == Some(parent.id.as_str()))
+                .cloned()
+                .collect();
+            for child in children {
+                self.sessions.remove(&child.id);
+                gone.push(child);
+            }
+        }
+    }
+
+    /// Close pages. In Chrome's order: every session on one hears
+    /// `Inspector.detached`, then the level each was attached on hears
+    /// `Target.detachedFromTarget`, then an owner that asked to discover
+    /// hears the page is no longer attached, and that it is gone. A page
+    /// websocket on it is closed. `local` is the socket the command came in
+    /// on. Engine sessions to close, once the lock is up.
+    fn close_pages(&mut self, targets: &[String], local: u64, out: &mut Out) -> Vec<String> {
+        let mut engine = Vec::new();
+        for target in targets {
+            let Some(page) = self.pages.remove(target) else {
+                continue;
+            };
+            engine.push(page.engine_session.clone());
+            let sessions: Vec<SessionSlot> = self
+                .sessions
+                .values()
+                .filter(|slot| slot.on(&page.target_id))
+                .cloned()
+                .collect();
+            for slot in &sessions {
+                let own = (slot.client, self.level(Some(slot.id.as_str())));
+                deliver(
+                    self,
+                    out,
+                    local,
+                    own,
+                    "Inspector.detached",
+                    json!({ "reason": "target_closed" }),
+                );
+            }
+            for slot in &sessions {
+                self.sessions.remove(&slot.id);
+                // A page websocket on a closed page is closed too, and hears
+                // nothing more: it was never attached.
+                if slot.home {
+                    self.clients.remove(&slot.client);
+                    continue;
+                }
+                let to = self.parent_level(slot);
+                deliver(
+                    self,
+                    out,
+                    local,
+                    to,
+                    "Target.detachedFromTarget",
+                    json!({ "sessionId": slot.id, "targetId": page.target_id }),
+                );
+            }
+            if self.discovering(page.owner) {
+                deliver(
+                    self,
+                    out,
+                    local,
+                    (page.owner, None),
+                    "Target.targetInfoChanged",
+                    json!({ "targetInfo": info_of(self, &page) }),
+                );
+                deliver(
+                    self,
+                    out,
+                    local,
+                    (page.owner, None),
+                    "Target.targetDestroyed",
+                    json!({ "targetId": page.target_id }),
+                );
+            }
+        }
+        engine
     }
 }
 
@@ -126,6 +480,21 @@ fn browser_id() -> &'static str {
     BROWSER_ID.as_str()
 }
 
+/// An id in Chrome's spelling: 32 hex digits.
+fn new_id() -> String {
+    uuid::Uuid::new_v4().simple().to_string()
+}
+
+/// Event timestamps: seconds of the wall clock, as a float. Chrome counts
+/// monotonic time from an origin of its own; nothing reads the value but
+/// as "later is bigger".
+fn now_secs() -> f64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs_f64())
+        .unwrap_or(0.0)
+}
+
 fn host_of(headers: &HeaderMap) -> String {
     headers
         .get("host")
@@ -142,6 +511,9 @@ async fn version(headers: HeaderMap) -> Json<Value> {
         "User-Agent": cdp_user_agent(),
         "V8-Version": "diting",
         "WebKit-Version": "537.36",
+        // Chrome's own key: `posix` or `windows` by the host. Measured on
+        // a posix host; the Windows word is Chrome's, not seen here.
+        "File-Path-Style": if cfg!(windows) { "windows" } else { "posix" },
         "webSocketDebuggerUrl": format!("ws://{}/devtools/browser/{}", host_of(&headers), browser_id()),
     }))
 }
@@ -170,121 +542,137 @@ async fn browser_ws(ws: WebSocketUpgrade, Path(id): Path<String>) -> Response {
     if id != browser_id() {
         return (StatusCode::NOT_FOUND, "unknown browser").into_response();
     }
-    ws.on_upgrade(|socket| run_socket(socket, None))
+    let (client, home, inbox) = HUB.lock().await.open(None);
+    ws.on_upgrade(move |socket| run_socket(socket, client, home, inbox))
 }
 
 async fn page_ws(ws: WebSocketUpgrade, Path(id): Path<String>) -> Response {
-    let session = {
-        let hub = HUB.lock().await;
-        hub.pages.get(&id).map(|page| page.cdp_session.clone())
+    let opened = {
+        let mut hub = HUB.lock().await;
+        hub.pages.contains_key(&id).then(|| hub.open(Some(id)))
     };
-    match session {
-        Some(session) => ws.on_upgrade(move |socket| run_socket(socket, Some(session))),
+    match opened {
+        Some((client, home, inbox)) => {
+            ws.on_upgrade(move |socket| run_socket(socket, client, home, inbox))
+        }
         None => (StatusCode::NOT_FOUND, "unknown page").into_response(),
     }
 }
 
-async fn run_socket(mut socket: WebSocket, force_session: Option<String>) {
-    // A page socket is not a browser client. It drives one session and
-    // does not own targets.
-    let client = if force_session.is_none() {
-        let mut hub = HUB.lock().await;
-        hub.next_client += 1;
-        let id = hub.next_client;
-        hub.clients.insert(id, ClientSlot::default());
-        id
-    } else {
-        0
-    };
-    let mut mine: Vec<String> = Vec::new();
+/// One socket, browser or page. Commands come in from the socket, events
+/// for it from other sockets come in through the inbox. A dropped outbox —
+/// its page was closed, it ran `Browser.close` — ends the socket once what
+/// is queued has gone out.
+async fn run_socket(
+    mut socket: WebSocket,
+    client: u64,
+    home: Option<String>,
+    mut inbox: mpsc::UnboundedReceiver<String>,
+) {
     loop {
-        let msg = match socket.recv().await {
-            Some(Ok(msg)) => msg,
-            _ => break,
-        };
-        let text = match msg {
-            Message::Text(text) => text,
-            Message::Ping(payload) => {
-                let _ = socket.send(Message::Pong(payload)).await;
-                continue;
-            }
-            Message::Close(_) => break,
-            _ => continue,
-        };
-        let text = force_session
-            .as_deref()
-            .map(|session| inject_session(&text, session))
-            .unwrap_or(text);
-        let out = dispatch(client, &text).await;
-        mine.extend(out.created);
-        mine.retain(|id| !out.closed.contains(id));
-        let mut failed = false;
-        for frame in out.frames {
-            if socket.send(Message::Text(frame)).await.is_err() {
-                failed = true;
-                break;
-            }
-        }
-        if failed || out.close_socket {
-            break;
-        }
-    }
-    let mut sessions = Vec::new();
-    {
-        let mut hub = HUB.lock().await;
-        if client != 0 {
-            hub.clients.remove(&client);
-        }
-        for id in mine {
-            let target = hub
-                .pages
-                .iter()
-                .find(|(_, page)| page.session_id == id)
-                .map(|(target, _)| target.clone());
-            if let Some(target) = target {
-                if let Some(page) = hub.pages.remove(&target) {
-                    hub.sessions.remove(&page.cdp_session);
+        tokio::select! {
+            frame = inbox.recv() => {
+                let Some(frame) = frame else { break };
+                if socket.send(Message::Text(frame)).await.is_err() {
+                    break;
                 }
             }
-            sessions.push(id);
+            message = socket.recv() => {
+                let text = match message {
+                    Some(Ok(Message::Text(text))) => text,
+                    Some(Ok(Message::Ping(payload))) => {
+                        let _ = socket.send(Message::Pong(payload)).await;
+                        continue;
+                    }
+                    Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
+                    Some(Ok(_)) => continue,
+                };
+                let out = dispatch(client, home.as_deref(), &text).await;
+                let mut open = true;
+                for frame in out.frames {
+                    if socket.send(Message::Text(frame)).await.is_err() {
+                        open = false;
+                        break;
+                    }
+                }
+                for (outbox, frame) in out.spill {
+                    let _ = outbox.send(frame);
+                }
+                if !open || out.close_socket {
+                    break;
+                }
+            }
         }
     }
-    for id in sessions {
-        let mut mgr = SESSIONS.lock().await;
-        mgr.close_and_wait(&id).await;
+    let (engine, spill) = {
+        let mut hub = HUB.lock().await;
+        hub.close_client(client)
+    };
+    for (outbox, frame) in spill {
+        let _ = outbox.send(frame);
     }
+    target::close_engine(engine).await;
 }
 
-fn inject_session(text: &str, session: &str) -> String {
-    let mut msg: Value = match serde_json::from_str(text) {
-        Ok(v) => v,
-        Err(_) => return text.to_string(),
+async fn dispatch(client: u64, home: Option<&str>, text: &str) -> Out {
+    let envelope::Frame {
+        id,
+        session: named,
+        method,
+        params,
+    } = match envelope::read(text) {
+        Ok(frame) => frame,
+        Err(out) => return out,
     };
-    if msg.get("sessionId").and_then(|v| v.as_str()).is_none() {
-        msg["sessionId"] = json!(session);
-    }
-    msg.to_string()
-}
-
-async fn dispatch(client: u64, text: &str) -> Out {
-    let msg: Value = match serde_json::from_str(text) {
-        Ok(v) => v,
-        Err(_) => return Out::from_frames(Vec::new()),
+    // A page websocket has the one session, its root level, and names no other.
+    let session = match (&named, home) {
+        (Some(_), Some(_)) => return refused(&id, None, -32001, UNKNOWN_SESSION),
+        (Some(session), _) => Some(session.as_str()),
+        (None, home) => home,
     };
-    let id = msg.get("id").cloned().unwrap_or(Value::Null);
-    let method = msg.get("method").and_then(|v| v.as_str()).unwrap_or("");
-    let params = msg.get("params").cloned().unwrap_or_else(|| json!({}));
-    let session = msg
-        .get("sessionId")
-        .and_then(|v| v.as_str())
-        .map(str::to_string);
-    if method.is_empty() {
-        return Out::from_frames(Vec::new());
-    }
-    match dispatch_method(client, &id, session.as_deref(), method, &params).await {
+    match dispatch_method(client, &id, session, &method, &params).await {
         Ok(out) => out,
-        Err(message) => Out::from_frames(vec![fail(&id, session.as_deref(), message)]),
+        Err(Failure::NotFound(method)) => {
+            refused(&id, session, -32601, &format!("'{method}' wasn't found"))
+        }
+        Err(Failure::Invalid(message)) => refused(&id, session, -32602, &message),
+        Err(Failure::Refused(message)) => refused(&id, session, -32000, &message),
+        Err(Failure::Internal(message)) => refused(&id, session, -32603, &message),
+        // Chrome's reply names no session for an id it does not know.
+        Err(Failure::UnknownSession) => refused(&id, None, -32001, UNKNOWN_SESSION),
     }
+}
+
+/// How a command failed. Chrome answers a method it does not have with
+/// `-32601`, one whose parameters it will not read with `-32602`, one it
+/// has but cannot run with `-32000` and the reason, and a session it never
+/// minted with `-32001`; a client reads the four differently. `From<String>`
+/// and `From<&str>` are the last but one: that is what a handler means by
+/// `Err(message)`. The fifth, `Internal`, is Chrome's `-32603` — a failure
+/// of the browser's own that no handler could have checked for.
+#[derive(Debug, PartialEq)]
+pub(crate) enum Failure {
+    NotFound(String),
+    Invalid(String),
+    Refused(String),
+    UnknownSession,
+    Internal(String),
+}
+
+impl From<String> for Failure {
+    fn from(message: String) -> Self {
+        Failure::Refused(message)
+    }
+}
+
+impl From<&str> for Failure {
+    fn from(message: &str) -> Self {
+        Failure::Refused(message.to_string())
+    }
+}
+
+fn refused(id: &Value, session: Option<&str>, code: i64, message: &str) -> Out {
+    Out::from_frames(vec![fail(id, session, code, message)])
 }
 
 async fn dispatch_method(
@@ -293,52 +681,35 @@ async fn dispatch_method(
     session: Option<&str>,
     method: &str,
     params: &Value,
-) -> Result<Out, String> {
-    if session.is_none() {
-        return browser_method(client, id, method, params).await;
+) -> Result<Out, Failure> {
+    // A session is its socket's: an id minted on another socket names
+    // nothing here.
+    let on_page = {
+        let hub = HUB.lock().await;
+        match session.filter(|session| {
+            hub.sessions
+                .get(*session)
+                .is_some_and(|slot| slot.client == client)
+        }) {
+            None if session.is_some() => return Err(Failure::UnknownSession),
+            None => false,
+            // A page websocket's root level takes `Target.setAutoAttach` as a page does.
+            Some(session) => {
+                let slot = &hub.sessions[session];
+                matches!(slot.attached, Attached::Page(_))
+                    && (!browser_domain(method) || (slot.home && method == "Target.setAutoAttach"))
+            }
+        }
+    };
+    match session.filter(|_| on_page) {
+        Some(session) => page_method(id, session, method, params).await,
+        _ => target::browser_method(client, id, session, method, params).await,
     }
-    page_method(id, session.unwrap(), method, params).await
 }
 
-async fn browser_method(
-    client: u64,
-    id: &Value,
-    method: &str,
-    params: &Value,
-) -> Result<Out, String> {
-    match method {
-        "Browser.getVersion" => Ok(Out::from_frames(vec![ok(
-            id,
-            None,
-            json!({
-                "protocolVersion": "1.3",
-                "product": product(),
-                "revision": "0",
-                "userAgent": cdp_user_agent(),
-                "jsVersion": "diting",
-            }),
-        )])),
-        "Browser.setDownloadBehavior" => Ok(Out::from_frames(vec![ok(id, None, json!({}))])),
-        "Browser.close" => close_browser(client, id).await,
-        "Target.setAutoAttach" => set_auto_attach(client, id, params).await,
-        "Target.setDiscoverTargets" => set_discover(client, id, params).await,
-        "Target.getTargetInfo" => Ok(Out::from_frames(vec![ok(
-            id,
-            None,
-            target_info_result(client, params).await,
-        )])),
-        "Target.getTargets" => Ok(Out::from_frames(vec![ok(
-            id,
-            None,
-            all_targets(client).await,
-        )])),
-        "Target.createTarget" => create_target(client, id, params).await,
-        "Target.attachToTarget" => attach_target(client, id, params).await,
-        "Target.detachFromTarget" => Ok(Out::from_frames(vec![ok(id, None, json!({}))])),
-        "Target.closeTarget" => close_target(client, id, None, params).await,
-        _ if ack_only(method) => Ok(Out::from_frames(vec![ok(id, None, json!({}))])),
-        _ => Err(format!("'{method}' wasn't found")),
-    }
+/// `Browser.*` and `Target.*` are answered at the level they arrive on.
+fn browser_domain(method: &str) -> bool {
+    method.starts_with("Browser.") || method.starts_with("Target.")
 }
 
 async fn page_method(
@@ -346,609 +717,216 @@ async fn page_method(
     session: &str,
     method: &str,
     params: &Value,
-) -> Result<Out, String> {
+) -> Result<Out, Failure> {
+    let on = Some(session);
     match method {
-        "Page.getFrameTree" => Ok(Out::from_frames(vec![ok(
-            id,
-            Some(session),
-            frame_tree(session).await?,
-        )])),
-        "Page.navigate" => navigate(id, session, params).await,
-        "Page.reload" => reload(id, session).await,
-        "Page.close" => {
-            let target = {
-                let hub = HUB.lock().await;
-                hub.sessions.get(session).cloned()
-            };
-            let Some(target) = target else {
-                return Err("no such session".to_string());
-            };
-            close_target(0, id, Some(session), &json!({ "targetId": target })).await
+        "Page.getFrameTree" => {
+            let hub = HUB.lock().await;
+            let tree = target::frame_tree(&hub, session)?;
+            Ok(Out::from_frames(vec![ok(id, on, tree)]))
         }
-        "Page.getLayoutMetrics" => Ok(Out::from_frames(vec![ok(
-            id,
-            Some(session),
-            layout_metrics(session).await?,
-        )])),
+        "Page.navigate" => target::navigate(id, session, params).await,
+        "Page.reload" => target::reload(id, session, params).await,
+        "Page.close" => target::close_page(id, session).await,
         "Page.captureScreenshot" => capture_screenshot(id, session, params).await,
-        "Page.createIsolatedWorld" => create_world(id, session, params).await,
-        "Page.addScriptToEvaluateOnNewDocument" => Ok(Out::from_frames(vec![ok(
-            id,
-            Some(session),
-            json!({ "identifier": SCRIPT_IDS.fetch_add(1, Ordering::Relaxed).to_string() }),
-        )])),
-        "Runtime.enable" => runtime_enable(id, session).await,
-        "Runtime.evaluate"
-        | "Runtime.callFunctionOn"
-        | "Runtime.releaseObject"
-        | "Input.dispatchMouseEvent"
-        | "Input.dispatchKeyEvent"
-        | "Input.insertText"
-        | "DOM.getContentQuads"
-        | "DOM.scrollIntoViewIfNeeded" => runtime_forward(id, session, method, params).await,
-        "Emulation.setDeviceMetricsOverride" => set_metrics(id, session, params).await,
-        "Target.setAutoAttach" | "Target.detachFromTarget" => {
-            Ok(Out::from_frames(vec![ok(id, Some(session), json!({}))]))
+        "Page.enable" | "Page.disable" | "Page.setLifecycleEventsEnabled" => {
+            target::page_switch(id, session, method, params).await
         }
-        _ if ack_only(method) || page_ack(method) => {
-            Ok(Out::from_frames(vec![ok(id, Some(session), json!({}))]))
+        "Page.createIsolatedWorld" => target::create_world(id, session, params).await,
+        "Runtime.enable" => target::runtime_enable(id, session).await,
+        "Runtime.disable" => target::runtime_disable(id, session).await,
+        "Target.setAutoAttach" => target::page_auto_attach(id, session, params),
+        "Emulation.setFocusEmulationEnabled" => {
+            standing_switch(params, "enabled", true, method, FOCUS)?;
+            Ok(ack(id, session))
         }
-        _ => Err(format!("'{method}' wasn't found")),
+        "Page.setBypassCSP" => {
+            standing_switch(params, "enabled", true, method, CSP)?;
+            Ok(ack(id, session))
+        }
+        "Security.setIgnoreCertificateErrors" => {
+            standing_switch(params, "ignore", false, method, CERTIFICATES)?;
+            Ok(ack(id, session))
+        }
+        "Page.handleJavaScriptDialog" => {
+            // Read as Chrome reads them, then: the page has no dialogs.
+            boolean(params, "accept")?;
+            optional_string(params, "promptText")?;
+            Err(invalid("No dialog is showing"))
+        }
+        // Its fields are read, though nothing is done with them: network
+        // events are not pushed yet.
+        "Network.enable" => {
+            kinds(
+                params,
+                &[
+                    ("maxTotalBufferSize", Kind::Integer),
+                    ("maxResourceBufferSize", Kind::Integer),
+                    ("maxPostDataSize", Kind::Integer),
+                ],
+            )?;
+            Ok(ack(id, session))
+        }
+        _ if PAGE_CHANNEL.contains(&method) => runtime_forward(id, session, method, params).await,
+        _ if STATELESS.contains(&method) => Ok(ack(id, session)),
+        _ => Err(Failure::NotFound(method.to_string())),
     }
 }
 
-fn ack_only(method: &str) -> bool {
-    let domain = method.split_once('.').map(|(d, _)| d).unwrap_or("");
-    matches!(
-        domain,
-        "Emulation" | "Network" | "Fetch" | "Log" | "Inspector" | "Security"
-    ) && method != "Emulation.setDeviceMetricsOverride"
-}
-
-fn page_ack(method: &str) -> bool {
-    matches!(
-        method,
-        "Page.enable"
-            | "Page.disable"
-            | "Page.setLifecycleEventsEnabled"
-            | "Page.setBypassCSP"
-            | "Page.setFontFamilies"
-            | "Page.bringToFront"
-            | "Page.handleJavaScriptDialog"
-            | "Page.removeScriptToEvaluateOnNewDocument"
-            | "Page.setInterceptFileChooserDialog"
-            | "Page.stopScreencast"
-            | "Page.screencastFrameAck"
-            | "Runtime.runIfWaitingForDebugger"
-            | "Runtime.disable"
-            | "DOM.enable"
-            | "CSS.enable"
-    )
-}
-
-async fn set_auto_attach(client: u64, id: &Value, params: &Value) -> Result<Out, String> {
-    let mut hub = HUB.lock().await;
-    let auto_attach = params
-        .get("autoAttach")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    let waiting = params
-        .get("waitForDebuggerOnStart")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    let slot = hub.clients.entry(client).or_default();
-    slot.auto_attach = auto_attach;
-    slot.wait_debugger = waiting;
-    let mut frames = Vec::new();
-    if auto_attach {
-        for page in hub.pages.values_mut().filter(|page| page.owner == client) {
-            if page.attached {
-                continue;
-            }
-            page.attached = true;
-            frames.push(attached_event(page, waiting));
-        }
-    }
-    frames.push(ok(id, None, json!({})));
-    Ok(Out::from_frames(frames))
-}
-
-async fn set_discover(client: u64, id: &Value, params: &Value) -> Result<Out, String> {
-    let mut hub = HUB.lock().await;
-    let discover = params
-        .get("discover")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    hub.clients.entry(client).or_default().discover = discover;
-    let mut frames = Vec::new();
-    if discover {
-        for page in hub.pages.values().filter(|page| page.owner == client) {
-            frames.push(event(
-                None,
-                "Target.targetCreated",
-                json!({ "targetInfo": info_of(page, page.attached) }),
-            ));
-        }
-    }
-    frames.push(ok(id, None, json!({})));
-    Ok(Out::from_frames(frames))
-}
-
-async fn target_info_result(client: u64, params: &Value) -> Value {
-    let hub = HUB.lock().await;
-    if let Some(target) = params.get("targetId").and_then(|v| v.as_str()) {
-        if let Some(page) = hub.pages.get(target) {
-            if page.owner == client {
-                return json!({ "targetInfo": info_of(page, page.attached) });
-            }
-        }
-    }
-    json!({
-        "targetInfo": {
-            "targetId": browser_id(),
-            "type": "browser",
-            "title": "diting",
-            "url": "",
-            "attached": true,
-            "canAccessOpener": false,
-        }
-    })
-}
-
-async fn all_targets(client: u64) -> Value {
-    let hub = HUB.lock().await;
-    let mut infos = vec![json!({
-        "targetId": browser_id(),
-        "type": "browser",
-        "title": "diting",
-        "url": "",
-        "attached": true,
-        "canAccessOpener": false,
-    })];
-    for page in hub.pages.values().filter(|page| page.owner == client) {
-        infos.push(info_of(page, page.attached));
-    }
-    json!({ "targetInfos": infos })
-}
-
-fn client_flags(hub: &Hub, client: u64) -> (bool, bool, bool) {
-    match hub.clients.get(&client) {
-        Some(slot) => (slot.discover, slot.auto_attach, slot.wait_debugger),
-        None => (false, false, false),
-    }
-}
-
-fn take_owned(hub: &mut Hub, client: u64) -> Vec<PageSlot> {
-    let ids: Vec<String> = hub
-        .pages
-        .iter()
-        .filter(|(_, page)| page.owner == client)
-        .map(|(id, _)| id.clone())
-        .collect();
-    let mut pages = Vec::new();
-    for id in ids {
-        if let Some(page) = hub.pages.remove(&id) {
-            hub.sessions.remove(&page.cdp_session);
-            pages.push(page);
-        }
-    }
-    pages
-}
-
-async fn create_target(client: u64, id: &Value, params: &Value) -> Result<Out, String> {
-    let url = params
-        .get("url")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty())
-        .unwrap_or("about:blank");
-    let session_id = {
-        let mut mgr = SESSIONS.lock().await;
-        mgr.evict_expired();
-        mgr.create(
-            Some(url),
-            false,
-            Vec::new(),
-            None,
-            None,
-            None,
-            true,
-            false,
-            None,
-        )
-    };
-    let nav = send_command(&session_id, |reply| SessionCommand::Navigate {
-        url: url.to_string(),
-        reply,
-    })
-    .await;
-    let (url, title) = match nav {
-        Ok(resp) => (resp.url, resp.title.unwrap_or_default()),
-        Err(err) => {
-            let mut mgr = SESSIONS.lock().await;
-            mgr.close_and_wait(&session_id).await;
-            return Err(session_msg(err));
-        }
-    };
-    let target_id = uuid::Uuid::new_v4().simple().to_string();
-    let cdp_session = uuid::Uuid::new_v4().simple().to_string();
-    let mut page = PageSlot {
-        owner: client,
-        target_id: target_id.clone(),
-        session_id: session_id.clone(),
-        cdp_session: cdp_session.clone(),
-        frame_id: target_id.clone(),
-        url,
-        title,
-        loader: 1,
-        next_ctx: 1,
-        runtime_on: false,
-        attached: false,
-        worlds: Vec::new(),
-        viewport: (1280, 720),
-    };
-    let mut frames = Vec::new();
+/// `Page.captureScreenshot`. A build without the `screenshot` feature has
+/// no raster: the command is refused by name — an empty picture would be
+/// a lie.
+async fn capture_screenshot(id: &Value, session: &str, params: &Value) -> Result<Out, Failure> {
+    #[cfg(feature = "screenshot")]
     {
-        let mut hub = HUB.lock().await;
-        let (discover, auto_attach, waiting) = client_flags(&hub, client);
-        if discover {
-            frames.push(event(
-                None,
-                "Target.targetCreated",
-                json!({ "targetInfo": info_of(&page, false) }),
-            ));
-        }
-        if auto_attach {
-            page.attached = true;
-            frames.push(attached_event(&page, waiting));
-        }
-        hub.sessions.insert(cdp_session, target_id.clone());
-        hub.pages.insert(target_id.clone(), page);
+        screenshot::capture(id, session, params).await
     }
-    frames.push(ok(id, None, json!({ "targetId": target_id })));
-    Ok(Out {
-        frames,
-        created: vec![session_id],
-        closed: Vec::new(),
-        close_socket: false,
-    })
-}
-
-async fn attach_target(client: u64, id: &Value, params: &Value) -> Result<Out, String> {
-    let target = params
-        .get("targetId")
-        .and_then(|v| v.as_str())
-        .ok_or("Target.attachToTarget: missing targetId")?;
-    let mut hub = HUB.lock().await;
-    let waiting = client_flags(&hub, client).2;
-    let page = hub
-        .pages
-        .get_mut(target)
-        .filter(|page| page.owner == client)
-        .ok_or_else(|| format!("no such target {target}"))?;
-    let session = page.cdp_session.clone();
-    let mut frames = Vec::new();
-    if !page.attached {
-        page.attached = true;
-        frames.push(attached_event(page, waiting));
-    }
-    frames.push(ok(id, None, json!({ "sessionId": session })));
-    Ok(Out::from_frames(frames))
-}
-
-async fn close_target(
-    client: u64,
-    id: &Value,
-    session: Option<&str>,
-    params: &Value,
-) -> Result<Out, String> {
-    let target = params
-        .get("targetId")
-        .and_then(|v| v.as_str())
-        .ok_or("Target.closeTarget: missing targetId")?
-        .to_string();
-    let removed = {
-        let mut hub = HUB.lock().await;
-        let owned = hub
-            .pages
-            .get(&target)
-            .is_some_and(|page| client == 0 || page.owner == client);
-        if !owned {
-            None
-        } else {
-            let page = hub.pages.remove(&target);
-            if let Some(page) = page.as_ref() {
-                hub.sessions.remove(&page.cdp_session);
-            }
-            page
-        }
-    };
-    let Some(page) = removed else {
-        return Ok(Out::from_frames(vec![ok(
-            id,
-            session,
-            json!({ "success": false }),
-        )]));
-    };
-    let frames = vec![
-        event(
-            None,
-            "Target.detachedFromTarget",
-            json!({ "sessionId": page.cdp_session, "targetId": page.target_id }),
-        ),
-        event(
-            None,
-            "Target.targetDestroyed",
-            json!({ "targetId": page.target_id }),
-        ),
-        ok(id, session, json!({ "success": true })),
-    ];
+    #[cfg(not(feature = "screenshot"))]
     {
-        let mut mgr = SESSIONS.lock().await;
-        mgr.close_and_wait(&page.session_id).await;
-    }
-    Ok(Out {
-        frames,
-        created: Vec::new(),
-        closed: vec![page.session_id],
-        close_socket: false,
-    })
-}
-
-async fn close_browser(client: u64, id: &Value) -> Result<Out, String> {
-    let pages: Vec<PageSlot> = {
-        let mut hub = HUB.lock().await;
-        take_owned(&mut hub, client)
-    };
-    let mut frames = Vec::new();
-    let mut closed = Vec::new();
-    for page in &pages {
-        frames.push(event(
-            None,
-            "Target.detachedFromTarget",
-            json!({ "sessionId": page.cdp_session, "targetId": page.target_id }),
-        ));
-        frames.push(event(
-            None,
-            "Target.targetDestroyed",
-            json!({ "targetId": page.target_id }),
-        ));
-        closed.push(page.session_id.clone());
-    }
-    frames.push(ok(id, None, json!({})));
-    {
-        let mut mgr = SESSIONS.lock().await;
-        for page in &pages {
-            mgr.close_and_wait(&page.session_id).await;
-        }
-    }
-    Ok(Out {
-        frames,
-        created: Vec::new(),
-        closed,
-        close_socket: true,
-    })
-}
-
-async fn frame_tree(session: &str) -> Result<Value, String> {
-    let hub = HUB.lock().await;
-    let page = page_of(&hub, session)?;
-    Ok(json!({ "frameTree": { "frame": frame_of(page) } }))
-}
-
-async fn navigate(id: &Value, session: &str, params: &Value) -> Result<Out, String> {
-    let url = params
-        .get("url")
-        .and_then(|v| v.as_str())
-        .ok_or("Page.navigate: missing url")?;
-    let session_id = {
-        let hub = HUB.lock().await;
-        page_of(&hub, session)?.session_id.clone()
-    };
-    let nav = send_command(&session_id, |reply| SessionCommand::Navigate {
-        url: url.to_string(),
-        reply,
-    })
-    .await;
-    let mut hub = HUB.lock().await;
-    let page = page_of_mut(&mut hub, session)?;
-    match nav {
-        Ok(resp) => {
-            page.url = resp.url;
-            page.title = resp.title.unwrap_or_default();
-            page.loader += 1;
-            let loader = loader_of(page);
-            let mut frames = nav_events(page, &loader);
-            frames.push(ok(
-                id,
-                Some(session),
-                json!({ "frameId": page.frame_id, "loaderId": loader }),
-            ));
-            Ok(Out::from_frames(frames))
-        }
-        Err(err) => {
-            page.loader += 1;
-            let loader = loader_of(page);
-            let frame_id = page.frame_id.clone();
-            Ok(Out::from_frames(vec![ok(
-                id,
-                Some(session),
-                json!({
-                    "frameId": frame_id,
-                    "loaderId": loader,
-                    "errorText": session_msg(err),
-                }),
-            )]))
-        }
+        let _ = (id, session, params);
+        Err(NEEDS_SCREENSHOT.into())
     }
 }
 
-async fn reload(id: &Value, session: &str) -> Result<Out, String> {
-    let url = {
-        let hub = HUB.lock().await;
-        page_of(&hub, session)?.url.clone()
-    };
-    navigate(id, session, &json!({ "url": url })).await
+fn ack(id: &Value, session: &str) -> Out {
+    Out::from_frames(vec![ok(id, Some(session), json!({}))])
 }
 
-fn nav_events(page: &mut PageSlot, loader: &str) -> Vec<String> {
-    let session = page.cdp_session.clone();
-    let frame_id = page.frame_id.clone();
-    let mut frames = vec![event(
-        Some(&session),
-        "Page.frameNavigated",
-        json!({ "frame": frame_of(page) }),
-    )];
-    frames.extend(refresh_worlds(page));
-    frames.push(event(
-        Some(&session),
-        "Page.lifecycleEvent",
-        json!({ "frameId": frame_id, "loaderId": loader, "name": "DOMContentLoaded" }),
-    ));
-    frames.push(event(
-        Some(&session),
-        "Page.domContentEventFired",
-        json!({ "timestamp": 0 }),
-    ));
-    frames.push(event(
-        Some(&session),
-        "Page.lifecycleEvent",
-        json!({ "frameId": frame_id, "loaderId": loader, "name": "load" }),
-    ));
-    frames.push(event(
-        Some(&session),
-        "Page.loadEventFired",
-        json!({ "timestamp": 0 }),
-    ));
-    frames
-}
+const FOCUS: &str = "a diting page always reports focus";
+const CSP: &str = "diting never enforces CSP";
+const CERTIFICATES: &str = "diting verifies every certificate";
 
-fn refresh_worlds(page: &mut PageSlot) -> Vec<String> {
-    if !page.runtime_on || page.worlds.is_empty() {
-        return Vec::new();
-    }
-    let session = page.cdp_session.clone();
-    let old: Vec<i64> = page.worlds.iter().map(|world| world.id).collect();
-    let names: Vec<Option<String>> = page.worlds.iter().map(|world| world.name.clone()).collect();
-    page.worlds.clear();
-    let mut frames: Vec<String> = old
-        .into_iter()
-        .map(|ctx| {
-            event(
-                Some(&session),
-                "Runtime.executionContextDestroyed",
-                json!({ "executionContextId": ctx }),
-            )
-        })
-        .collect();
-    for name in names {
-        let id = page.next_ctx;
-        page.next_ctx += 1;
-        page.worlds.push(World { id, name });
-    }
-    let created: Vec<World> = page
-        .worlds
-        .iter()
-        .map(|world| World {
-            id: world.id,
-            name: world.name.clone(),
-        })
-        .collect();
-    for world in &created {
-        frames.push(context_event(page, world));
-    }
-    frames
-}
+/// Page-level commands the session thread runs, where the page and the
+/// isolate live (`runtime::dispatch` sorts them).
+const PAGE_CHANNEL: &[&str] = &[
+    "Runtime.evaluate",
+    "Runtime.callFunctionOn",
+    "Runtime.releaseObject",
+    "Input.dispatchMouseEvent",
+    "Input.dispatchKeyEvent",
+    "Input.insertText",
+    "DOM.getContentQuads",
+    "DOM.scrollIntoViewIfNeeded",
+    "DOM.describeNode",
+    "DOM.resolveNode",
+    "DOM.getBoxModel",
+    "Emulation.setEmulatedMedia",
+    "Emulation.setTouchEmulationEnabled",
+    "Emulation.setTimezoneOverride",
+    "Emulation.setLocaleOverride",
+    "Emulation.setUserAgentOverride",
+    "Emulation.setDeviceMetricsOverride",
+    "Emulation.clearDeviceMetricsOverride",
+    "Page.addScriptToEvaluateOnNewDocument",
+    "Page.removeScriptToEvaluateOnNewDocument",
+    "Page.getLayoutMetrics",
+    "Network.setBlockedURLs",
+    "Network.setExtraHTTPHeaders",
+];
 
-async fn runtime_enable(id: &Value, session: &str) -> Result<Out, String> {
-    let mut hub = HUB.lock().await;
-    let page = page_of_mut(&mut hub, session)?;
-    if !page.worlds.iter().any(|world| world.name.is_none()) {
-        let ctx = page.next_ctx;
-        page.next_ctx += 1;
-        page.worlds.push(World {
-            id: ctx,
-            name: None,
-        });
-    }
-    let first = !page.runtime_on;
-    page.runtime_on = true;
-    let mut frames = Vec::new();
-    if first {
-        let worlds: Vec<World> = page
-            .worlds
-            .iter()
-            .map(|world| World {
-                id: world.id,
-                name: world.name.clone(),
-            })
-            .collect();
-        for world in &worlds {
-            frames.push(context_event(page, world));
-        }
-    }
-    frames.push(ok(id, Some(session), json!({})));
-    Ok(Out::from_frames(frames))
-}
-
-async fn create_world(id: &Value, session: &str, params: &Value) -> Result<Out, String> {
-    let name = params
-        .get("worldName")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    let mut hub = HUB.lock().await;
-    let page = page_of_mut(&mut hub, session)?;
-    let ctx = page.next_ctx;
-    page.next_ctx += 1;
-    page.worlds.push(World {
-        id: ctx,
-        name: Some(name),
-    });
-    let mut frames = Vec::new();
-    if page.runtime_on {
-        let world = World {
-            id: ctx,
-            name: page.worlds.last().and_then(|world| world.name.clone()),
-        };
-        frames.push(context_event(page, &world));
-    }
-    frames.push(ok(id, Some(session), json!({ "executionContextId": ctx })));
-    Ok(Out::from_frames(frames))
-}
+/// Answered with an empty ok: the engine has no state for them to flip —
+/// no reporting domain to turn on, no lifecycle gating, no window order.
+const STATELESS: &[&str] = &[
+    "Page.bringToFront",
+    "Log.enable",
+    "Log.disable",
+    "DOM.enable",
+    "DOM.disable",
+    "CSS.enable",
+    "CSS.disable",
+    "Runtime.runIfWaitingForDebugger",
+    "Network.disable",
+];
 
 async fn runtime_forward(
     id: &Value,
     session: &str,
     method: &str,
     params: &Value,
-) -> Result<Out, String> {
-    let session_id = {
-        let hub = HUB.lock().await;
-        page_of(&hub, session)?.session_id.clone()
+) -> Result<Out, Failure> {
+    let mut out = Out::default();
+    let result = forward(session, method, params, &mut out).await?;
+    out.frames.push(ok(id, Some(session), result));
+    Ok(out)
+}
+
+/// Run one [`PAGE_CHANNEL`] command on the session thread. What it drags
+/// along — console events — goes into `out` before its reply.
+async fn forward(
+    session: &str,
+    method: &str,
+    params: &Value,
+    out: &mut Out,
+) -> Result<Value, Failure> {
+    let (engine, local, frame_id, number, contexts) = {
+        let mut hub = HUB.lock().await;
+        let local = local_of(&hub, session);
+        let page = page_of_mut(&mut hub, session)?;
+        // A node named by handle takes its number from the hub, which goes
+        // on counting where the last document stopped. A number sent with
+        // the handle is what names the node, and no number is asked for.
+        let number = (method == "DOM.describeNode"
+            && params.get("objectId").is_some()
+            && params.get("backendNodeId").is_none()
+            && params.get("nodeId").is_none())
+        .then(|| {
+            let number = page.dom_next;
+            page.dom_next += 1;
+            number
+        });
+        let contexts = page.worlds.iter().map(|world| world.id).collect::<Vec<_>>();
+        (
+            page.engine_session.clone(),
+            local,
+            page.target_id.clone(),
+            number,
+            contexts,
+        )
     };
-    let mut result = send_command(&session_id, |reply| SessionCommand::CdpRuntime {
+    let mut params = params.clone();
+    // A `params` that is no object goes on as it is, for the session thread
+    // to refuse; it has no fields to add to.
+    if let Some(fields) = params.as_object_mut() {
+        if method == "DOM.describeNode" {
+            // The frame a document element belongs to, and the number the
+            // node takes if it has none. The session thread has no hub to ask.
+            fields.insert("__ditingFrameId".into(), json!(frame_id));
+            if let Some(number) = number {
+                fields.insert("__ditingNodeId".into(), json!(number));
+            }
+        }
+        if matches!(
+            method,
+            "Runtime.evaluate" | "Runtime.callFunctionOn" | "DOM.resolveNode"
+        ) {
+            // The contexts the page announced, for a command that names one.
+            fields.insert("__ditingContexts".into(), json!(contexts));
+        }
+    }
+    let mut result = send_command(&engine, |reply| SessionCommand::Cdp {
         method: method.to_string(),
-        params: params.clone(),
+        params,
         reply,
     })
     .await
-    .map_err(session_msg)?;
-    let side = result
-        .as_object_mut()
-        .and_then(|obj| obj.remove(runtime::SIDE_KEY));
-    let mut frames = Vec::new();
-    if let Some(side) = side {
-        let hub = HUB.lock().await;
-        frames.extend(side_frames(session, &side, &hub));
+    .map_err(|err| Failure::from(session_msg(err)))?;
+    if let Ok(value) = &mut result {
+        let side = value
+            .as_object_mut()
+            .and_then(|obj| obj.remove(runtime::SIDE_KEY));
+        if let Some(side) = side {
+            let hub = HUB.lock().await;
+            side_frames(&hub, local, session, &side, out);
+        }
     }
-    frames.push(ok(id, Some(session), result));
-    Ok(Out::from_frames(frames))
+    Ok(result?)
 }
 
-/// Console events first, then the document.write load. Playwright's
-/// setContent clears lifecycle when the debug tag arrives and then waits
-/// for `load`. A load that lands first is wiped by that clear.
-fn side_frames(session: &str, side: &Value, hub: &Hub) -> Vec<String> {
+/// Console events first, then the document.write load — for every session
+/// of the page that runs the domain. Playwright's setContent clears
+/// lifecycle when the debug tag arrives and then waits for `load`. A load
+/// that lands first is wiped by that clear.
+fn side_frames(hub: &Hub, local: u64, session: &str, side: &Value, out: &mut Out) {
     let console = side
         .get("console")
         .and_then(|v| v.as_array())
@@ -959,10 +937,10 @@ fn side_frames(session: &str, side: &Value, hub: &Hub) -> Vec<String> {
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
     if console.is_empty() && !write_nav {
-        return Vec::new();
+        return;
     }
     let Ok(page) = page_of(hub, session) else {
-        return Vec::new();
+        return;
     };
     let asked = side
         .get("contextId")
@@ -980,149 +958,161 @@ fn side_frames(session: &str, side: &Value, hub: &Hub) -> Vec<String> {
             .map(|world| world.id)
             .unwrap_or(1)
     });
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs_f64())
-        .unwrap_or(0.0);
-    let mut frames = Vec::new();
+    let timestamp = now_secs();
+    let target = page.target_id.as_str();
     for call in console {
         let kind = call.get("type").and_then(|v| v.as_str()).unwrap_or("log");
         let text = call.get("text").and_then(|v| v.as_str()).unwrap_or("");
-        frames.push(event(
-            Some(session),
+        to_sessions(
+            hub,
+            out,
+            local,
+            target,
+            |slot| slot.runtime_on,
             "Runtime.consoleAPICalled",
-            json!({
-                "type": kind,
-                "args": [{ "type": "string", "value": text }],
-                "executionContextId": context_id,
-                "timestamp": timestamp,
-                "stackTrace": { "callFrames": [] },
-            }),
-        ));
+            || {
+                json!({
+                    "type": kind,
+                    "args": [{ "type": "string", "value": text }],
+                    "executionContextId": context_id,
+                    "timestamp": timestamp,
+                    "stackTrace": { "callFrames": [] },
+                })
+            },
+        );
     }
     if write_nav {
-        let frame_id = page.frame_id.clone();
         let loader = loader_of(page);
-        frames.push(event(
-            Some(session),
+        let event_of = |name: &str| lifecycle(&page.target_id, &loader, name, timestamp);
+        to_sessions(
+            hub,
+            out,
+            local,
+            target,
+            |slot| slot.lifecycle_on,
             "Page.lifecycleEvent",
-            json!({ "frameId": frame_id, "loaderId": loader, "name": "DOMContentLoaded" }),
-        ));
-        frames.push(event(
-            Some(session),
+            || event_of("DOMContentLoaded"),
+        );
+        to_sessions(
+            hub,
+            out,
+            local,
+            target,
+            |slot| slot.page_on,
             "Page.domContentEventFired",
-            json!({ "timestamp": timestamp }),
-        ));
-        frames.push(event(
-            Some(session),
+            || json!({ "timestamp": timestamp }),
+        );
+        to_sessions(
+            hub,
+            out,
+            local,
+            target,
+            |slot| slot.lifecycle_on,
             "Page.lifecycleEvent",
-            json!({ "frameId": frame_id, "loaderId": loader, "name": "load" }),
-        ));
-        frames.push(event(
-            Some(session),
+            || event_of("load"),
+        );
+        to_sessions(
+            hub,
+            out,
+            local,
+            target,
+            |slot| slot.page_on,
             "Page.loadEventFired",
-            json!({ "timestamp": timestamp }),
-        ));
+            || json!({ "timestamp": timestamp }),
+        );
     }
-    frames
 }
 
-async fn set_metrics(id: &Value, session: &str, params: &Value) -> Result<Out, String> {
-    let width = params
-        .get("width")
-        .and_then(|v| v.as_f64())
-        .unwrap_or(1280.0) as u32;
-    let height = params
-        .get("height")
-        .and_then(|v| v.as_f64())
-        .unwrap_or(720.0) as u32;
-    let mobile = params
-        .get("mobile")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    let width = width.max(1);
-    let height = height.max(1);
-    let session_id = {
-        let mut hub = HUB.lock().await;
-        let page = page_of_mut(&mut hub, session)?;
-        page.viewport = (width, height);
-        page.session_id.clone()
-    };
-    let _ = send_command(&session_id, |reply| SessionCommand::Viewport {
-        width: Some(width),
-        height: Some(height),
-        mobile,
-        reply,
-    })
-    .await;
-    Ok(Out::from_frames(vec![ok(id, Some(session), json!({}))]))
-}
-
-async fn layout_metrics(session: &str) -> Result<Value, String> {
-    let hub = HUB.lock().await;
-    let (w, h) = page_of(&hub, session)?.viewport;
-    let w = w as f64;
-    let h = h as f64;
-    Ok(json!({
-        "layoutViewport": { "pageX": 0, "pageY": 0, "clientWidth": w, "clientHeight": h },
-        "visualViewport": {
-            "offsetX": 0, "offsetY": 0, "pageX": 0, "pageY": 0,
-            "clientWidth": w, "clientHeight": h, "scale": 1, "zoom": 1
-        },
-        "contentSize": { "x": 0, "y": 0, "width": w, "height": h },
-        "cssLayoutViewport": { "pageX": 0, "pageY": 0, "clientWidth": w, "clientHeight": h },
-        "cssContentSize": { "x": 0, "y": 0, "width": w, "height": h },
-    }))
-}
-
-async fn capture_screenshot(id: &Value, session: &str, params: &Value) -> Result<Out, String> {
-    let format = params
-        .get("format")
-        .and_then(|v| v.as_str())
-        .unwrap_or("png");
-    if format != "png" {
-        return Err("only png screenshots are supported in this CDP slice".to_string());
+/// An event for one place: the socket a command came in on, or another
+/// socket's outbox. The session it is written for is `None` on a root
+/// level.
+fn deliver(
+    hub: &Hub,
+    out: &mut Out,
+    local: u64,
+    to: (u64, Option<String>),
+    method: &str,
+    params: Value,
+) {
+    let frame = event(to.1.as_deref(), method, params);
+    if to.0 == local {
+        out.frames.push(frame);
+    } else if let Some(slot) = hub.clients.get(&to.0) {
+        out.spill.push((slot.outbox.clone(), frame));
     }
-    let full_page = params
-        .get("captureBeyondViewport")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    let session_id = {
-        let hub = HUB.lock().await;
-        page_of(&hub, session)?.session_id.clone()
-    };
-    let shot = send_screenshot(&session_id, None, None, full_page, None, false, None)
-        .await
-        .map_err(session_msg)?;
-    let body: Value = serde_json::from_str(&shot).map_err(|err| err.to_string())?;
-    let data = body
-        .get("image_base64")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    Ok(Out::from_frames(vec![ok(
-        id,
-        Some(session),
-        json!({ "data": data }),
-    )]))
 }
 
+/// An event for every session attached to `target` that `wants` it —
+/// whatever socket it is on.
+fn to_sessions(
+    hub: &Hub,
+    out: &mut Out,
+    local: u64,
+    target: &str,
+    wants: impl Fn(&SessionSlot) -> bool,
+    method: &str,
+    params: impl Fn() -> Value,
+) {
+    for slot in hub.sessions.values() {
+        if !slot.on(target) || !wants(slot) {
+            continue;
+        }
+        deliver(
+            hub,
+            out,
+            local,
+            (slot.client, hub.level(Some(&slot.id))),
+            method,
+            params(),
+        );
+    }
+}
+
+/// A switch the engine keeps in one state for good. That state is an empty
+/// ok; the other is refused with `why`, because answering it would promise
+/// a change that never happens.
+fn standing_switch(
+    params: &Value,
+    field: &str,
+    kept: bool,
+    method: &str,
+    why: &str,
+) -> Result<(), Failure> {
+    match boolean(params, field)? {
+        want if want == kept => Ok(()),
+        _ => Err(Failure::from(format!("{method}: {why}"))),
+    }
+}
+
+/// The socket a session speaks on: where its events go, and the one a
+/// command from it keeps its frames on.
+fn local_of(hub: &Hub, session: &str) -> u64 {
+    hub.sessions.get(session).map_or(0, |slot| slot.client)
+}
+
+/// The page a session is attached to. `Err` once the session is gone.
 fn page_of<'a>(hub: &'a Hub, session: &str) -> Result<&'a PageSlot, String> {
-    let target = hub
+    let slot = hub
         .sessions
         .get(session)
         .ok_or_else(|| format!("no such session {session}"))?;
-    hub.pages
-        .get(target)
-        .ok_or_else(|| format!("no such target {target}"))
+    match &slot.attached {
+        Attached::Page(target) => hub
+            .pages
+            .get(target)
+            .ok_or_else(|| format!("no such target {target}")),
+        Attached::Browser(_) => Err("not a page session".to_string()),
+    }
 }
 
 fn page_of_mut<'a>(hub: &'a mut Hub, session: &str) -> Result<&'a mut PageSlot, String> {
     let target = hub
         .sessions
         .get(session)
-        .cloned()
-        .ok_or_else(|| format!("no such session {session}"))?;
+        .ok_or_else(|| format!("no such session {session}"))?
+        .attached
+        .id()
+        .to_string();
     hub.pages
         .get_mut(&target)
         .ok_or_else(|| format!("no such target {target}"))
@@ -1132,9 +1122,10 @@ fn loader_of(page: &PageSlot) -> String {
     format!("ldr{}", page.loader)
 }
 
+/// The frame a page is: the main frame, with the target's id.
 fn frame_of(page: &PageSlot) -> Value {
     json!({
-        "id": page.frame_id,
+        "id": page.target_id,
         "loaderId": loader_of(page),
         "url": page.url,
         "mimeType": "text/html",
@@ -1153,7 +1144,8 @@ fn security_origin(url: &str) -> String {
     }
 }
 
-fn info_of(page: &PageSlot, attached: bool) -> Value {
+fn info_of(hub: &Hub, page: &PageSlot) -> Value {
+    let attached = hub.sessions.values().any(|slot| slot.on(&page.target_id));
     json!({
         "targetId": page.target_id,
         "type": "page",
@@ -1165,53 +1157,61 @@ fn info_of(page: &PageSlot, attached: bool) -> Value {
     })
 }
 
-fn attached_event(page: &PageSlot, waiting: bool) -> String {
-    event(
-        None,
-        "Target.attachedToTarget",
-        json!({
-            "sessionId": page.cdp_session,
-            "waitingForDebugger": waiting,
-            "targetInfo": info_of(page, true),
-        }),
-    )
+/// A world's `uniqueId` as it is announced and as `uniqueContextId` names
+/// it back — its own spelling, never the context id's, so the two cannot
+/// be confused for one another.
+fn unique_id(id: i64) -> String {
+    format!("{id}.{id}")
 }
 
-fn context_event(page: &PageSlot, world: &World) -> String {
+fn context_of(page: &PageSlot, world: &World) -> Value {
     let is_default = world.name.is_none();
-    event(
-        Some(&page.cdp_session),
-        "Runtime.executionContextCreated",
-        json!({
-            "context": {
-                "id": world.id,
-                "origin": security_origin(&page.url),
-                "name": world.name.clone().unwrap_or_default(),
-                "uniqueId": world.id.to_string(),
-                "auxData": {
-                    "isDefault": is_default,
-                    "type": if is_default { "default" } else { "isolated" },
-                    "frameId": page.frame_id,
-                }
+    json!({
+        "context": {
+            "id": world.id,
+            "origin": security_origin(&page.url),
+            "name": world.name.clone().unwrap_or_default(),
+            "uniqueId": unique_id(world.id),
+            "auxData": {
+                "isDefault": is_default,
+                "type": if is_default { "default" } else { "isolated" },
+                "frameId": page.target_id,
             }
-        }),
-    )
+        }
+    })
+}
+
+/// A `Page.lifecycleEvent`: Chrome counts the timestamp in monotonic
+/// seconds; nothing reads the value but as "later is bigger".
+fn lifecycle(frame_id: &str, loader: &str, name: &str, timestamp: f64) -> Value {
+    json!({
+        "frameId": frame_id,
+        "loaderId": loader,
+        "name": name,
+        "timestamp": timestamp,
+    })
+}
+
+/// The session a frame names: the one it was written for, unless that is a
+/// page websocket's root level, whose frames carry no `sessionId`.
+fn framed(session: Option<&str>) -> Option<&str> {
+    session.filter(|session| !session.starts_with(HOME_PREFIX))
 }
 
 fn ok(id: &Value, session: Option<&str>, result: Value) -> String {
     let mut body = json!({ "id": id, "result": result });
-    if let Some(session) = session {
+    if let Some(session) = framed(session) {
         body["sessionId"] = json!(session);
     }
     body.to_string()
 }
 
-fn fail(id: &Value, session: Option<&str>, message: String) -> String {
+fn fail(id: &Value, session: Option<&str>, code: i64, message: &str) -> String {
     let mut body = json!({
         "id": id,
-        "error": { "code": -32000, "message": message }
+        "error": { "code": code, "message": message }
     });
-    if let Some(session) = session {
+    if let Some(session) = framed(session) {
         body["sessionId"] = json!(session);
     }
     body.to_string()
@@ -1219,7 +1219,7 @@ fn fail(id: &Value, session: Option<&str>, message: String) -> String {
 
 fn event(session: Option<&str>, method: &str, params: Value) -> String {
     let mut body = json!({ "method": method, "params": params });
-    if let Some(session) = session {
+    if let Some(session) = framed(session) {
         body["sessionId"] = json!(session);
     }
     body.to_string()
