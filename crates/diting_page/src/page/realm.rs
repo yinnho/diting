@@ -141,30 +141,7 @@ impl Page {
         if !ua_to_set.is_empty() {
             rt.set_user_agent(&ua_to_set);
         }
-        // Route-following language (geo-variant class, LexBench challenge
-        // 2026-11-21): a document loaded through the proxy tunnel or from a
-        // variant-table domain advertises the international variant in
-        // navigator.language too — client-side locale pickers (canva-class
-        // SPAs) read it, and the HTTP legs already made this same choice
-        // (INTERNATIONAL_LANGUAGE). An explicit DITING_ACCEPT_LANGUAGE /
-        // set_accept_language pins every route.
-        let via_proxy = self.context.proxy_url.is_some()
-            || (diting_env::env_knobs::proxy_from_env().is_some()
-                && diting_env::env_knobs::should_auto_proxy(&self.url_string()));
-        let lang =
-            if diting_net::client::wants_international_language(&self.url_string(), via_proxy)
-                && !self
-                    .http_client
-                    .lang_pinned
-                    .load(std::sync::atomic::Ordering::Relaxed)
-            {
-                diting_net::client::INTERNATIONAL_LANGUAGE.to_string()
-            } else if let Ok(l) = self.http_client.accept_language.try_read() {
-                l.clone()
-            } else {
-                "zh-CN,zh;q=0.9".to_string()
-            };
-        rt.set_language(&lang);
+        rt.set_language(&self.navigator_language());
 
         rt.set_cookie_jar(self.context.cookie_jar.clone());
         rt.set_http_client(self.http_client.clone());
@@ -205,6 +182,35 @@ impl Page {
         self.apply_touch_override();
         self.apply_timezone_override();
         self.apply_locale_override();
+        self.apply_platform_override();
+    }
+
+    /// The language the page reads in `navigator.language(s)`: the
+    /// international variant on the routes that speak it — through the
+    /// proxy tunnel, or from a variant-table domain that negotiates a zh
+    /// shell to zh-CN requests (geo-variant class, LexBench challenge
+    /// 2026-11-21: client-side locale pickers read it, and the HTTP legs
+    /// already made this same choice) — and the client's language on every
+    /// other. A pinned language (`DITING_ACCEPT_LANGUAGE`,
+    /// `set_accept_language`) wins on all of them. A realm rebuild pins it;
+    /// [`super::Page::set_user_agent_override`] reads it when a language
+    /// override is taken off a live realm.
+    pub(super) fn navigator_language(&self) -> String {
+        let via_proxy = self.context.proxy_url.is_some()
+            || (diting_env::env_knobs::proxy_from_env().is_some()
+                && diting_env::env_knobs::should_auto_proxy(&self.url_string()));
+        if diting_net::client::wants_international_language(&self.url_string(), via_proxy)
+            && !self
+                .http_client
+                .lang_pinned
+                .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            return diting_net::client::INTERNATIONAL_LANGUAGE.to_string();
+        }
+        match self.http_client.accept_language.try_read() {
+            Ok(lang) => lang.clone(),
+            Err(_) => "zh-CN,zh;q=0.9".to_string(),
+        }
     }
 
     /// Capture the live realm's `sessionStorage` into `self.session_storage`

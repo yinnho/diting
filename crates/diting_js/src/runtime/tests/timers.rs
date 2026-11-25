@@ -1,4 +1,5 @@
 //! timer wheel/macrotask/watchdog/busy freeze/heap guard
+use super::super::EvalInput;
 use super::common::setup_runtime;
 
 /// Claim step 10d (docs/diting_runtime认领计划_20261017.md): the settle
@@ -459,7 +460,7 @@ async fn test_await_promise_sync_result_settles_without_event_loop_turn() {
         .unwrap();
     let t0 = std::time::Instant::now();
     let outcome = rt
-        .evaluate_remote_outcome("1 + 1", false, true, 5000, None)
+        .evaluate_remote_outcome("1 + 1", false, true, 5000, None, EvalInput::Forgiving)
         .await
         .unwrap();
     assert_eq!(outcome.info.value.unwrap(), serde_json::json!(2));

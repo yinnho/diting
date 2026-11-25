@@ -133,11 +133,31 @@ impl Page {
         self.preload_scripts = scripts;
     }
 
-    /// Append one preload script, keeping any already registered (CDP
-    /// `Page.addScriptToEvaluateOnNewDocument` is additive; our
-    /// `set_preload_scripts` replaces the whole group).
+    /// Register one more document-start script (CDP
+    /// `Page.addScriptToEvaluateOnNewDocument`). Both groups move: the
+    /// registered group is what the session recomputes the running group
+    /// from at its next navigation, and the running group is what runs if
+    /// the page navigates itself first — nothing recomputes that path.
     pub fn add_preload_script(&mut self, script: String) {
+        self.user_preload_scripts.push(script.clone());
         self.preload_scripts.push(script);
+    }
+
+    /// Drop the newest registration whose source is exactly `script` (CDP
+    /// `Page.removeScriptToEvaluateOnNewDocument`), from both groups.
+    /// False when no registration holds that source.
+    pub fn remove_preload_script(&mut self, script: &str) -> bool {
+        let dropped = match self.user_preload_scripts.iter().rposition(|s| s == script) {
+            Some(i) => {
+                self.user_preload_scripts.remove(i);
+                true
+            }
+            None => false,
+        };
+        if let Some(i) = self.preload_scripts.iter().rposition(|s| s == script) {
+            self.preload_scripts.remove(i);
+        }
+        dropped
     }
 
     pub(super) async fn execute_scripts(&mut self) {

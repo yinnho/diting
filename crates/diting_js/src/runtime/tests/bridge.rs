@@ -1,4 +1,5 @@
-//! evaluate/call_function 桥 + console→CDP + eval 耐心 + native_mark_weak
+//! evaluate/call_function 的等待面（耐心、预算、看门狗）+ console→CDP + native-mark 弱注册
+//! + JS 面快照。结果的形状在 `remote_object`。
 use super::super::*;
 use super::common::setup_runtime;
 
@@ -141,213 +142,6 @@ async fn eval_patience_spares_medium_chunks_past_the_mark() {
     assert_eq!(rt.watchdog_fired_total(), 0, "no wall, no fire");
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn test_call_function_on_no_args() {
-    let mut rt = setup_runtime("<html><head><title>Test</title></head><body></body></html>");
-    let result = rt
-        .call_function_on("() => document.title", None, &[], true)
-        .await
-        .unwrap();
-    assert_eq!(result.value.unwrap(), serde_json::json!("Test Page"));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_call_function_on_with_args() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let args = vec![
-        serde_json::json!({"value": 10}),
-        serde_json::json!({"value": 20}),
-    ];
-    let result = rt
-        .call_function_on("(a, b) => a + b", None, &args, true)
-        .await
-        .unwrap();
-    assert_eq!(result.value.unwrap().as_f64().unwrap() as i64, 30);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_call_function_on_with_string_args() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let args = vec![
-        serde_json::json!({"value": "hello"}),
-        serde_json::json!({"value": " world"}),
-    ];
-    let result = rt
-        .call_function_on("(a, b) => a + b", None, &args, true)
-        .await
-        .unwrap();
-    assert_eq!(result.value.unwrap(), serde_json::json!("hello world"));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_call_function_on_with_object_args() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let args = vec![serde_json::json!({"value": {"name": "test", "count": 5}})];
-    let result = rt
-        .call_function_on("(obj) => obj.name + ':' + obj.count", None, &args, true)
-        .await
-        .unwrap();
-    assert_eq!(result.value.unwrap(), serde_json::json!("test:5"));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_call_function_on_return_object() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let result = rt
-        .call_function_on("() => ({a: 1, b: 2})", None, &[], true)
-        .await
-        .unwrap();
-    assert_eq!(result.value.unwrap(), serde_json::json!({"a": 1, "b": 2}));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_call_function_on_object_ref_preserves_methods() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let result = rt
-        .call_function_on(
-            "() => ({ items: [1,2,3], getLen: function() { return this.items.length; } })",
-            None,
-            &[],
-            false,
-        )
-        .await
-        .unwrap();
-    let oid = result.object_id.unwrap();
-
-    let result2 = rt
-        .call_function_on(
-            "function() { return this.getLen(); }",
-            Some(&oid),
-            &[],
-            true,
-        )
-        .await
-        .unwrap();
-    assert_eq!(result2.value.unwrap().as_f64().unwrap() as i64, 3);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_evaluate_remote_detects_node() {
-    let mut rt = setup_runtime("<html><body><h1>Hello</h1></body></html>");
-    let result = rt
-        .evaluate_remote("document.querySelector('h1')", false, false)
-        .await
-        .unwrap();
-    assert_eq!(result.subtype.as_deref(), Some("node"));
-    assert_eq!(result.js_type, "object");
-    assert!(result.object_id.is_some());
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_evaluate_remote_detects_document() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let result = rt.evaluate_remote("document", false, false).await.unwrap();
-    assert_eq!(result.subtype.as_deref(), Some("node"));
-    assert_eq!(result.class_name, "HTMLDocument");
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_evaluate_remote_awaits_resolved_promise() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let result = rt
-        .evaluate_remote("Promise.resolve(42)", true, true)
-        .await
-        .unwrap();
-    assert_eq!(result.value.unwrap().as_f64().unwrap() as i64, 42);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_evaluate_remote_awaits_timer_promise() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let result = rt
-        .evaluate_remote(
-            "new Promise(resolve => setTimeout(() => resolve('done'), 1))",
-            true,
-            true,
-        )
-        .await
-        .unwrap();
-    assert_eq!(result.value.unwrap().as_str().unwrap(), "done");
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_evaluate_remote_awaits_async_function() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let result = rt
-        .evaluate_remote("(async () => 'async-ok')()", true, true)
-        .await
-        .unwrap();
-    assert_eq!(result.value.unwrap().as_str().unwrap(), "async-ok");
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_evaluate_remote_reports_promise_rejection() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let err = rt
-        .evaluate_remote("Promise.reject(new Error('boom'))", true, true)
-        .await
-        .unwrap_err();
-    assert!(err.contains("boom"));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_evaluate_outcome_reports_sync_throw() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let outcome = rt
-        .evaluate_remote_outcome(
-            "(() => { throw new Error('sync-boom') })()",
-            false,
-            false,
-            DEFAULT_AWAIT_BUDGET_MS,
-            None,
-        )
-        .await
-        .unwrap();
-    let exc = outcome.exception.expect("expected exception");
-    assert_eq!(exc.text, "Uncaught");
-    assert_eq!(exc.description, "Error: sync-boom");
-    assert_eq!(exc.class_name, "Error");
-    assert_eq!(outcome.info.subtype.as_deref(), Some("error"));
-    assert!(outcome.info.object_id.is_some());
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_evaluate_outcome_reports_sync_throw_by_value() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let outcome = rt
-        .evaluate_remote_outcome(
-            "(() => { throw new Error('bv-boom') })()",
-            true,
-            false,
-            DEFAULT_AWAIT_BUDGET_MS,
-            None,
-        )
-        .await
-        .unwrap();
-    let exc = outcome.exception.expect("expected exception");
-    assert_eq!(exc.text, "Uncaught");
-    assert_eq!(exc.description, "Error: bv-boom");
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_evaluate_outcome_reports_await_rejection() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let outcome = rt
-        .evaluate_remote_outcome(
-            "Promise.reject(new Error('boom'))",
-            true,
-            true,
-            DEFAULT_AWAIT_BUDGET_MS,
-            None,
-        )
-        .await
-        .unwrap();
-    let exc = outcome.exception.expect("expected exception");
-    assert_eq!(exc.text, "Uncaught (in promise)");
-    assert_eq!(exc.description, "Error: boom");
-    assert_eq!(exc.class_name, "Error");
-}
-
 // 0.4.1 taobao report problem 2: a script whose promise outlives the await
 // budget used to fall through to the never-assigned result slot and answer
 // HTTP 200 {result: null}. The settle deadline must now be an error — and
@@ -357,7 +151,14 @@ async fn test_evaluate_outcome_reports_await_rejection() {
 async fn test_evaluate_outcome_times_out_on_never_settling_promise() {
     let mut rt = setup_runtime("<html><body></body></html>");
     let err = rt
-        .evaluate_remote_outcome("new Promise(() => {})", true, true, 150, None)
+        .evaluate_remote_outcome(
+            "new Promise(() => {})",
+            true,
+            true,
+            150,
+            None,
+            EvalInput::Forgiving,
+        )
         .await
         .unwrap_err();
     assert!(err.contains("EVAL_TIMEOUT"), "got: {err}");
@@ -378,18 +179,25 @@ async fn test_evaluate_outcome_late_promise_lands_within_widened_budget() {
             true,
             DEFAULT_AWAIT_BUDGET_MS,
             None,
+            EvalInput::Forgiving,
         )
         .await
         .unwrap();
     assert_eq!(outcome.info.value.unwrap().as_str().unwrap(), "late-ok");
 }
 
+/// A declaration that spins pinned the page's thread inside V8, where no
+/// caller's timeout reaches: the call was never answered and the page was
+/// gone. An evaluate has always been cut by the watchdog at 10s; a call is
+/// now too — same wall, same words — and the page answers afterwards.
+/// Takes the wall's own 10s, like the page crate's evaluate twin.
 #[tokio::test(flavor = "current_thread")]
-async fn test_call_function_outcome_reports_throw() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let outcome = rt
+async fn test_call_function_spin_is_cut_by_the_watchdog() {
+    let mut rt = setup_runtime("<html><body>x</body></html>");
+    let began = std::time::Instant::now();
+    let err = rt
         .call_function_on_remote_outcome(
-            "() => { throw new Error('fn-boom') }",
+            "function () { while (1) {} }",
             None,
             &[],
             false,
@@ -397,104 +205,18 @@ async fn test_call_function_outcome_reports_throw() {
             None,
         )
         .await
-        .unwrap();
-    let exc = outcome.exception.expect("expected exception");
-    assert_eq!(exc.text, "Uncaught");
-    assert_eq!(exc.description, "Error: fn-boom");
-    assert_eq!(exc.class_name, "Error");
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_call_function_outcome_reports_await_rejection() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let outcome = rt
-        .call_function_on_remote_outcome(
-            "() => Promise.reject(new Error('async-fn-boom'))",
-            None,
-            &[],
-            true,
-            true,
-            None,
-        )
-        .await
-        .unwrap();
-    let exc = outcome.exception.expect("expected exception");
-    assert_eq!(exc.text, "Uncaught (in promise)");
-    assert_eq!(exc.description, "Error: async-fn-boom");
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_evaluate_frame_nid_restores_on_throw() {
-    let mut rt = setup_runtime(r#"<html><body><iframe id="f"></iframe></body></html>"#);
-    let nid = rt
-        .with_dom(|dom| dom.query_selector_all("#f").unwrap()[0].index() as u32)
-        .unwrap();
-    let outcome = rt
-        .evaluate_remote_outcome(
-            "(() => { throw new Error('frame-boom') })()",
-            false,
-            false,
-            DEFAULT_AWAIT_BUDGET_MS,
-            Some(nid),
-        )
-        .await
-        .unwrap();
+        .expect_err("a spin is cut, not waited out");
     assert_eq!(
-        outcome.exception.expect("expected exception").description,
-        "Error: frame-boom"
+        err, "eval timed out: script ran longer than 10s",
+        "the evaluate's words"
     );
-    let restored = rt
-        .evaluate(
-            "document.getElementById('f') !== null && !('__diting_frame_saved' in globalThis)",
-        )
-        .unwrap();
-    assert_eq!(
-        restored,
-        serde_json::json!(true),
-        "restore ran on the exception path"
+    assert!(
+        began.elapsed() >= std::time::Duration::from_secs(10),
+        "cut by the wall, not before it"
     );
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_call_function_frame_nid_scopes_this_arg() {
-    let mut rt = setup_runtime(r#"<html><body><iframe id="f"></iframe></body></html>"#);
-    let nid = rt
-        .with_dom(|dom| dom.query_selector_all("#f").unwrap()[0].index() as u32)
-        .unwrap();
-    rt.evaluate("globalThis.__probeIframe = document.getElementById('f')")
-        .unwrap();
-    let outcome = rt
-        .call_function_on_remote_outcome(
-            "() => document === __probeIframe.contentDocument",
-            None,
-            &[],
-            true,
-            false,
-            Some(nid),
-        )
-        .await
-        .unwrap();
-    assert_eq!(outcome.info.value, Some(serde_json::json!(true)));
-    let restored = rt
-        .evaluate("!('__diting_frame_saved' in globalThis)")
-        .unwrap();
-    assert_eq!(restored, serde_json::json!(true));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_call_function_on_dom_interaction() {
-    let mut rt = setup_runtime(r#"<div id="items"><span>A</span><span>B</span></div>"#);
-    let args = vec![serde_json::json!({"value": "span"})];
-    let result = rt
-        .call_function_on(
-            "(sel) => document.querySelectorAll(sel).length",
-            None,
-            &args,
-            true,
-        )
-        .await
-        .unwrap();
-    assert_eq!(result.value.unwrap().as_f64().unwrap() as i64, 2);
+    assert_eq!(rt.watchdog_fired_total(), 1, "the wall fired once");
+    let after = rt.evaluate("6 * 7").unwrap();
+    assert_eq!(after, serde_json::json!(42.0), "the page survives the cut");
 }
 
 #[test]
@@ -569,136 +291,6 @@ fn test_sequential_runtime_swap() {
             .unwrap();
         assert_eq!(title1b, serde_json::json!("Page1"));
     }
-}
-
-#[test]
-fn test_evaluate_multistatement() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let result = rt.evaluate("var x = 5; var y = 10; return x + y;").unwrap();
-    assert_eq!(result.as_f64().unwrap() as i64, 15);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_object_ref_as_argument() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let obj = rt
-        .call_function_on("() => ({ x: 42 })", None, &[], false)
-        .await
-        .unwrap();
-    let oid = obj.object_id.unwrap();
-
-    let args = vec![serde_json::json!({"objectId": oid})];
-    let result = rt
-        .call_function_on("(obj) => obj.x * 2", None, &args, true)
-        .await
-        .unwrap();
-    assert_eq!(result.value.unwrap().as_f64().unwrap() as i64, 84);
-}
-
-#[test]
-fn resolve_this_parses_numeric_node_ids_only() {
-    let rt = setup_runtime("<html><body></body></html>");
-    let good = rt.resolve_this(Some("node-7"));
-    assert!(good.contains("var nid = 7"), "{good}");
-    // Anything after the digits must not ride along as script source.
-    for bad in [
-        "node-1; globalThis.__injected = true",
-        "node-",
-        "node-x",
-        "node-1.5",
-    ] {
-        assert_eq!(rt.resolve_this(Some(bad)), "globalThis", "{bad}");
-    }
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn adversarial_object_id_does_not_inject_script() {
-    let mut rt = setup_runtime("<html><body></body></html>");
-    let payload = "node-1; globalThis.__injected = 42";
-    let result = rt
-        .call_function_on(
-            "function() { return typeof globalThis.__injected; }",
-            Some(payload),
-            &[],
-            true,
-        )
-        .await
-        .unwrap();
-    assert_eq!(result.value.unwrap(), serde_json::json!("undefined"));
-    let probe = rt
-        .call_function_on(
-            "function() { return globalThis.__injected === undefined; }",
-            None,
-            &[],
-            true,
-        )
-        .await
-        .unwrap();
-    assert_eq!(probe.value.unwrap(), serde_json::json!(true));
-}
-
-#[test]
-fn evaluate_accepts_statement_scripts_with_completion_value() {
-    // CDP Runtime.evaluate semantics: the input is a script — statements
-    // are legal and the completion value of the last statement comes
-    // back. The old expression-only wrap turned any statement syntax
-    // into an uncatchable `Unexpected token ';'`.
-    let mut rt = setup_runtime("<html><body></body></html>");
-    assert_eq!(
-        rt.evaluate("var x = 2; x * 3").unwrap(),
-        serde_json::json!(6.0)
-    );
-    assert_eq!(
-        rt.evaluate("try { JSON.parse('x') } catch(e) { 'caught:' + e.name }")
-            .unwrap(),
-        serde_json::json!("caught:SyntaxError")
-    );
-    // try/catch is itself statement syntax — it must parse.
-    assert_eq!(
-        rt.evaluate("typeof eval").unwrap(),
-        serde_json::json!("function")
-    );
-}
-
-#[test]
-fn evaluate_supports_function_body_style_top_level_return() {
-    // Legacy engine contract: scripts written as function bodies with a
-    // top-level `return` (illegal in script position) still evaluate via
-    // the Function-body fallback.
-    let mut rt = setup_runtime("<html><body><span id='h'>x</span></body></html>");
-    assert_eq!(
-        rt.evaluate(
-            r#"
-                const el = document.getElementById('h');
-                return el ? el.tagName : null;
-                "#
-        )
-        .unwrap(),
-        serde_json::json!("SPAN")
-    );
-}
-
-#[test]
-fn evaluate_bare_object_literal_returns_object() {
-    // Pasted JSON evaluates as an object literal (DevTools console
-    // behavior), not as a block whose completion value is undefined.
-    let mut rt = setup_runtime("<html><body></body></html>");
-    assert_eq!(
-        rt.evaluate(r#"{"k": "v", "n": 1}"#).unwrap(),
-        serde_json::json!({"k": "v", "n": 1})
-    );
-}
-
-#[test]
-fn test_page_content_puppeteer_pattern() {
-    let mut rt = setup_runtime("<!DOCTYPE html><html><head></head><body><p>Test</p></body></html>");
-    let result = rt.evaluate(
-            "(function() { let retVal = ''; if (document.doctype) retVal = new XMLSerializer().serializeToString(document.doctype); if (document.documentElement) retVal += document.documentElement.outerHTML; return retVal; })()"
-        ).unwrap();
-    let html = result.as_str().unwrap();
-    assert!(html.starts_with("<!DOCTYPE html>"));
-    assert!(html.contains("<html>"));
-    assert!(html.contains("<p>Test</p>"));
 }
 
 /// #110: the meta_code watchdog used to be a hard-coded 10s while the

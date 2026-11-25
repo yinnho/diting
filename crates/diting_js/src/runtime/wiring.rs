@@ -302,10 +302,12 @@ impl JsRuntime {
     }
 
     /// Pin or clear the page locale (`Emulation.setLocaleOverride`, #153).
-    /// The bootstrap's `__ditingLangList` reads `globalThis.__diting_locale`
-    /// per call — the pin outranks the persona `__diting_lang`, so this
-    /// takes effect on the live realm without destroying the persona or
-    /// touching process-global ICU.
+    /// The bootstrap's `__ditingLocaleArg` reads `globalThis.__diting_locale`
+    /// per call — the pin outranks the language `__ditingLangList` derives,
+    /// so this takes effect on the live realm without destroying the persona
+    /// or touching process-global ICU. It moves Intl's default locale and
+    /// nothing else: navigator.language reads `__diting_lang`
+    /// (`set_navigator_language`), as in Chrome where the two are separate.
     pub fn set_locale(&mut self, locale: Option<&str>) {
         let source = match locale.filter(|l| !l.is_empty()) {
             Some(locale) => {

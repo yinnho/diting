@@ -10,7 +10,7 @@ use std::sync::Arc;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine as _;
 
-use super::Page;
+use super::{IdentityDefaults, Page};
 
 /// One recorded network exchange (CDP `Network.requestWillBeSent` /
 /// `responseReceived` shape). Recorded for every document + subresource
@@ -406,47 +406,102 @@ impl Page {
     ///
     /// `lang` carries the override's `acceptLanguage`, `platform` its
     /// `platform` field (navigator.platform only — obscura #777 class).
-    /// Each sent field applies independently — a locale-only call must not
-    /// touch the UA and vice versa (Chrome's only-sent-fields semantics).
-    /// The language moves navigator.language immediately and the transport
-    /// headers, but never re-pins the ICU default (process-global, sticky
-    /// per-isolate — see [`diting_js::runtime`]).
+    /// Each sent field applies on its own — a locale-only call must not
+    /// touch the UA and vice versa (Chrome's only-sent-fields semantics) —
+    /// and one sent empty puts the page's own value back, as in Chrome: an
+    /// empty `ua` is the UA the transports and the page had before the
+    /// first override, a `lang` left out or empty the language they had,
+    /// its pin included. The language moves navigator.language immediately
+    /// and the transport headers, but never re-pins the ICU default
+    /// (process-global, sticky per-isolate — see [`diting_js::runtime`]).
+    /// A `setLocaleOverride` pin stands elsewhere (Intl's default locale),
+    /// so there is nothing to put back on top of it here.
+    ///
+    /// `platform` is the one field that replaces: left out or empty puts
+    /// navigator.platform back on what the UA says, as it does in Chrome.
+    /// The pin rides every realm rebuild after it.
     pub async fn set_user_agent_override(
         &mut self,
         ua: &str,
         lang: Option<&str>,
         platform: Option<&str>,
     ) {
-        if !ua.is_empty() {
-            self.http_client.set_user_agent(ua).await;
-            if let Some(ref stealth) = self.stealth_client {
-                stealth.set_user_agent(ua).await;
-            }
-            if let Some(ref mut rt) = self.js {
-                rt.set_user_agent(ua);
-            }
-            // set_user_agent republished the persona viewport; put the
-            // override back on top of it.
-            self.apply_viewport_override();
-            self.apply_emulated_media();
-            self.apply_touch_override();
+        let defaults = self.identity_defaults().await;
+        // An empty UA is each transport's own again.
+        let own = ua.is_empty();
+        let plain = if own { &defaults.user_agent.0 } else { ua };
+        let stealth = match (own, defaults.user_agent.1.as_deref()) {
+            (true, Some(ua)) => ua,
+            _ => plain,
+        };
+        self.http_client.set_user_agent(plain).await;
+        if let Some(ref client) = self.stealth_client {
+            client.set_user_agent(stealth).await;
         }
-        if let Some(lang) = lang.filter(|l| !l.is_empty()) {
-            self.http_client.set_accept_language(lang).await;
-            if let Some(ref stealth) = self.stealth_client {
-                stealth.set_accept_language(lang).await;
-            }
-            if let Some(ref mut rt) = self.js {
-                rt.set_navigator_language(lang);
-            }
-            // The explicit locale pin outranks the UA's acceptLanguage —
-            // put it back on top, same posture as the viewport pin above.
-            self.apply_locale_override();
+        if let Some(ref mut rt) = self.js {
+            rt.set_user_agent(plain);
         }
-        if let Some(platform) = platform.filter(|p| !p.is_empty()) {
-            if let Some(ref mut rt) = self.js {
-                rt.set_navigator_platform(platform);
+        // set_user_agent republished the persona viewport; put the
+        // override back on top of it.
+        self.apply_viewport_override();
+        self.apply_emulated_media();
+        self.apply_touch_override();
+
+        // A language left out or empty is the page's own again, pin
+        // included.
+        let language = match lang.filter(|lang| !lang.is_empty()) {
+            Some(lang) => (lang.to_string(), true),
+            None => defaults.language.clone(),
+        };
+        self.http_client
+            .restore_accept_language(&language.0, language.1)
+            .await;
+        if let Some(ref client) = self.stealth_client {
+            client
+                .restore_accept_language(&language.0, language.1)
+                .await;
+        }
+        // Unpinned, the page speaks what its route calls for, as a new
+        // realm does.
+        let spoken = if language.1 {
+            language.0.clone()
+        } else {
+            self.navigator_language()
+        };
+        if let Some(ref mut rt) = self.js {
+            rt.set_navigator_language(&spoken);
+        }
+        self.platform_override = platform.filter(|p| !p.is_empty()).map(str::to_string);
+        if let Some(ref mut rt) = self.js {
+            match self.platform_override.as_deref() {
+                Some(platform) => rt.set_navigator_platform(platform),
+                // An empty pin: the bootstrap's getter reads it as none.
+                None => rt.set_navigator_platform(""),
             }
         }
+    }
+
+    /// What an empty `userAgent` or `acceptLanguage` puts back: the page's
+    /// identity as it stood before its first override, taken at that call.
+    async fn identity_defaults(&mut self) -> IdentityDefaults {
+        if let Some(defaults) = &self.identity_defaults {
+            return defaults.clone();
+        }
+        let plain = self.http_client.user_agent.read().await.clone();
+        let stealth = match &self.stealth_client {
+            Some(client) => Some(client.user_agent.read().await.clone()),
+            None => None,
+        };
+        let language = self.http_client.accept_language.read().await.clone();
+        let pinned = self
+            .http_client
+            .lang_pinned
+            .load(std::sync::atomic::Ordering::Relaxed);
+        let defaults = IdentityDefaults {
+            user_agent: (plain, stealth),
+            language: (language, pinned),
+        };
+        self.identity_defaults = Some(defaults.clone());
+        defaults
     }
 }

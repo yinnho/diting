@@ -991,6 +991,15 @@ impl StealthHttpClient {
             .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
+    /// Put the language back the way the caller found it: the string and
+    /// the pin move together, so a client that followed its route follows
+    /// it again.
+    pub async fn restore_accept_language(&self, lang: &str, pinned: bool) {
+        *self.accept_language.write().await = lang.to_string();
+        self.lang_pinned
+            .store(pinned, std::sync::atomic::Ordering::Relaxed);
+    }
+
     /// Copy the language without pinning — the transport sync out of
     /// `HttpClient` (`synced_stealth_transport`) must not freeze the
     /// route-following behavior its own source hasn't pinned.

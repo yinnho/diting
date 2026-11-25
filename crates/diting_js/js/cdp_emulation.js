@@ -53,8 +53,9 @@ globalThis.__diting_setPersona = function() {
 // Viewport override for session_viewport / CDP setDeviceMetricsOverride.
 // The persona stays the identity of the machine; the override is the window
 // the page is looked at through — screen keeps the persona while
-// innerWidth/innerHeight/visualViewport/outer* move, which is what Chrome's
-// device emulation does too. The mobile flag swaps the matchMedia pointer/
+// innerWidth/innerHeight/visualViewport/outer* move. The CDP path puts its
+// own panel on top right after: Rust's set_screen_override, landing through
+// screenApply (screen_viewport). The mobile flag swaps the matchMedia pointer/
 // hover answers to coarse/none: a phone-sized viewport answering
 // `pointer: fine` is a contradiction a fingerprint script can cross-check
 // against maxTouchPoints, so those move together.

@@ -27,6 +27,9 @@ async fn test_evaluate_frame_nid_scopes_to_iframe_and_restores() {
                 false,
                 DEFAULT_AWAIT_BUDGET_MS,
                 Some(nid),
+
+            EvalInput::Forgiving,
+
             )
             .await
             .unwrap();
@@ -40,6 +43,9 @@ async fn test_evaluate_frame_nid_scopes_to_iframe_and_restores() {
                 true,
                 DEFAULT_AWAIT_BUDGET_MS,
                 Some(nid),
+
+            EvalInput::Forgiving,
+
             )
             .await
             .unwrap();
@@ -59,7 +65,14 @@ async fn test_evaluate_frame_nid_scopes_to_iframe_and_restores() {
 async fn test_evaluate_frame_nid_unknown_iframe_errors() {
     let mut rt = setup_runtime("<html><body></body></html>");
     let err = rt
-        .evaluate_remote_outcome("1 + 1", true, false, DEFAULT_AWAIT_BUDGET_MS, Some(999_999))
+        .evaluate_remote_outcome(
+            "1 + 1",
+            true,
+            false,
+            DEFAULT_AWAIT_BUDGET_MS,
+            Some(999_999),
+            EvalInput::Forgiving,
+        )
         .await
         .unwrap_err();
     assert!(err.contains("content not ready"), "got: {err}");
@@ -117,7 +130,14 @@ async fn frame_eval_into_detached_iframe_is_refused_and_fires_nothing() {
 
     // Attached: the frame answers.
     let ok = rt
-        .evaluate_remote_outcome("1 + 1", true, false, DEFAULT_AWAIT_BUDGET_MS, Some(nid))
+        .evaluate_remote_outcome(
+            "1 + 1",
+            true,
+            false,
+            DEFAULT_AWAIT_BUDGET_MS,
+            Some(nid),
+            EvalInput::Forgiving,
+        )
         .await
         .unwrap();
     assert_eq!(ok.info.value, Some(serde_json::json!(2)));
@@ -133,6 +153,7 @@ async fn frame_eval_into_detached_iframe_is_refused_and_fires_nothing() {
             true,
             DEFAULT_AWAIT_BUDGET_MS,
             Some(nid),
+            EvalInput::Forgiving,
         )
         .await
         .unwrap_err();
@@ -174,6 +195,7 @@ async fn teardown_with_retained_detached_iframes_does_not_crash() {
                     false,
                     DEFAULT_AWAIT_BUDGET_MS,
                     Some(nid),
+                    EvalInput::Forgiving,
                 )
                 .await
                 .unwrap();

@@ -95,8 +95,9 @@ fn strip_keyword<'a>(condition: &'a str, keyword: &str) -> Option<&'a str> {
     }
 }
 
-/// Split on a top-level (depth-0, outside parens) boolean keyword.
-fn split_top_level_keyword(condition: &str, keyword: &str) -> Option<Vec<String>> {
+/// Split on a top-level (depth-0, outside parens) boolean keyword —
+/// `@media`'s `and`-chains are cut here too.
+pub(crate) fn split_top_level_keyword(condition: &str, keyword: &str) -> Option<Vec<String>> {
     let bytes = condition.as_bytes();
     let kw = keyword.as_bytes();
     let mut parts = Vec::new();

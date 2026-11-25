@@ -86,6 +86,9 @@ mod net_xhr;
 mod performance;
 
 #[cfg(test)]
+mod remote_object;
+
+#[cfg(test)]
 mod scripts;
 
 #[cfg(test)]
