@@ -168,7 +168,7 @@ fn page_side(page: &mut Page, params: &Value) -> Option<Value> {
 
 /// Playwright's setContent matches `console.debug` only. `dialog` is a
 /// session-console record, not a page console API call.
-fn console_type(level: &str) -> Option<&'static str> {
+pub(super) fn console_type(level: &str) -> Option<&'static str> {
     Some(match level {
         "dialog" => return None,
         "warn" | "warning" => "warning",
@@ -197,6 +197,65 @@ const EVALUATE_UNREAD: &[(&str, Kind)] = &[
     ("replMode", Kind::Bool),
     ("allowUnsafeEvalBlockedByCSP", Kind::Bool),
 ];
+
+/// What `Runtime.evaluate` asks the engine for, already read off the
+/// wire — the face's translation of the params into IR vocabulary.
+pub(super) struct EvalArgs {
+    pub script: String,
+    pub await_promise: bool,
+    pub return_by_value: bool,
+}
+
+/// `Runtime.evaluate`'s params, checked the way Chrome checks them —
+/// everything up to the engine call, which is the session's
+/// `EvalRemote` command now.
+pub(super) fn eval_params(params: &Value) -> Result<EvalArgs, Failure> {
+    const METHOD: &str = "Runtime.evaluate";
+    let expression = string(params, "expression")?;
+    kinds(params, RUNTIME_UNREAD)?;
+    kinds(params, EVALUATE_UNREAD)?;
+    kinds(params, &[("timeout", Kind::Number)])?;
+    let return_by_value = by_value(METHOD, params)?;
+    let await_promise = flag(params, "awaitPromise")?;
+    no_such_flag(
+        METHOD,
+        params,
+        &[
+            ("includeCommandLineAPI", "there is no command line API"),
+            (
+                "throwOnSideEffect",
+                "nothing checks a script for side effects",
+            ),
+        ],
+    )?;
+    let context = optional_integer(params, "contextId")?;
+    let unique = optional_string(params, "uniqueContextId")?;
+    if context.is_some() && unique.is_some() {
+        return Err(invalid(
+            "contextId and uniqueContextId are mutually exclusive",
+        ));
+    }
+    live_context(params, context, unique)?;
+    Ok(EvalArgs {
+        script: expression.to_string(),
+        await_promise,
+        return_by_value,
+    })
+}
+
+/// The wire answer for an `EvalRemote` outcome — what `settled()`
+/// builds, with the by-value read already done on the session thread.
+/// `pre_info` is the thrown value's info from before that read, which
+/// is what `exceptionDetails` shows.
+pub(super) fn eval_result(
+    outcome: EvalOutcome,
+    pre_info: Option<RemoteObjectInfo>,
+) -> Result<Value, Failure> {
+    let thrown = outcome.exception.as_ref().map(|_| {
+        pre_info.map_or_else(|| remote_object(&outcome.info), |info| remote_object(&info))
+    });
+    Ok(outcome_result(outcome, thrown))
+}
 
 async fn evaluate(page: &mut Page, params: &Value) -> Result<Value, Failure> {
     const METHOD: &str = "Runtime.evaluate";
@@ -298,7 +357,7 @@ fn serialize_by_value(js: &mut JsRuntime, outcome: &mut EvalOutcome) -> Result<(
 /// What the engine could not do, as Chrome says it. A value the engine
 /// could not bring back comes in Chrome's own words, and the one Chrome
 /// gives a code of its own is the getter that threw.
-fn engine_failure(err: String) -> Failure {
+pub(super) fn engine_failure(err: String) -> Failure {
     match err.as_str() {
         "Internal error" => Failure::Internal(err),
         _ => Failure::from(err),

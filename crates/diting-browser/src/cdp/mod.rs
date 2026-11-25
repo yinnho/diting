@@ -904,6 +904,45 @@ async fn forward(
             fields.insert("__ditingContexts".into(), json!(contexts));
         }
     }
+    // `Runtime.evaluate` is an IR command now, not a Cdp passthrough: the
+    // params are read here, the engine work happens on the session thread
+    // as `EvalRemote`, and the wire shape is wrapped back here.
+    if method == "Runtime.evaluate" {
+        let args = runtime::eval_params(&params)?;
+        let (outcome, pre_info, calls, write_nav) =
+            send_command(&engine, |reply| SessionCommand::EvalRemote {
+                script: args.script,
+                await_promise: args.await_promise,
+                return_by_value: args.return_by_value,
+                timeout_ms: None,
+                reply,
+            })
+            .await
+            .map_err(|err| runtime::engine_failure(session_msg(err)))?;
+        let value = runtime::eval_result(outcome, pre_info)?;
+        let console: Vec<Value> = calls
+            .into_iter()
+            .filter_map(|(level, text, url)| {
+                let kind = runtime::console_type(&level)?;
+                Some(json!({ "type": kind, "text": text, "url": url }))
+            })
+            .collect();
+        if !console.is_empty() || write_nav {
+            let context_id = params
+                .get("contextId")
+                .or_else(|| params.get("executionContextId"))
+                .and_then(|v| v.as_i64())
+                .filter(|id| *id > 0);
+            let side = json!({
+                "console": console,
+                "writeNav": write_nav,
+                "contextId": context_id,
+            });
+            let hub = HUB.lock().await;
+            side_frames(&hub, local, session, &side, out);
+        }
+        return Ok(value);
+    }
     let mut result = send_command(&engine, |reply| SessionCommand::Cdp {
         method: method.to_string(),
         params,

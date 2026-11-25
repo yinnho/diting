@@ -2,6 +2,7 @@
 //! sends down each session's channel) and the reply/response types that
 //! cross back. Split from the session module root (ARCHITECTURE.md P2);
 //! behavior unchanged.
+use diting::diting_js::runtime::{EvalOutcome, RemoteObjectInfo};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::oneshot;
@@ -253,6 +254,34 @@ pub enum SessionCommand {
     /// `{verdict, url, facts, signals, elapsed_ms[, account][, handoff]}`.
     Verdict {
         reply: oneshot::Sender<Result<String, String>>,
+    },
+    /// A script run with the remote-object machinery behind it — the
+    /// shape `Runtime.evaluate` needs and plain `Eval` cannot carry:
+    /// the reply is the outcome itself (handle or value, exception
+    /// beside it), and the by-value read already done. Wire wrapping —
+    /// RemoteObject fields, exceptionDetails — is the face's.
+    EvalRemote {
+        script: String,
+        await_promise: bool,
+        return_by_value: bool,
+        timeout_ms: Option<u64>,
+        /// The settled outcome, plus — only when `return_by_value` met an
+        /// exception — the info as it was before the by-value read, so the
+        /// face can still show the thrown handle the way Chrome does. The
+        /// last two are the page-side drain a CDP command owes its face:
+        /// console calls (level, text, url) and whether a document.write
+        /// asked for a load.
+        reply: oneshot::Sender<
+            Result<
+                (
+                    EvalOutcome,
+                    Option<RemoteObjectInfo>,
+                    Vec<(String, String, String)>,
+                    bool,
+                ),
+                String,
+            >,
+        >,
     },
     /// A CDP command that has to run on the session thread, where the page
     /// lives: `Runtime.*` / `Input.*` / `DOM.*` on the isolate (object ids
