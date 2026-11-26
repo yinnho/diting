@@ -81,7 +81,8 @@ impl SessionActor {
         if self.console_subs.is_empty() {
             return;
         }
-        if !self.page.inner.has_pending_navigation() {
+        let history = self.page.inner.has_pending_history_jump();
+        if !history && !self.page.inner.has_pending_navigation() {
             self.follow_same_document_move();
             return;
         }
@@ -97,7 +98,11 @@ impl SessionActor {
                 None
             }
         };
-        let event = SessionEvent::Navigated(Box::new(PageNavigation { landed, rows }));
+        let event = SessionEvent::Navigated(Box::new(PageNavigation {
+            landed,
+            history,
+            rows,
+        }));
         self.console_subs
             .retain(|sub| sub.send(event.clone()).is_ok());
     }
