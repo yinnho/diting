@@ -1048,6 +1048,14 @@ impl Page {
         }
         .map_err(|e| {
             self.lifecycle = LifecycleState::Failed;
+            // The document never came: the log says so, as a browser's does.
+            self.record_failed_network_event(
+                url.as_str(),
+                method,
+                "Document",
+                e.to_string(),
+                e.failure(),
+            );
             PageError::from(e)
         })?;
 
