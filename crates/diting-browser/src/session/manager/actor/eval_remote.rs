@@ -245,6 +245,30 @@ fn dead_argument_word(state: ObjectIdState) -> Option<&'static str> {
     }
 }
 
+impl SessionActor {
+    /// `SessionCommand::ReleaseObject`: a handle the page does not hold
+    /// is refused, as in Chrome — nothing was there to let go.
+    pub(super) async fn on_release_object(
+        &mut self,
+        object_id: String,
+        parts: HandleParts,
+        reply: oneshot::Sender<Result<(), String>>,
+    ) {
+        let Some(js) = self.page.inner.js.as_mut() else {
+            let _ = reply.send(Err("page has no JS runtime".to_string()));
+            return;
+        };
+        let state = handle_state_of(&parts, js);
+        let _ = reply.send(match dead_handle_word(state) {
+            Some(dead) => Err(dead.to_string()),
+            None => {
+                js.release_object(&object_id);
+                Ok(())
+            }
+        });
+    }
+}
+
 /// `returnByValue` — the engine half of what the CDP face's
 /// `serialize_by_value` does: read the held object by value, let the
 /// handle go unless the exception still names its slot, and leave the

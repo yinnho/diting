@@ -683,6 +683,13 @@ fn arguments(params: &Value) -> Result<Vec<Value>, Failure> {
     Ok(list.clone())
 }
 
+/// `Runtime.releaseObject`'s params — the id and its pre-read parts for
+/// the `ReleaseObject` IR command.
+pub(super) fn release_params(params: &Value) -> Result<(String, HandleParts), Failure> {
+    let id = string(params, "objectId")?;
+    Ok((id.to_string(), objects::handle_parts(id)))
+}
+
 /// `Runtime.releaseObject`. A handle the page does not hold is refused, as
 /// in Chrome: nothing was there to let go.
 fn release(page: &mut Page, params: &Value) -> Result<Value, Failure> {
