@@ -319,6 +319,14 @@ pub enum SessionCommand {
         arg_ids: Vec<Option<HandleParts>>,
         reply: RemoteReply,
     },
+    /// `Runtime.releaseObject`: let a held handle go. The id crosses as
+    /// the wire spelled it (the engine's own key) plus its
+    /// [`HandleParts`] for the dead-handle check on the session thread.
+    ReleaseObject {
+        object_id: String,
+        parts: HandleParts,
+        reply: oneshot::Sender<Result<(), String>>,
+    },
     /// A CDP command that has to run on the session thread, where the page
     /// lives: `Runtime.*` / `Input.*` / `DOM.*` on the isolate (object ids
     /// stay live), and the page-level `Emulation.*` / `Page.*` / `Network.*`

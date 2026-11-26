@@ -986,6 +986,19 @@ async fn forward(
         }
         return Ok(value);
     }
+    // `Runtime.releaseObject` — the last Runtime-domain command on the
+    // IR: the id and its parts go down, the engine lets the handle go.
+    if method == "Runtime.releaseObject" {
+        let (object_id, parts) = runtime::release_params(&params)?;
+        send_command(&engine, |reply| SessionCommand::ReleaseObject {
+            object_id,
+            parts,
+            reply,
+        })
+        .await
+        .map_err(|err| runtime::engine_failure(session_msg(err)))?;
+        return Ok(json!({}));
+    }
     let mut result = send_command(&engine, |reply| SessionCommand::Cdp {
         method: method.to_string(),
         params,
