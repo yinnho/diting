@@ -1031,6 +1031,11 @@ async fn forward(
         }
         return Ok(json!({}));
     }
+    // The seven `Emulation.*` setters — params become an `EmulateOp`
+    // here, the session thread pins the page state.
+    if method.starts_with("Emulation.") {
+        return emulation::emulate_run(&engine, method, &params).await;
+    }
     let mut result = send_command(&engine, |reply| SessionCommand::Cdp {
         method: method.to_string(),
         params,
