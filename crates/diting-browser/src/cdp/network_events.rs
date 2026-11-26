@@ -2,8 +2,11 @@
 //! as one finished row; Chrome tells it in steps, so each row is told as
 //! `requestWillBeSent`, then `responseReceived` and `loadingFinished` —
 //! or `loadingFailed` when no response came — to every session that has
-//! `Network` on. Times are the row's own, not live ones, and a redirect
-//! is told by where it landed, not hop by hop.
+//! `Network` on. Times are the row's own, not live ones. A redirect chain
+//! is told hop by hop, as Chrome does (`redir-probe.cjs`): one
+//! `requestWillBeSent` per hop under one `requestId`, each hop after the
+//! first carrying the response that sent it onward, and only the final
+//! hop answering with `responseReceived`/`loadingFinished`.
 
 use diting::diting_browser::page::NetworkEvent;
 use diting::diting_net::NetFailure;
@@ -149,14 +152,44 @@ pub(super) fn network_frames(
                 || params.clone(),
             );
         };
-        send(
-            "Network.requestWillBeSent",
-            json!({
+        // A hop of the chain: the first is the request as it went out,
+        // each next one is what the previous hop's redirect sent for, and
+        // carries that response. All share one `requestId`, as Chrome's do.
+        let hops: Vec<(&str, Option<Value>)> = if row.redirects.is_empty() {
+            vec![(row.url.as_str(), None)]
+        } else {
+            let mut hops = vec![(row.url.as_str(), None)];
+            for (i, hop) in row.redirects.iter().enumerate() {
+                let from = if i == 0 {
+                    row.url.as_str()
+                } else {
+                    row.redirects[i - 1].url.as_str()
+                };
+                let redirect_response = json!({
+                    "url": from,
+                    "status": hop.status,
+                    "statusText": "",
+                    "headers": {},
+                    "mimeType": "",
+                    "fromDiskCache": false,
+                    "fromServiceWorker": false,
+                    "fromPrefetchCache": false,
+                    "connectionReused": false,
+                    "connectionId": 0,
+                    "encodedDataLength": 0,
+                    "securityState": "unknown",
+                });
+                hops.push((hop.url.as_str(), Some(redirect_response)));
+            }
+            hops
+        };
+        for (hop_url, redirect_response) in hops {
+            let mut frame = json!({
                 "requestId": row.request_id,
                 "loaderId": loader,
                 "documentURL": page.url,
                 "request": {
-                    "url": row.url,
+                    "url": hop_url,
                     "method": row.method,
                     "headers": headers(&row.headers),
                     "initialPriority": "High",
@@ -170,8 +203,12 @@ pub(super) fn network_frames(
                 "type": kind,
                 "frameId": target,
                 "hasUserGesture": false,
-            }),
-        );
+            });
+            if let Some(redirect_response) = redirect_response {
+                frame["redirectResponse"] = redirect_response;
+            }
+            send("Network.requestWillBeSent", frame);
+        }
         if row.error.is_some() || row.status == 0 {
             let why = failed(row.failure.as_ref().unwrap_or(&NetFailure::Other));
             let mut params = json!({

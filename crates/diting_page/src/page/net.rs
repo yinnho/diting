@@ -196,6 +196,19 @@ impl Page {
         request_id
     }
 
+    /// Fill the hops of the row just filed: a redirect chain is known
+    /// only when the final response lands, after the row exists.
+    pub(super) fn fill_redirect_trail(
+        &mut self,
+        final_url: String,
+        redirects: Vec<diting_net::RedirectHop>,
+    ) {
+        if let Some(row) = self.network_events.last_mut() {
+            row.final_url = final_url;
+            row.redirects = redirects;
+        }
+    }
+
     /// File a request that got no response: the document a navigation
     /// asked for and never received. A browser's network log shows these
     /// as failed rows, and so does this one — `error` is what happened in
