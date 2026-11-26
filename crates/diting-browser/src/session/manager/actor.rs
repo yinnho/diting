@@ -419,10 +419,6 @@ pub(super) fn session_thread(
                         SessionCommand::Wait { selector, predicate, timeout_ms, reply } => actor.on_wait(selector, predicate, timeout_ms, reply).await,
                         SessionCommand::Challenges { reply } => actor.on_challenges(reply).await,
                         SessionCommand::Verdict { reply } => actor.on_verdict(reply).await,
-                        SessionCommand::Cdp { method, params, reply } => {
-                            let init_scripts = &mut actor.cdp_init_scripts;
-                            crate::cdp::runtime::dispatch(&mut actor.page, init_scripts, method, params, reply).await
-                        }
                         SessionCommand::Close { reply } => {
                             let _ = reply.send(());
                             break;

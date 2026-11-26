@@ -68,15 +68,13 @@ use std::sync::atomic::Ordering;
 
 use serde_json::{json, Value};
 
-use crate::page::{Page, INTERACTION_EVAL_TIMEOUT};
-
 use crate::session::{send_command, EmulateOp, PageOp, SessionCommand};
 
 use super::params::{
     boolean, integer, invalid, invalid_params, kinds, number, object, optional, optional_boolean,
     optional_integer, optional_number, optional_string, string, texts, Kind,
 };
-use super::runtime::{no_such_flag, AWAIT_MS};
+use super::runtime::no_such_flag;
 use super::Failure;
 
 const METRICS: &str = "Emulation.setDeviceMetricsOverride";
@@ -86,65 +84,6 @@ const MAX_METRIC: i64 = 10_000_000;
 /// Read from the open document: `Page.getLayoutMetrics` answers with what
 /// the page sees, not with what the bridge was last told. Playwright builds
 /// every screenshot's clip from these numbers.
-const LAYOUT_METRICS: &str = "(function(){\
-    var vv = window.visualViewport || {};\
-    var root = document.documentElement || document.body;\
-    var iw = window.innerWidth || 0, ih = window.innerHeight || 0;\
-    var sx = window.scrollX || 0, sy = window.scrollY || 0;\
-    return {\
-        iw: iw, ih: ih, sx: sx, sy: sy,\
-        vw: vv.width || iw, vh: vv.height || ih,\
-        ox: vv.offsetLeft || 0, oy: vv.offsetTop || 0, scale: vv.scale || 1,\
-        cw: Math.max(iw, root ? root.scrollWidth || 0 : 0),\
-        ch: Math.max(ih, root ? root.scrollHeight || 0 : 0)\
-    };\
-})()";
-
-/// Run one page-level command. `init_scripts` is the session's
-/// `Page.addScriptToEvaluateOnNewDocument` registry, (identifier, source).
-pub(crate) async fn handle(
-    page: &mut Page,
-    init_scripts: &mut Vec<(String, String)>,
-    method: &str,
-    params: &Value,
-) -> Result<Value, Failure> {
-    match method {
-        op @ ("Emulation.setEmulatedMedia"
-        | "Emulation.setTouchEmulationEnabled"
-        | "Emulation.setTimezoneOverride"
-        | "Emulation.setLocaleOverride"
-        | "Emulation.setUserAgentOverride"
-        | "Emulation.setDeviceMetricsOverride"
-        | "Emulation.clearDeviceMetricsOverride") => {
-            let op = emulate_op(op, params)?;
-            apply_op(page, op).await;
-            Ok(json!({}))
-        }
-        "Page.addScriptToEvaluateOnNewDocument" => {
-            add_init_script(page, init_scripts, params).await
-        }
-        "Page.removeScriptToEvaluateOnNewDocument" => {
-            remove_init_script(page, init_scripts, params)
-        }
-        "Page.getLayoutMetrics" => layout_metrics(page),
-        "Network.setBlockedURLs" => {
-            // Left out, the list is emptied — nothing blocked.
-            let urls = texts(params, "urls")?
-                .unwrap_or_default()
-                .into_iter()
-                .map(str::to_string)
-                .collect();
-            page.inner.set_blocked_urls(urls);
-            Ok(json!({}))
-        }
-        "Network.setExtraHTTPHeaders" => extra_headers(page, params).await,
-        // Unreachable from the bridge: `cdp::PAGE_CHANNEL` is the only way
-        // here, and it lists every arm above.
-        other => Err(Failure::from(format!(
-            "'{other}' has no handler on the session thread"
-        ))),
-    }
-}
 
 /// `Emulation.setEmulatedMedia`: every call replaces the whole set, as in
 /// Chrome — a `media` left out is back to `screen`, `features` left out is
@@ -183,67 +122,6 @@ fn emulate_op(method: &str, params: &Value) -> Result<EmulateOp, Failure> {
         _ => Err(Failure::from(format!(
             "'{method}' is not an emulation command"
         ))),
-    }
-}
-
-/// Apply an [`EmulateOp`] on the session thread — the `handle()` fallback
-/// path's half of what `SessionActor::on_emulate` does for the IR path.
-async fn apply_op(page: &mut Page, op: EmulateOp) {
-    match op {
-        EmulateOp::EmulatedMedia { features, media } => {
-            page.inner.set_emulated_media(Some(features), Some(media));
-        }
-        EmulateOp::TouchEmulation {
-            enabled,
-            max_points,
-        } => {
-            page.inner.set_touch_emulation(enabled, max_points);
-        }
-        EmulateOp::Timezone { timezone } => {
-            if let Some(tz) = &timezone {
-                if !tz.is_empty() && !page.inner.timezone_id_supported(tz) {
-                    // The fallback path cannot report through the IR
-                    // reply — but `handle()` already validated via the op
-                    // producer, so this is unreachable in practice.
-                    return;
-                }
-                page.inner
-                    .set_timezone_override((!tz.is_empty()).then(|| tz.clone()));
-            } else {
-                page.inner.set_timezone_override(None);
-            }
-        }
-        EmulateOp::Locale { locale } => {
-            page.inner.set_locale_override(locale);
-        }
-        EmulateOp::UserAgent {
-            user_agent,
-            accept_language,
-            platform,
-        } => {
-            page.inner
-                .set_user_agent_override(
-                    &user_agent,
-                    accept_language.as_deref(),
-                    platform.as_deref(),
-                )
-                .await;
-        }
-        EmulateOp::DeviceMetrics {
-            width,
-            height,
-            mobile,
-            ratio,
-            panel,
-            orientation,
-        } => {
-            page.inner
-                .set_viewport_override(width, height, mobile, Some(ratio));
-            page.inner.set_screen_override(panel, orientation);
-        }
-        EmulateOp::ClearDeviceMetrics => {
-            page.inner.clear_viewport_override();
-        }
     }
 }
 
@@ -733,71 +611,7 @@ fn device_metrics_op(params: &Value) -> Result<EmulateOp, Failure> {
     })
 }
 
-/// Register the source in the page's document-start group and answer the
-/// identifier Chrome would. `runImmediately` also evaluates it in the
-/// document that is open now; a throw there is the page's business, not a
-/// protocol error.
-async fn add_init_script(
-    page: &mut Page,
-    init_scripts: &mut Vec<(String, String)>,
-    params: &Value,
-) -> Result<Value, Failure> {
-    const METHOD: &str = "Page.addScriptToEvaluateOnNewDocument";
-    let source = string(params, "source")?;
-    kinds(
-        params,
-        &[
-            ("runImmediately", Kind::Bool),
-            ("includeCommandLineAPI", Kind::Bool),
-            ("worldName", Kind::Text),
-        ],
-    )?;
-    no_such_flag(
-        METHOD,
-        params,
-        &[("includeCommandLineAPI", "there is no command line API")],
-    )?;
-    let identifier = super::SCRIPT_IDS
-        .fetch_add(1, Ordering::Relaxed)
-        .to_string();
-    page.inner.add_preload_script(source.to_string());
-    init_scripts.push((identifier.clone(), source.to_string()));
-    if optional_boolean(params, "runImmediately")? == Some(true) {
-        page.inner
-            .evaluate_remote_outcome(source, false, false, AWAIT_MS, None)
-            .await;
-    }
-    Ok(json!({ "identifier": identifier }))
-}
-
-fn remove_init_script(
-    page: &mut Page,
-    init_scripts: &mut Vec<(String, String)>,
-    params: &Value,
-) -> Result<Value, Failure> {
-    let identifier = string(params, "identifier")?;
-    let at = init_scripts
-        .iter()
-        .position(|(id, _)| id == identifier)
-        .ok_or_else(|| Failure::from("Script not found"))?;
-    let (_, source) = init_scripts.remove(at);
-    page.inner.remove_preload_script(&source);
-    Ok(json!({}))
-}
-
 /// `Network.setExtraHTTPHeaders`: the whole set replaces the one before.
-async fn extra_headers(page: &mut Page, params: &Value) -> Result<Value, Failure> {
-    let sent = optional(params, "headers", Value::as_object)?.ok_or_else(invalid_params)?;
-    let headers: HashMap<String, String> = sent
-        .iter()
-        .map(|(name, value)| Ok((name.clone(), header_value(value)?)))
-        .collect::<Result<_, Failure>>()?;
-    for (name, value) in &headers {
-        check_header(name, value)?;
-    }
-    page.inner.set_extra_headers(headers).await;
-    Ok(json!({}))
-}
 
 /// A header value is a string, whatever its name — and is read first.
 fn header_value(value: &Value) -> Result<String, Failure> {
@@ -822,36 +636,6 @@ fn check_header(name: &str, value: &str) -> Result<(), Failure> {
         return Err(invalid("Invalid header value"));
     }
     Ok(())
-}
-
-fn layout_metrics(page: &mut Page) -> Result<Value, Failure> {
-    let metrics = page
-        .evaluate_with_timeout_result(LAYOUT_METRICS, INTERACTION_EVAL_TIMEOUT)
-        .map_err(|err| Failure::from(format!("Page.getLayoutMetrics: {err}")))?;
-    let f = |name: &str| metrics.get(name).and_then(Value::as_f64).unwrap_or(0.0);
-    let (iw, ih) = (f("iw"), f("ih"));
-    let (sx, sy) = (f("sx"), f("sy"));
-    let (vw, vh) = (f("vw"), f("vh"));
-    let (px, py) = (sx + f("ox"), sy + f("oy"));
-    let layout = json!({
-        "pageX": measure(sx), "pageY": measure(sy),
-        "clientWidth": measure(iw), "clientHeight": measure(ih),
-    });
-    let visual = json!({
-        "offsetX": measure(f("ox")), "offsetY": measure(f("oy")),
-        "pageX": measure(px), "pageY": measure(py),
-        "clientWidth": measure(vw), "clientHeight": measure(vh),
-        "scale": measure(f("scale")), "zoom": 1,
-    });
-    let content = json!({ "x": 0, "y": 0, "width": measure(f("cw")), "height": measure(f("ch")) });
-    Ok(json!({
-        "layoutViewport": layout,
-        "visualViewport": visual,
-        "contentSize": content,
-        "cssLayoutViewport": layout,
-        "cssVisualViewport": visual,
-        "cssContentSize": content,
-    }))
 }
 
 /// A measurement off the page, spelled as Chrome's inspector spells a

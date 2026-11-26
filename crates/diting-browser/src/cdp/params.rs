@@ -96,8 +96,6 @@ pub(super) enum Kind {
     Text,
     /// An array of strings.
     Texts,
-    /// An array of objects, whatever is in them.
-    Objects,
 }
 
 /// Read every field in `fields` for its kind — and nothing else: none of
@@ -121,9 +119,6 @@ pub(super) fn kinds(params: &Value, fields: &[(&str, Kind)]) -> Result<(), Failu
             Kind::Texts => value
                 .as_array()
                 .is_some_and(|items| items.iter().all(Value::is_string)),
-            Kind::Objects => value
-                .as_array()
-                .is_some_and(|items| items.iter().all(Value::is_object)),
         };
         if !is {
             return Err(invalid_params());

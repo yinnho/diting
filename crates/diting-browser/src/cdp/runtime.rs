@@ -76,17 +76,14 @@
 //!   nothing and `keyUp` is an empty ok — except Ctrl/Meta+A, which
 //!   selects the field.
 use diting::diting_js::runtime::{
-    EvalInput, EvalOutcome, ExceptionInfo, JsRuntime, ObjectIdState, RemoteObjectInfo,
-    BAD_CALL_ARGUMENT,
+    EvalOutcome, ExceptionInfo, JsRuntime, ObjectIdState, RemoteObjectInfo,
 };
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::sync::oneshot;
 
 use super::objects;
 use super::session_msg;
 use super::Failure;
-use crate::page::{Page, INTERACTION_EVAL_TIMEOUT};
 use crate::session::{
     mouse_button_code, mouse_button_mask, mouse_down_js, mouse_move_js, mouse_up_js, send_command,
     HandleParts, SessionCommand, INPUT_HELPERS,
@@ -96,77 +93,6 @@ use super::params::{
     integer, invalid, invalid_params, kinds, number, optional_boolean, optional_integer,
     optional_number, optional_string, string, Kind,
 };
-
-pub(super) const AWAIT_MS: u64 = 30_000;
-
-/// Stripped by the dispatcher before the command result is written. Carries
-/// console calls and the document.write load signal for this command.
-pub(crate) const SIDE_KEY: &str = "__ditingSide";
-
-/// Run one page-level CDP command on the session thread. `init_scripts` is
-/// the session's `Page.addScriptToEvaluateOnNewDocument` registry, as
-/// (identifier, source) pairs.
-pub(crate) async fn dispatch(
-    page: &mut Page,
-    init_scripts: &mut Vec<(String, String)>,
-    method: String,
-    params: Value,
-    reply: oneshot::Sender<Result<Result<Value, Failure>, std::convert::Infallible>>,
-) {
-    let result = match method.as_str() {
-        "Runtime.evaluate" => evaluate(page, &params).await,
-        "Runtime.callFunctionOn" => call_function_on(page, &params).await,
-        "Runtime.releaseObject" => release(page, &params),
-        "Input.dispatchMouseEvent" => mouse_event(page, &params),
-        "Input.insertText" => insert_text(page, &params),
-        "Input.dispatchKeyEvent" => key_event(page, &params),
-        "DOM.getContentQuads" => content_quads(page, &params).await,
-        "DOM.scrollIntoViewIfNeeded" => scroll_into_view(page, &params).await,
-        "DOM.describeNode" => describe_node(page, &params).await,
-        "DOM.resolveNode" => resolve_node(page, &params).await,
-        "DOM.getBoxModel" => box_model(page, &params).await,
-        other => super::emulation::handle(page, init_scripts, other, &params).await,
-    };
-    // Take the queues here, on the session thread, before the actor's
-    // post-command drain moves them into the HTTP console ring.
-    let result = match result {
-        Ok(mut value) => {
-            if let Some(side) = page_side(page, &params) {
-                if let Some(obj) = value.as_object_mut() {
-                    obj.insert(SIDE_KEY.to_string(), side);
-                }
-            }
-            Ok(value)
-        }
-        Err(err) => Err(err),
-    };
-    let _ = reply.send(Ok(result));
-}
-
-fn page_side(page: &mut Page, params: &Value) -> Option<Value> {
-    let calls = page.inner.take_pending_console_calls();
-    let write_nav = page.inner.take_pending_write_nav();
-    let console: Vec<Value> = calls
-        .into_iter()
-        .filter_map(|(level, text, url)| {
-            let kind = console_type(&level)?;
-            Some(json!({ "type": kind, "text": text, "url": url }))
-        })
-        .collect();
-    if console.is_empty() && !write_nav {
-        return None;
-    }
-    let context_id = params
-        .get("contextId")
-        .or_else(|| params.get("executionContextId"))
-        .and_then(|v| v.as_i64())
-        .filter(|id| *id > 0);
-    Some(json!({
-        "console": console,
-        "writeNav": write_nav,
-        "contextId": context_id,
-    }))
-}
 
 /// Playwright's setContent matches `console.debug` only. `dialog` is a
 /// session-console record, not a page console API call.
@@ -336,50 +262,6 @@ pub(super) fn eval_result(
     Ok(outcome_result(outcome, thrown))
 }
 
-async fn evaluate(page: &mut Page, params: &Value) -> Result<Value, Failure> {
-    const METHOD: &str = "Runtime.evaluate";
-    let expression = string(params, "expression")?;
-    kinds(params, RUNTIME_UNREAD)?;
-    kinds(params, EVALUATE_UNREAD)?;
-    kinds(params, &[("timeout", Kind::Number)])?;
-    let return_by_value = by_value(METHOD, params)?;
-    let await_promise = flag(params, "awaitPromise")?;
-    no_such_flag(
-        METHOD,
-        params,
-        &[
-            ("includeCommandLineAPI", "there is no command line API"),
-            (
-                "throwOnSideEffect",
-                "nothing checks a script for side effects",
-            ),
-        ],
-    )?;
-    let context = optional_integer(params, "contextId")?;
-    let unique = optional_string(params, "uniqueContextId")?;
-    if context.is_some() && unique.is_some() {
-        return Err(invalid(
-            "contextId and uniqueContextId are mutually exclusive",
-        ));
-    }
-    live_context(params, context, unique)?;
-    // A handle first, whatever was asked for: it says what the result is,
-    // and a value asked for is read off it after.
-    let js = page.inner.js.as_mut().ok_or("page has no JS runtime")?;
-    let outcome = js
-        .evaluate_remote_outcome(
-            expression,
-            false,
-            await_promise,
-            AWAIT_MS,
-            None,
-            EvalInput::Script,
-        )
-        .await
-        .map_err(engine_failure)?;
-    settled(js, outcome, return_by_value)
-}
-
 /// `returnByValue` — and `serialization: "json"`, which asks the same: the
 /// value where the handle was, the way Chrome brings one back
 /// ([`JsRuntime::value_of`]). A primitive is its own value already, and
@@ -441,92 +323,6 @@ pub(super) fn engine_failure(err: String) -> Failure {
         "Internal error" => Failure::Internal(err),
         _ => Failure::from(err),
     }
-}
-
-async fn call_function_on(page: &mut Page, params: &Value) -> Result<Value, Failure> {
-    const METHOD: &str = "Runtime.callFunctionOn";
-    let declaration = string(params, "functionDeclaration")?;
-    let object_id = optional_string(params, "objectId")?;
-    let arguments = arguments(params)?;
-    kinds(params, RUNTIME_UNREAD)?;
-    let return_by_value = by_value(METHOD, params)?;
-    let await_promise = flag(params, "awaitPromise")?;
-    no_such_flag(
-        METHOD,
-        params,
-        &[(
-            "throwOnSideEffect",
-            "nothing checks a call for side effects",
-        )],
-    )?;
-    let context = optional_integer(params, "executionContextId")?;
-    let unique = optional_string(params, "uniqueContextId")?;
-    match [object_id.is_some(), context.is_some(), unique.is_some()]
-        .iter()
-        .filter(|named| **named)
-        .count()
-    {
-        0 => {
-            return Err(invalid(
-                "Either objectId or executionContextId or uniqueContextId must be specified",
-            ))
-        }
-        // Chrome takes one of the three, never two.
-        1 => {}
-        _ => {
-            return Err(invalid(
-                "ObjectId, executionContextId and uniqueContextId must mutually exclude each other",
-            ))
-        }
-    }
-    live_context(params, context, unique)?;
-    let js = page.inner.js.as_mut().ok_or("page has no JS runtime")?;
-    // With a handle the page does not hold the call would run against the
-    // global object, and that is never let through. The receiver is asked
-    // about first, as Chrome does, then each argument.
-    if let Some(dead) = object_id
-        .as_deref()
-        .and_then(|id| dead_handle(objects::state(js, id)))
-    {
-        return Err(dead.into());
-    }
-    // Each argument in order, as Chrome reads them: a dead `objectId` is
-    // its own word — and an `unserializableValue` that will not run is
-    // Chrome's, before any handle is let go. `objectId` and `value` each
-    // mask an `unserializableValue` beside them.
-    for argument in &arguments {
-        if let Some(id) = argument.get("objectId").and_then(Value::as_str) {
-            if let Some(dead) = dead_argument(objects::state(js, id)) {
-                return Err(dead.into());
-            }
-        } else if argument.get("value").is_none() {
-            if let Some(text) = argument.get("unserializableValue").and_then(Value::as_str) {
-                let outcome = js
-                    .evaluate_remote_outcome(text, false, false, AWAIT_MS, None, EvalInput::Script)
-                    .await;
-                let bad = match outcome {
-                    Err(_) => true,
-                    Ok(outcome) => outcome.exception.is_some(),
-                };
-                if bad {
-                    return Err(BAD_CALL_ARGUMENT.into());
-                }
-            }
-        }
-    }
-    // A handle first, whatever was asked for, as `evaluate` does.
-    let outcome = js
-        .call_function_on_remote_outcome(
-            declaration,
-            object_id,
-            &arguments,
-            false,
-            await_promise,
-            None,
-        )
-        .await
-        .map_err(engine_failure)?;
-    settled(js, outcome, return_by_value)
 }
 
 /// A boolean flag as Chrome defaults it: false when left out.
@@ -691,18 +487,6 @@ pub(super) fn release_params(params: &Value) -> Result<(String, HandleParts), Fa
     Ok((id.to_string(), objects::handle_parts(id)))
 }
 
-/// `Runtime.releaseObject`. A handle the page does not hold is refused, as
-/// in Chrome: nothing was there to let go.
-fn release(page: &mut Page, params: &Value) -> Result<Value, Failure> {
-    let id = string(params, "objectId")?;
-    let js = page.inner.js.as_mut().ok_or("page has no JS runtime")?;
-    if let Some(dead) = dead_handle(objects::state(js, id)) {
-        return Err(dead.into());
-    }
-    js.release_object(id);
-    Ok(json!({}))
-}
-
 /// The mouse fields the bridge declares and does not read (`id` Chrome
 /// does not read either).
 const MOUSE_UNREAD: &[(&str, Kind)] = &[("timestamp", Kind::Number), ("pointerType", Kind::Text)];
@@ -804,24 +588,10 @@ fn mouse_event_script(params: &Value) -> Result<Option<String>, Failure> {
     Ok(Some(script))
 }
 
-fn mouse_event(page: &mut Page, params: &Value) -> Result<Value, Failure> {
-    match mouse_event_script(params)? {
-        Some(script) => dispatch_input(page, &script),
-        None => Ok(json!({})),
-    }
-}
-
 fn insert_text_script(params: &Value) -> Result<Option<String>, Failure> {
     let text = string(params, "text")?;
     let literal = serde_json::to_string(text).map_err(|err| err.to_string())?;
     Ok(Some(insert_text_js(&literal)))
-}
-
-fn insert_text(page: &mut Page, params: &Value) -> Result<Value, Failure> {
-    match insert_text_script(params)? {
-        Some(script) => dispatch_input(page, &script),
-        None => Ok(json!({})),
-    }
 }
 
 /// The key fields the bridge declares and does not read: a key event here
@@ -878,13 +648,6 @@ fn key_event_script(params: &Value) -> Result<Option<String>, Failure> {
     }
     let literal = serde_json::to_string(text).map_err(|err| err.to_string())?;
     Ok(Some(insert_text_js(&literal)))
-}
-
-fn key_event(page: &mut Page, params: &Value) -> Result<Value, Failure> {
-    match key_event_script(params)? {
-        Some(script) => dispatch_input(page, &script),
-        None => Ok(json!({})),
-    }
 }
 
 fn insert_text_js(literal: &str) -> String {
@@ -1071,111 +834,6 @@ fn words(refusal: Refusal) -> Failure {
 }
 
 /// Run `body` on the node a `DOM.*` command names. `guards` is 0 for none,
-/// 1 to refuse a node that left the document, 2 to refuse one nothing
-/// displays as well. A `nodeId` is looked up first, then a `backendNodeId`,
-/// then an `objectId` — where `by_handle`; the handle is `this` inside the
-/// body, and when a number came with it the number alone names the node.
-/// What the body returns comes back by value — as a handle when `as_handle`
-/// — and it starts with `return` whenever it refuses.
-async fn on_node(
-    page: &mut Page,
-    params: &Value,
-    guards: u8,
-    by_handle: bool,
-    as_handle: bool,
-    body: &str,
-    unnamed: &'static str,
-) -> Result<EvalOutcome, Refusal> {
-    // Every field is read first, as Chrome reads them; `objectId` is typed
-    // only for a command that can name a node by it.
-    let mut handle = if by_handle {
-        optional_string(params, "objectId")
-            .map_err(|_| Refusal::Invalid)?
-            .map(str::to_string)
-    } else {
-        None
-    };
-    let number = optional_integer(params, "backendNodeId").map_err(|_| Refusal::Invalid)?;
-    // A `nodeId` is looked up first, as in Chrome — and is never found.
-    if optional_integer(params, "nodeId")
-        .map_err(|_| Refusal::Invalid)?
-        .is_some()
-    {
-        return Err(Refusal::NoFrontendNode);
-    }
-    // A number is looked up next, and is what names the node when a handle
-    // came with it too: the handle is not asked about then.
-    let number = match number {
-        // Chrome looks 0 up too, and finds nothing.
-        Some(0) => return Err(Refusal::NoNumber),
-        Some(number) => {
-            handle = None;
-            Some(number)
-        }
-        None if handle.is_some() => None,
-        None => return Err(Refusal::Unnamed(unnamed)),
-    };
-    let js = page
-        .inner
-        .js
-        .as_mut()
-        .ok_or_else(|| Refusal::Fault("page has no JS runtime".to_string()))?;
-    if let Some(dead) = handle
-        .as_deref()
-        .and_then(|id| dead_handle(objects::state(js, id)))
-    {
-        return Err(Refusal::Dead(dead));
-    }
-    // The number the hub reserved, for the one command that hands numbers
-    // out; nothing for the rest.
-    let fresh = params.get("__ditingNodeId").cloned().unwrap_or(Value::Null);
-    let declaration = format!(
-        "function(__id, __guards, __fresh) {{\
-            var dom = ({NODE_JS})(__fresh);\
-            var node = __id == null ? this : dom.byId(__id);\
-            if (!node) return {{ {VERDICT}: 'noNumber' }};\
-            if (!(node instanceof Node)) return {{ {VERDICT}: 'notANode' }};\
-            if (__guards > 0 && !dom.attached(node)) return {{ {VERDICT}: 'detached' }};\
-            if (__guards > 1 && !dom.laidOut(node)) return {{ {VERDICT}: 'noLayout' }};\
-            {body}\
-        }}"
-    );
-    // A handle is `this`; a number is looked up. The guards ride along
-    // either way — as CDP `CallArgument`s, which is what the runtime reads.
-    let arguments = vec![
-        json!({ "value": number }),
-        json!({ "value": guards }),
-        json!({ "value": fresh }),
-    ];
-    let outcome = js
-        .call_function_on_remote_outcome(
-            &declaration,
-            handle.as_deref(),
-            &arguments,
-            // Chrome's shape: the node comes back as a handle only from
-            // `DOM.resolveNode`; everything else is read off it by value.
-            !as_handle,
-            false,
-            None,
-        )
-        .await
-        .map_err(Refusal::Fault)?;
-    if as_handle {
-        return match outcome.exception.as_ref() {
-            Some(_) => Err(Refusal::Fault(
-                "DOM.resolveNode: the node did not come back".into(),
-            )),
-            None => Ok(outcome),
-        };
-    }
-    match value_of(&outcome)?.get(VERDICT).and_then(Value::as_str) {
-        Some("noNumber") => Err(Refusal::NoNumber),
-        Some("notANode") => Err(Refusal::NotANode),
-        Some("detached") => Err(Refusal::Detached),
-        Some("noLayout") => Err(Refusal::NoLayout),
-        _ => Ok(outcome),
-    }
-}
 
 /// What a by-value script returned.
 fn value_of(outcome: &EvalOutcome) -> Result<Value, Refusal> {
@@ -1186,26 +844,6 @@ fn value_of(outcome: &EvalOutcome) -> Result<Value, Refusal> {
         )));
     }
     Ok(outcome.info.value.clone().unwrap_or(Value::Null))
-}
-
-async fn describe_node(page: &mut Page, params: &Value) -> Result<Value, Failure> {
-    kinds(params, &[("depth", Kind::Integer), ("pierce", Kind::Bool)])?;
-    // The hub names the frame the session is on; the page has one.
-    let frame = serde_json::to_string(params.get("__ditingFrameId").unwrap_or(&Value::Null))
-        .unwrap_or_else(|_| "null".to_string());
-    let outcome = on_node(
-        page,
-        params,
-        0,
-        true,
-        false,
-        &format!("return dom.describe(node, {frame}, __fresh);"),
-        EITHER,
-    )
-    .await
-    .map_err(words)?;
-    let node = value_of(&outcome).map_err(words)?;
-    Ok(json!({ "node": node }))
 }
 
 /// `DOM.resolveNode` words a number it does not know its own way — and a
@@ -1226,122 +864,7 @@ fn resolve_words(refusal: Refusal, numbered: bool) -> Failure {
 /// asked for.
 const UNNAMED: &str = "Either nodeId or backendNodeId must be specified.";
 
-async fn resolve_node(page: &mut Page, params: &Value) -> Result<Value, Failure> {
-    kinds(
-        params,
-        &[
-            ("objectGroup", Kind::Text),
-            ("executionContextId", Kind::Integer),
-        ],
-    )?;
-    let numbered = params.get("backendNodeId").is_some();
-    const FOUND: &str = "return { className: (node.constructor && node.constructor.name) \
-                         || node.nodeName, label: dom.label(node) };";
-    let found = on_node(page, params, 0, false, false, FOUND, UNNAMED)
-        .await
-        .map_err(|refusal| resolve_words(refusal, numbered))?;
-    let found = value_of(&found).map_err(words)?;
-    if let Some(context) = params.get("executionContextId").and_then(Value::as_i64) {
-        if !context_is_live(params, context) {
-            return Err("Node with given id does not belong to the document".into());
-        }
-    }
-    let held = on_node(page, params, 0, false, true, "return node;", UNNAMED)
-        .await
-        .map_err(|refusal| resolve_words(refusal, numbered))?;
-    let object_id = held
-        .info
-        .object_id
-        .ok_or("DOM.resolveNode: the node did not come back")?;
-    Ok(json!({ "object": {
-        "type": "object",
-        "subtype": "node",
-        "className": found["className"],
-        "description": found["label"],
-        "objectId": object_id,
-    } }))
-}
-
-async fn box_model(page: &mut Page, params: &Value) -> Result<Value, Failure> {
-    let outcome = match on_node(
-        page,
-        params,
-        2,
-        true,
-        false,
-        "return dom.box(node);",
-        EITHER,
-    )
-    .await
-    {
-        Ok(outcome) => outcome,
-        Err(Refusal::Detached | Refusal::NoLayout) => return Err(NO_BOX.into()),
-        Err(other) => return Err(words(other)),
-    };
-    let model = value_of(&outcome).map_err(words)?;
-    Ok(json!({ "model": model }))
-}
-
-/// A node Chrome cannot lay out is left out, not an error: `{"quads":[]}`.
-/// A node it cannot find is an error, as everywhere else.
-async fn content_quads(page: &mut Page, params: &Value) -> Result<Value, Failure> {
-    const BODY: &str = "\
-        if (!dom.laidOut(node)) return [];\
-        var r = node.getBoundingClientRect();\
-        if (r.width <= 0 || r.height <= 0) return [];\
-        return [[r.left, r.top, r.right, r.top, r.right, r.bottom, r.left, r.bottom]];";
-    let outcome = match on_node(page, params, 0, true, false, BODY, EITHER).await {
-        Ok(outcome) => outcome,
-        Err(Refusal::Detached | Refusal::NoLayout) => return Ok(json!({ "quads": [] })),
-        Err(other) => return Err(words(other)),
-    };
-    let quads = value_of(&outcome).map_err(words)?;
-    let quads = quads.as_array().cloned().unwrap_or_default();
-    Ok(json!({ "quads": quads }))
-}
-
 /// `nearest` is a no-op when the box already intersects the viewport, so
-/// an on-screen click does not move scroll. A sub-rect (a position click
-/// inside a box taller than the viewport) is nudged in afterwards.
-async fn scroll_into_view(page: &mut Page, params: &Value) -> Result<Value, Failure> {
-    // `rect`: all four sides have to be sent.
-    let rect = match params.get("rect") {
-        None => Value::Null,
-        Some(rect) => {
-            for side in ["x", "y", "width", "height"] {
-                integer(rect, side)?;
-            }
-            rect.clone()
-        }
-    };
-    let rect = serde_json::to_string(&rect).unwrap_or_else(|_| "null".to_string());
-    let body = format!(
-        "\
-        if (!dom.laidOut(node)) return {{ {VERDICT}: 'noLayout' }};\
-        if (node.nodeType === 1) node.scrollIntoView({{block:'nearest', inline:'nearest'}});\
-        var rect = {rect};\
-        if (!rect || typeof rect !== 'object' || node.nodeType !== 1) return 1;\
-        var box = node.getBoundingClientRect();\
-        var x = box.x + (+rect.x || 0);\
-        var y = box.y + (+rect.y || 0);\
-        var w = rect.width == null ? box.width : +rect.width;\
-        var h = rect.height == null ? box.height : +rect.height;\
-        var vw = window.innerWidth || 0, vh = window.innerHeight || 0;\
-        var dx = x < 0 ? x : (x + w > vw ? x + w - vw : 0);\
-        var dy = y < 0 ? y : (y + h > vh ? y + h - vh : 0);\
-        if (!dx && !dy) return 1;\
-        var root = document.scrollingElement || document.documentElement;\
-        if (!root) return 1;\
-        if (dx) root.scrollLeft = (root.scrollLeft || 0) + dx;\
-        if (dy) root.scrollTop = (root.scrollTop || 0) + dy;\
-        return 1;"
-    );
-    let outcome = on_node(page, params, 1, true, false, &body, EITHER)
-        .await
-        .map_err(words)?;
-    value_of(&outcome).map_err(words)?;
-    Ok(json!({}))
-}
 
 /// One `DOM.*` node call through the `CallOn` IR command — what `on_node`
 /// was, with the param reads and wire wrapping kept here and the engine
@@ -1667,14 +1190,6 @@ pub(super) fn input_script(method: &str, params: &Value) -> Result<Option<String
         "Input.dispatchKeyEvent" => key_event_script(params),
         _ => Err(Failure::from("not an input command")),
     }
-}
-
-fn dispatch_input(page: &mut Page, script: &str) -> Result<Value, Failure> {
-    page.evaluate_with_timeout_result(INPUT_HELPERS, INTERACTION_EVAL_TIMEOUT)
-        .map_err(|err| format!("input helpers: {err}"))?;
-    page.evaluate_with_timeout_result(script, INTERACTION_EVAL_TIMEOUT)
-        .map_err(|err| format!("input: {err}"))?;
-    Ok(json!({}))
 }
 
 /// The reply to an evaluate or a call: what came back — by value where that

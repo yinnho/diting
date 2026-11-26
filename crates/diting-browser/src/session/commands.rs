@@ -404,21 +404,6 @@ pub enum SessionCommand {
     PageMetrics {
         reply: oneshot::Sender<Result<Value, String>>,
     },
-    /// A CDP command that has to run on the session thread, where the page
-    /// lives: `Runtime.*` / `Input.*` / `DOM.*` on the isolate (object ids
-    /// stay live), and the page-level `Emulation.*` / `Page.*` / `Network.*`
-    /// the bridge forwards (`cdp::runtime::dispatch` sorts them). The reply
-    /// is the CDP result object, or `Err` for a protocol failure (no
-    /// realm, eval timeout, a value the engine rejects) — a thrown script
-    /// is `Ok` with `exceptionDetails`, matching Chrome. The failure says
-    /// with what code Chrome would answer it. The session thread never
-    /// fails the command as a session error: hence `Infallible`.
-    Cdp {
-        method: String,
-        params: Value,
-        reply:
-            oneshot::Sender<Result<Result<Value, crate::cdp::Failure>, std::convert::Infallible>>,
-    },
 }
 
 #[derive(Debug, Deserialize, Clone, Copy)]
