@@ -101,6 +101,7 @@ impl SessionActor {
         declaration: String,
         object_id: Option<String>,
         arguments: Vec<Value>,
+        by_value: bool,
         await_promise: bool,
         return_by_value: bool,
         timeout_ms: Option<u64>,
@@ -164,7 +165,7 @@ impl SessionActor {
                             &declaration,
                             object_id.as_deref(),
                             &arguments,
-                            false,
+                            by_value,
                             await_promise,
                             None,
                         )
@@ -218,7 +219,6 @@ fn handle_state_of(parts: &HandleParts, js: &mut JsRuntime) -> ObjectIdState {
             number: Some(number),
             ..
         } => js.object_state_of(*realm, *number),
-        HandleParts::Parts { .. } => ObjectIdState::Unparseable,
     }
 }
 

@@ -87,8 +87,8 @@ use super::objects;
 use super::Failure;
 use crate::page::{Page, INTERACTION_EVAL_TIMEOUT};
 use crate::session::{
-    mouse_button_code, mouse_button_mask, mouse_down_js, mouse_move_js, mouse_up_js, HandleParts,
-    INPUT_HELPERS,
+    mouse_button_code, mouse_button_mask, mouse_down_js, mouse_move_js, mouse_up_js, send_command,
+    HandleParts, SessionCommand, INPUT_HELPERS,
 };
 
 use super::params::{
@@ -1319,6 +1319,287 @@ async fn scroll_into_view(page: &mut Page, params: &Value) -> Result<Value, Fail
         .map_err(words)?;
     value_of(&outcome).map_err(words)?;
     Ok(json!({}))
+}
+
+/// One `DOM.*` node call through the `CallOn` IR command — what `on_node`
+/// was, with the param reads and wire wrapping kept here and the engine
+/// work on the session thread. `calls`/`write_nav` are the page-side
+/// drain the face projects as events.
+struct DomOut {
+    outcome: EvalOutcome,
+    calls: Vec<(String, String, String)>,
+    write_nav: bool,
+}
+
+/// The selector a `DOM.*` command names, read the way Chrome reads it —
+/// every field first, `objectId` typed only where the command can take
+/// one, `nodeId` never found, a number what names the node when a handle
+/// came with it too.
+async fn dom_call(
+    engine: &str,
+    params: &Value,
+    guards: u64,
+    by_handle: bool,
+    as_handle: bool,
+    body: &str,
+    unnamed: &'static str,
+) -> Result<DomOut, Refusal> {
+    let mut handle = if by_handle {
+        optional_string(params, "objectId")
+            .map_err(|_| Refusal::Invalid)?
+            .map(str::to_string)
+    } else {
+        None
+    };
+    let number = optional_integer(params, "backendNodeId").map_err(|_| Refusal::Invalid)?;
+    if optional_integer(params, "nodeId")
+        .map_err(|_| Refusal::Invalid)?
+        .is_some()
+    {
+        return Err(Refusal::NoFrontendNode);
+    }
+    let number = match number {
+        Some(0) => return Err(Refusal::NoNumber),
+        Some(number) => {
+            handle = None;
+            Some(number)
+        }
+        None if handle.is_some() => None,
+        None => return Err(Refusal::Unnamed(unnamed)),
+    };
+    let fresh = params.get("__ditingNodeId").cloned().unwrap_or(Value::Null);
+    let declaration = format!(
+        "function(__id, __guards, __fresh) {{\
+            var dom = ({NODE_JS})(__fresh);\
+            var node = __id == null ? this : dom.byId(__id);\
+            if (!node) return {{ {VERDICT}: 'noNumber' }};\
+            if (!(node instanceof Node)) return {{ {VERDICT}: 'notANode' }};\
+            if (__guards > 0 && !dom.attached(node)) return {{ {VERDICT}: 'detached' }};\
+            if (__guards > 1 && !dom.laidOut(node)) return {{ {VERDICT}: 'noLayout' }};\
+            {body}\
+        }}"
+    );
+    let arguments = vec![
+        json!({ "value": number }),
+        json!({ "value": guards }),
+        json!({ "value": fresh }),
+    ];
+    let receiver = handle.as_deref().map(objects::handle_parts);
+    let (outcome, _pre, calls, write_nav) = send_command(engine, |reply| SessionCommand::CallOn {
+        declaration,
+        object_id: handle.clone(),
+        arguments,
+        by_value: !as_handle,
+        await_promise: false,
+        return_by_value: false,
+        timeout_ms: None,
+        receiver,
+        arg_ids: vec![None, None, None],
+        reply,
+    })
+    .await
+    .map_err(|err| Refusal::Fault(super::session_msg(err)))?;
+    if as_handle {
+        return match outcome.exception.as_ref() {
+            Some(_) => Err(Refusal::Fault(
+                "DOM.resolveNode: the node did not come back".into(),
+            )),
+            None => Ok(DomOut {
+                outcome,
+                calls,
+                write_nav,
+            }),
+        };
+    }
+    match value_of(&outcome)?.get(VERDICT).and_then(Value::as_str) {
+        Some("noNumber") => Err(Refusal::NoNumber),
+        Some("notANode") => Err(Refusal::NotANode),
+        Some("detached") => Err(Refusal::Detached),
+        Some("noLayout") => Err(Refusal::NoLayout),
+        _ => Ok(DomOut {
+            outcome,
+            calls,
+            write_nav,
+        }),
+    }
+}
+
+/// The five `DOM.*` node commands as IR — params checked and bodies built
+/// here, every engine call a `CallOn` on the session thread. Returns the
+/// wire result and the merged page-side drain for `side_frames`.
+pub(super) async fn dom_run(
+    engine: &str,
+    method: &str,
+    params: &Value,
+) -> Result<(Value, Option<Value>), Failure> {
+    let mut calls: Vec<(String, String, String)> = Vec::new();
+    let mut write_nav = false;
+    let mut take = |out: DomOut| {
+        calls.extend(out.calls);
+        write_nav |= out.write_nav;
+        out.outcome
+    };
+    let result = match method {
+        "DOM.describeNode" => {
+            kinds(params, &[("depth", Kind::Integer), ("pierce", Kind::Bool)])?;
+            let frame =
+                serde_json::to_string(params.get("__ditingFrameId").unwrap_or(&Value::Null))
+                    .unwrap_or_else(|_| "null".to_string());
+            let out = dom_call(
+                engine,
+                params,
+                0,
+                true,
+                false,
+                &format!("return dom.describe(node, {frame}, __fresh);"),
+                EITHER,
+            )
+            .await
+            .map_err(words)?;
+            let outcome = take(out);
+            let node = value_of(&outcome).map_err(words)?;
+            json!({ "node": node })
+        }
+        "DOM.resolveNode" => {
+            kinds(
+                params,
+                &[
+                    ("objectGroup", Kind::Text),
+                    ("executionContextId", Kind::Integer),
+                ],
+            )?;
+            let numbered = params.get("backendNodeId").is_some();
+            const FOUND: &str = "return { className: (node.constructor && node.constructor.name) \
+                                 || node.nodeName, label: dom.label(node) };";
+            let found = dom_call(engine, params, 0, false, false, FOUND, UNNAMED)
+                .await
+                .map_err(|refusal| resolve_words(refusal, numbered))?;
+            let found_outcome = take(found);
+            let found = value_of(&found_outcome).map_err(words)?;
+            if let Some(context) = params.get("executionContextId").and_then(Value::as_i64) {
+                if !context_is_live(params, context) {
+                    return Err("Node with given id does not belong to the document".into());
+                }
+            }
+            let held = dom_call(engine, params, 0, false, true, "return node;", UNNAMED)
+                .await
+                .map_err(|refusal| resolve_words(refusal, numbered))?;
+            let held_outcome = take(held);
+            let object_id = held_outcome
+                .info
+                .object_id
+                .ok_or("DOM.resolveNode: the node did not come back")?;
+            json!({ "object": {
+                "type": "object",
+                "subtype": "node",
+                "className": found["className"],
+                "description": found["label"],
+                "objectId": object_id,
+            } })
+        }
+        "DOM.getBoxModel" => {
+            let out = match dom_call(
+                engine,
+                params,
+                2,
+                true,
+                false,
+                "return dom.box(node);",
+                EITHER,
+            )
+            .await
+            {
+                Ok(out) => out,
+                Err(Refusal::Detached | Refusal::NoLayout) => return Err(NO_BOX.into()),
+                Err(other) => return Err(words(other)),
+            };
+            let outcome = take(out);
+            let model = value_of(&outcome).map_err(words)?;
+            json!({ "model": model })
+        }
+        "DOM.getContentQuads" => {
+            const BODY: &str = "\
+                if (!dom.laidOut(node)) return [];\
+                var r = node.getBoundingClientRect();\
+                if (r.width <= 0 || r.height <= 0) return [];\
+                return [[r.left, r.top, r.right, r.top, r.right, r.bottom, r.left, r.bottom]];";
+            let out = match dom_call(engine, params, 0, true, false, BODY, EITHER).await {
+                Ok(out) => out,
+                Err(Refusal::Detached | Refusal::NoLayout) => {
+                    return Ok((json!({ "quads": [] }), None));
+                }
+                Err(other) => return Err(words(other)),
+            };
+            let outcome = take(out);
+            let quads = value_of(&outcome).map_err(words)?;
+            let quads = quads.as_array().cloned().unwrap_or_default();
+            json!({ "quads": quads })
+        }
+        "DOM.scrollIntoViewIfNeeded" => {
+            let rect = match params.get("rect") {
+                None => Value::Null,
+                Some(rect) => {
+                    for side in ["x", "y", "width", "height"] {
+                        integer(rect, side)?;
+                    }
+                    rect.clone()
+                }
+            };
+            let rect = serde_json::to_string(&rect).unwrap_or_else(|_| "null".to_string());
+            let body = format!(
+                "\
+                if (!dom.laidOut(node)) return {{ {VERDICT}: 'noLayout' }};\
+                if (node.nodeType === 1) node.scrollIntoView({{block:'nearest', inline:'nearest'}});\
+                var rect = {rect};\
+                if (!rect || typeof rect !== 'object' || node.nodeType !== 1) return 1;\
+                var box = node.getBoundingClientRect();\
+                var x = box.x + (+rect.x || 0);\
+                var y = box.y + (+rect.y || 0);\
+                var w = rect.width == null ? box.width : +rect.width;\
+                var h = rect.height == null ? box.height : +rect.height;\
+                var vw = window.innerWidth || 0, vh = window.innerHeight || 0;\
+                var dx = x < 0 ? x : (x + w > vw ? x + w - vw : 0);\
+                var dy = y < 0 ? y : (y + h > vh ? y + h - vh : 0);\
+                if (!dx && !dy) return 1;\
+                var root = document.scrollingElement || document.documentElement;\
+                if (!root) return 1;\
+                if (dx) root.scrollLeft = (root.scrollLeft || 0) + dx;\
+                if (dy) root.scrollTop = (root.scrollTop || 0) + dy;\
+                return 1;"
+            );
+            let out = dom_call(engine, params, 1, true, false, &body, EITHER)
+                .await
+                .map_err(words)?;
+            let outcome = take(out);
+            value_of(&outcome).map_err(words)?;
+            json!({})
+        }
+        _ => return Err(Failure::from("not a DOM command")),
+    };
+    // The merged page-side drain, shaped the way `page_side` shapes it —
+    // the face turns it into events.
+    let console: Vec<Value> = calls
+        .into_iter()
+        .filter_map(|(level, text, url)| {
+            let kind = console_type(&level)?;
+            Some(json!({ "type": kind, "text": text, "url": url }))
+        })
+        .collect();
+    let side = if console.is_empty() && !write_nav {
+        None
+    } else {
+        let context_id = params
+            .get("contextId")
+            .or_else(|| params.get("executionContextId"))
+            .and_then(|v| v.as_i64())
+            .filter(|id| *id > 0);
+        Some(json!({
+            "console": console,
+            "writeNav": write_nav,
+            "contextId": context_id,
+        }))
+    };
+    Ok((result, side))
 }
 
 fn dispatch_input(page: &mut Page, script: &str) -> Result<Value, Failure> {
