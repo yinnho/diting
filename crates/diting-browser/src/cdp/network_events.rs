@@ -51,8 +51,13 @@ fn resource_type(row: &NetworkEvent) -> &str {
 /// blocked by `Network.setBlockedURLs` (no `errorText`, `blockedReason:
 /// inspector`). `ERR_NAME_NOT_RESOLVED` is Chrome's name for a failed
 /// lookup but was not probed: the sandbox answers every name. A timeout
-/// and a reset connection are told apart by the engine but not probed
-/// either, so they say what everything unread says: `net::ERR_FAILED`.
+/// is told apart by the engine but not probed (Chrome waits minutes), so it
+/// says what everything unread says: `net::ERR_FAILED`. A connection closed
+/// without a word, a reset, a body that ends short and a chunked body that
+/// is cut were all probed (`reset-probe.cjs`). One caveat: the engine says
+/// "empty response" for any connection that closes before a response
+/// begins; Chrome's name for one that closes after *some* header bytes is
+/// not probed.
 #[derive(Debug, PartialEq)]
 pub(super) struct Failed {
     pub error_text: String,
@@ -75,6 +80,10 @@ pub(super) fn failed(failure: &NetFailure) -> Failed {
         NetFailure::ConnectionRefused => plain("net::ERR_CONNECTION_REFUSED"),
         NetFailure::NameNotResolved => plain("net::ERR_NAME_NOT_RESOLVED"),
         NetFailure::UnsafePort => plain("net::ERR_UNSAFE_PORT"),
+        NetFailure::EmptyResponse => plain("net::ERR_EMPTY_RESPONSE"),
+        NetFailure::ConnectionReset => plain("net::ERR_CONNECTION_RESET"),
+        NetFailure::ContentLengthMismatch => plain("net::ERR_CONTENT_LENGTH_MISMATCH"),
+        NetFailure::IncompleteChunkedEncoding => plain("net::ERR_INCOMPLETE_CHUNKED_ENCODING"),
         NetFailure::BlockedByInspector => Failed {
             error_text: String::new(),
             blocked_reason: Some("inspector"),
@@ -84,9 +93,7 @@ pub(super) fn failed(failure: &NetFailure) -> Failed {
         NetFailure::CorsAllowOriginMismatch(allowed) => {
             cors("AllowOriginMismatch", allowed.clone())
         }
-        NetFailure::TimedOut | NetFailure::ConnectionReset | NetFailure::Other => {
-            plain("net::ERR_FAILED")
-        }
+        NetFailure::TimedOut | NetFailure::Other => plain("net::ERR_FAILED"),
     }
 }
 
@@ -284,12 +291,22 @@ mod tests {
             failed(&NetFailure::UnsafePort).error_text,
             "net::ERR_UNSAFE_PORT"
         );
-        // Told apart by the engine, not yet by Chrome's probe.
-        for unread in [
-            NetFailure::TimedOut,
-            NetFailure::ConnectionReset,
-            NetFailure::Other,
+        for (failure, chrome) in [
+            (NetFailure::EmptyResponse, "net::ERR_EMPTY_RESPONSE"),
+            (NetFailure::ConnectionReset, "net::ERR_CONNECTION_RESET"),
+            (
+                NetFailure::ContentLengthMismatch,
+                "net::ERR_CONTENT_LENGTH_MISMATCH",
+            ),
+            (
+                NetFailure::IncompleteChunkedEncoding,
+                "net::ERR_INCOMPLETE_CHUNKED_ENCODING",
+            ),
         ] {
+            assert_eq!(failed(&failure).error_text, chrome, "{failure:?}");
+        }
+        // Told apart by the engine, not yet by Chrome's probe.
+        for unread in [NetFailure::TimedOut, NetFailure::Other] {
             assert_eq!(failed(&unread).error_text, "net::ERR_FAILED", "{unread:?}");
         }
     }

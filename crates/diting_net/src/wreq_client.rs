@@ -965,7 +965,10 @@ impl StealthHttpClient {
                     continue;
                 }
                 Err(e) => {
-                    return Err(NetError::Network(format!("Failed to read body: {}", e)));
+                    return Err(NetError::Transport {
+                        kind: crate::classify_transport(&e),
+                        message: format!("Failed to read body: {}", e),
+                    });
                 }
             };
 

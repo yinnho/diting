@@ -1,7 +1,7 @@
 //! HTTP/1 protocol implementation and utilities.
 
 mod buf;
-mod decode;
+pub(crate) mod decode;
 mod encode;
 mod io;
 

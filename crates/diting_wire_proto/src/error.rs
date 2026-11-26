@@ -141,6 +141,33 @@ impl Error {
         matches!(self.inner.kind, Kind::IncompleteMessage)
     }
 
+    /// Returns true if the connection ended before a body of the length the
+    /// message declared was complete.
+    pub fn is_incomplete_body(&self) -> bool {
+        self.io_cause_is::<crate::proto::http1::decode::IncompleteBody>()
+    }
+
+    /// Returns true if the connection ended inside a chunked body.
+    pub fn is_incomplete_chunks(&self) -> bool {
+        self.io_cause_is::<crate::proto::http1::decode::IncompleteChunks>()
+    }
+
+    /// Whether an `io::Error` in the cause chain was made from an `E`.
+    /// `io::Error::source` skips the error it wraps, so a walk of `source`
+    /// never meets it; `get_ref` does.
+    fn io_cause_is<E: StdError + 'static>(&self) -> bool {
+        let mut cause = self.source();
+        while let Some(err) = cause {
+            if let Some(io) = err.downcast_ref::<std::io::Error>() {
+                if io.get_ref().is_some_and(|inner| inner.is::<E>()) {
+                    return true;
+                }
+            }
+            cause = err.source();
+        }
+        false
+    }
+
     /// Returns true if the body write was aborted.
     #[inline]
     pub fn is_body_write_aborted(&self) -> bool {

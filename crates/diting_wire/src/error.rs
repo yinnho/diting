@@ -194,6 +194,38 @@ impl Error {
         false
     }
 
+    /// Returns true if the connection closed before a response began — the
+    /// peer took the request and said nothing.
+    pub fn is_incomplete_message(&self) -> bool {
+        self.proto_cause(diting_wire_proto::Error::is_incomplete_message)
+    }
+
+    /// Returns true if the connection ended before a body of the declared
+    /// length was complete.
+    pub fn is_incomplete_body(&self) -> bool {
+        self.proto_cause(diting_wire_proto::Error::is_incomplete_body)
+    }
+
+    /// Returns true if the connection ended inside a chunked body.
+    pub fn is_incomplete_chunks(&self) -> bool {
+        self.proto_cause(diting_wire_proto::Error::is_incomplete_chunks)
+    }
+
+    fn proto_cause(&self, is: fn(&diting_wire_proto::Error) -> bool) -> bool {
+        let mut source = self.source();
+
+        while let Some(err) = source {
+            if let Some(core_err) = err.downcast_ref::<diting_wire_proto::Error>() {
+                if is(core_err) {
+                    return true;
+                }
+            }
+            source = err.source();
+        }
+
+        false
+    }
+
     /// Returns true if the error is related to the request
     #[inline]
     pub fn is_request(&self) -> bool {
