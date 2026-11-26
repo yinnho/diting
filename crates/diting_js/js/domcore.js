@@ -3514,6 +3514,13 @@ class Document extends Node {
     if (!html) return;
     var body = this.body;
     if (!body) return;
+    // A write to a closed document erases it first — the write is an
+    // implicit open (spec: dynamic markup insertion). A parser-inserted
+    // script writes at its insertion point instead: its parse is still
+    // open, so this never fires for it.
+    if (!globalThis.__currentScriptNid && !this._writeStreamOpen) {
+      this.open();
+    }
     // The host parses into the input stream and returns [[parent, node], …], parents first.
     // The insertion stays here, because appendChild does more than append: it reports the
     // mutation and runs a written script.
@@ -3573,10 +3580,11 @@ class Document extends Node {
     _dom("document_write_reset");
     __def(this, '_writeAnchorScript', 0);
     __def(this, '_writeAnchorNid', 0);
+    __def(this, '_writeStreamOpen', true);
     return this;
   }
   close() {
-    return;
+    __def(this, '_writeStreamOpen', false);
   }
   hasFocus() { return true; }
   execCommand(cmd, _showUI, value) {

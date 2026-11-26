@@ -69,6 +69,10 @@ pub(super) async fn follow(hub: SharedHub, target: String, engine: &str) {
                             &mut out,
                         );
                     }
+                    SessionEvent::WriteNav => {
+                        let side = json!({ "console": [], "writeNav": true });
+                        page_side_frames(&hub, 0, &hub.pages[&target], &side, &mut out);
+                    }
                     SessionEvent::Console { level, text, url } => {
                         let Some(kind) = runtime::console_type(&level) else {
                             continue;

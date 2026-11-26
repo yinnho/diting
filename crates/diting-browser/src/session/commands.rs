@@ -92,6 +92,9 @@ pub enum SessionEvent {
     /// The page moved to another URL without loading a document: a route
     /// pushed or replaced, a fragment set, history stepped inside it.
     SameDocument { url: String, kind: SameDocumentKind },
+    /// `document.write` rewrote the document: its DOMContentLoaded and
+    /// load fire again, as a browser's do.
+    WriteNav,
 }
 
 /// What moved the page within its document.
