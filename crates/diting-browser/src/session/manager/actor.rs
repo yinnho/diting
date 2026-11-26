@@ -293,6 +293,7 @@ pub(super) fn session_thread(
                     net_seen: 0,
                     pages_loaded,
                     last_nav_error,
+                    last_nav_failure: None,
                     pending_storage,
                     element_map,
                     pending_replay,
@@ -466,6 +467,8 @@ struct SessionActor {
     pages_loaded: u32,
     /// Kept until the next navigation succeeds (#80).
     last_nav_error: Option<String>,
+    /// How the failed navigation's request failed, for the face that tells it.
+    last_nav_failure: Option<diting::diting_net::NetFailure>,
     /// Origin-gated storage blob waiting for its landing (#141).
     pending_storage: Option<Value>,
     /// Element index → _nid mapping (rebuilt on each /state call).
@@ -490,6 +493,7 @@ impl SessionActor {
             recorder,
             pages_loaded,
             last_nav_error,
+            last_nav_failure,
             pending_storage,
             element_map,
             pending_replay,
@@ -613,6 +617,7 @@ impl SessionActor {
                     Err(e) => {
                         let msg = format!("navigation failed: {}", e);
                         *last_nav_error = Some(msg.clone());
+                        *last_nav_failure = Some(e.failure());
                         Err(msg)
                     }
                 }

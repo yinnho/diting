@@ -60,12 +60,13 @@ pub enum EmulateOp {
 }
 
 /// The answer to [`SessionCommand::NavigateCdp`]: how the navigation
-/// went, and the request rows it filed.
+/// went, the request rows it filed, and — when it failed — how.
 pub type NavigateCdpReply = oneshot::Sender<
     Result<
         (
             Result<SessionNavResponse, String>,
             Vec<diting::diting_browser::page::NetworkEvent>,
+            diting::diting_net::NetFailure,
         ),
         String,
     >,

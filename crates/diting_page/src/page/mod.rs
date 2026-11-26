@@ -484,6 +484,14 @@ pub enum PageError {
     #[error("Network error: {0}")]
     NetworkError(String),
 
+    /// A request that failed in transit, with how. Reads exactly as
+    /// [`PageError::NetworkError`] does.
+    #[error("Network error: {message}")]
+    Transport {
+        kind: diting_net::NetFailure,
+        message: String,
+    },
+
     /// Not HTTP 3xx redirects (those are `NetError::TooManyRedirects`) —
     /// this counts documents in a JS-initiated navigation chain. The count
     /// includes the requested document, so a limit of N buys N-1
@@ -498,6 +506,22 @@ pub enum PageError {
 
 impl From<NetError> for PageError {
     fn from(e: NetError) -> Self {
-        PageError::NetworkError(e.to_string())
+        match &e {
+            NetError::Transport { kind, .. } => PageError::Transport {
+                kind: kind.clone(),
+                message: e.to_string(),
+            },
+            _ => PageError::NetworkError(e.to_string()),
+        }
+    }
+}
+
+impl PageError {
+    /// How the request failed, where that is known.
+    pub fn failure(&self) -> diting_net::NetFailure {
+        match self {
+            PageError::Transport { kind, .. } => kind.clone(),
+            _ => diting_net::NetFailure::Other,
+        }
     }
 }

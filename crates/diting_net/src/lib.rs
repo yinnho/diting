@@ -3,6 +3,7 @@ pub mod chrome_headers;
 pub mod client;
 pub mod cookies;
 pub mod encoding;
+pub mod failure;
 pub mod progress;
 pub mod site;
 pub mod wreq_client;
@@ -20,6 +21,7 @@ pub use encoding::{
     decode_devtools_body, decode_non_html, decode_response_with_name, decode_with_label,
     label_name, url_encode_query,
 };
+pub use failure::{classify_transport, NetFailure};
 pub use site::{is_same_site, registrable_domain, sec_fetch_site};
 
 /// Fold a response's headers into the JS/CDP-visible map WITHOUT the naive

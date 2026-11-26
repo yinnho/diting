@@ -6,6 +6,7 @@
 //! is told by where it landed, not hop by hop.
 
 use diting::diting_browser::page::NetworkEvent;
+use diting::diting_net::NetFailure;
 use serde_json::{json, Map, Value};
 
 use super::params::string;
@@ -42,17 +43,16 @@ fn resource_type(row: &NetworkEvent) -> &str {
         .unwrap_or("Other")
 }
 
-/// How a request that got no response failed, in Chrome's words. The
-/// engine files only a free-text reason, so this reads it; what it does
-/// not recognise is `net::ERR_FAILED`, Chrome's own catch-all.
+/// How a request that got no response failed, in Chrome's words: the
+/// engine's [`NetFailure`] for it, spelled the way DevTools spells it.
 ///
 /// Probed on Chrome 158: a refused connection, a CORS refusal because the
 /// allow-origin header is missing or names another origin, and a URL
 /// blocked by `Network.setBlockedURLs` (no `errorText`, `blockedReason:
 /// inspector`). `ERR_NAME_NOT_RESOLVED` is Chrome's name for a failed
-/// lookup but was not probed: the sandbox answers every name. Other CORS
-/// refusals (preflight, redirect, credentials) are not probed either and
-/// stay `ERR_FAILED` without a `corsErrorStatus`.
+/// lookup but was not probed: the sandbox answers every name. A timeout
+/// and a reset connection are told apart by the engine but not probed
+/// either, so they say what everything unread says: `net::ERR_FAILED`.
 #[derive(Debug, PartialEq)]
 pub(super) struct Failed {
     pub error_text: String,
@@ -60,52 +60,39 @@ pub(super) struct Failed {
     pub cors: Option<(&'static str, String)>,
 }
 
-pub(super) fn failed(reason: &str) -> Failed {
+pub(super) fn failed(failure: &NetFailure) -> Failed {
     let plain = |text: &str| Failed {
         error_text: text.to_string(),
         blocked_reason: None,
         cors: None,
     };
-    if reason.starts_with("blocked by Network.setBlockedURLs") {
-        return Failed {
+    let cors = |kind: &'static str, parameter: String| Failed {
+        error_text: "net::ERR_FAILED".to_string(),
+        blocked_reason: None,
+        cors: Some((kind, parameter)),
+    };
+    match failure {
+        NetFailure::ConnectionRefused => plain("net::ERR_CONNECTION_REFUSED"),
+        NetFailure::NameNotResolved => plain("net::ERR_NAME_NOT_RESOLVED"),
+        NetFailure::BlockedByInspector => Failed {
             error_text: String::new(),
             blocked_reason: Some("inspector"),
             cors: None,
-        };
+        },
+        NetFailure::CorsMissingAllowOrigin => cors("MissingAllowOriginHeader", String::new()),
+        NetFailure::CorsAllowOriginMismatch(allowed) => {
+            cors("AllowOriginMismatch", allowed.clone())
+        }
+        NetFailure::TimedOut | NetFailure::ConnectionReset | NetFailure::Other => {
+            plain("net::ERR_FAILED")
+        }
     }
-    const NOT_ALLOWED: &str = "' not in Access-Control-Allow-Origin '";
-    if let Some(at) = reason
-        .strip_prefix("CORS error: Origin '")
-        .and_then(|rest| rest.find(NOT_ALLOWED).map(|at| (rest, at)))
-    {
-        let (rest, at) = at;
-        let allowed = rest[at + NOT_ALLOWED.len()..]
-            .split('\'')
-            .next()
-            .unwrap_or("");
-        let (kind, parameter) = match allowed {
-            "" => ("MissingAllowOriginHeader", String::new()),
-            other => ("AllowOriginMismatch", other.to_string()),
-        };
-        return Failed {
-            error_text: "net::ERR_FAILED".to_string(),
-            blocked_reason: None,
-            cors: Some((kind, parameter)),
-        };
-    }
-    if reason.contains("ConnectionRefused") || reason.contains("Connection refused") {
-        return plain("net::ERR_CONNECTION_REFUSED");
-    }
-    if reason.contains("dns error") {
-        return plain("net::ERR_NAME_NOT_RESOLVED");
-    }
-    plain("net::ERR_FAILED")
 }
 
 /// A failed navigation's `errorText`: always a `net::ERR_*` name, as
 /// Playwright's `page.goto` error carries it.
-pub(super) fn navigation_error(reason: &str) -> String {
-    match failed(reason).error_text {
+pub(super) fn navigation_error(failure: &NetFailure) -> String {
+    match failed(failure).error_text {
         text if text.is_empty() => "net::ERR_FAILED".to_string(),
         text => text,
     }
@@ -178,7 +165,7 @@ pub(super) fn network_frames(
             }),
         );
         if row.error.is_some() || row.status == 0 {
-            let why = failed(row.error.as_deref().unwrap_or(""));
+            let why = failed(row.failure.as_ref().unwrap_or(&NetFailure::Other));
             let mut params = json!({
                 "requestId": row.request_id,
                 "timestamp": row.timestamp,
@@ -283,22 +270,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn what_the_engine_says_of_a_failure_is_chromes_word_for_it() {
-        let refused = "Network error: http://127.0.0.1:9/x: error sending request for uri \
-            (http://127.0.0.1:9/x): client error (Connect) (source: Some(Error { kind: Connect, \
-            source: Some(ConnectError(\"tcp connect error\", Os { code: 61, kind: \
-            ConnectionRefused, message: \"Connection refused\" })) }))";
-        assert_eq!(failed(refused).error_text, "net::ERR_CONNECTION_REFUSED");
-        let dns = "Network error: http://x.invalid/: client error (Connect) (source: \
-            Some(Error { kind: Connect, source: Some(ConnectError(\"dns error\", DnsError(..))) }))";
-        assert_eq!(failed(dns).error_text, "net::ERR_NAME_NOT_RESOLVED");
-        assert_eq!(failed("something else broke").error_text, "net::ERR_FAILED");
-        assert_eq!(failed("").error_text, "net::ERR_FAILED");
+    fn what_the_engine_knows_of_a_failure_is_chromes_word_for_it() {
+        assert_eq!(
+            failed(&NetFailure::ConnectionRefused).error_text,
+            "net::ERR_CONNECTION_REFUSED"
+        );
+        assert_eq!(
+            failed(&NetFailure::NameNotResolved).error_text,
+            "net::ERR_NAME_NOT_RESOLVED"
+        );
+        // Told apart by the engine, not yet by Chrome's probe.
+        for unread in [
+            NetFailure::TimedOut,
+            NetFailure::ConnectionReset,
+            NetFailure::Other,
+        ] {
+            assert_eq!(failed(&unread).error_text, "net::ERR_FAILED", "{unread:?}");
+        }
     }
 
     #[test]
     fn a_url_blocked_from_the_inspector_has_no_error_text() {
-        let blocked = failed("blocked by Network.setBlockedURLs pattern: *ads*");
+        let blocked = failed(&NetFailure::BlockedByInspector);
         assert_eq!(blocked.error_text, "");
         assert_eq!(blocked.blocked_reason, Some("inspector"));
         assert_eq!(blocked.cors, None);
@@ -306,37 +299,29 @@ mod tests {
 
     #[test]
     fn a_cors_refusal_says_whether_the_header_was_missing_or_wrong() {
-        let missing =
-            failed("CORS error: Origin 'http://localhost:1' not in Access-Control-Allow-Origin ''");
+        let missing = failed(&NetFailure::CorsMissingAllowOrigin);
         assert_eq!(missing.error_text, "net::ERR_FAILED");
         assert_eq!(
             missing.cors,
             Some(("MissingAllowOriginHeader", String::new()))
         );
-        let wrong = failed(
-            "CORS error: Origin 'http://localhost:1' not in Access-Control-Allow-Origin \
-             'http://example.test'",
-        );
+        let wrong = failed(&NetFailure::CorsAllowOriginMismatch(
+            "http://example.test".into(),
+        ));
         assert_eq!(
             wrong.cors,
             Some(("AllowOriginMismatch", "http://example.test".to_string()))
-        );
-        // A refusal this does not read is the catch-all, not a guess.
-        let preflight = failed("CORS preflight did not allow method 'PUT'");
-        assert_eq!(
-            (preflight.error_text.as_str(), preflight.cors),
-            ("net::ERR_FAILED", None)
         );
     }
 
     #[test]
     fn a_failed_navigation_is_always_a_net_error() {
         assert_eq!(
-            navigation_error("blocked by Network.setBlockedURLs pattern: *"),
+            navigation_error(&NetFailure::BlockedByInspector),
             "net::ERR_FAILED"
         );
         assert_eq!(
-            navigation_error("navigation error: ConnectionRefused"),
+            navigation_error(&NetFailure::ConnectionRefused),
             "net::ERR_CONNECTION_REFUSED"
         );
     }

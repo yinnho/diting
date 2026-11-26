@@ -591,14 +591,18 @@ async fn load(hub: SharedHub, session: &str, url: &str) -> Result<(Out, Value), 
         let hub = hub.lock().await;
         page_of(&hub, session)?.engine_session.clone()
     };
-    let (nav, rows) = match send_command(&engine, |reply| SessionCommand::NavigateCdp {
+    let (nav, rows, failure) = match send_command(&engine, |reply| SessionCommand::NavigateCdp {
         url: url.to_string(),
         reply,
     })
     .await
     {
         Ok(answer) => answer,
-        Err(err) => (Err(session_msg(err)), Vec::new()),
+        Err(err) => (
+            Err(session_msg(err)),
+            Vec::new(),
+            diting::diting_net::NetFailure::Other,
+        ),
     };
     let mut hub = hub.lock().await;
     let local = local_of(&hub, session);
@@ -625,9 +629,9 @@ async fn load(hub: SharedHub, session: &str, url: &str) -> Result<(Out, Value), 
                 "isDownload": false,
             })
         }
-        Err(err) => json!({
+        Err(_) => json!({
             "frameId": page.target_id,
-            "errorText": super::network_events::navigation_error(err),
+            "errorText": super::network_events::navigation_error(&failure),
             "isDownload": false,
             "loaderId": loader_of(page),
         }),

@@ -97,6 +97,7 @@ pub(super) fn gather_fetch_parts(
                     url: url.to_string(),
                     method: method.to_string(),
                     reason: e.clone(),
+                    kind: diting_net::NetFailure::Other,
                     final_url: url.to_string(),
                     redirects: Vec::new(),
                     started,
@@ -126,6 +127,7 @@ pub(super) fn gather_fetch_parts(
                 url: url.to_string(),
                 method: method.to_string(),
                 reason: reason.clone(),
+                kind: diting_net::NetFailure::Other,
                 final_url: url.to_string(),
                 redirects: Vec::new(),
                 started,
@@ -199,6 +201,7 @@ pub(super) fn gather_fetch_parts(
                 url: url.to_string(),
                 method: method.to_string(),
                 reason: format!("blocked by Network.setBlockedURLs pattern: {pattern}"),
+                kind: diting_net::NetFailure::BlockedByInspector,
                 final_url: url.to_string(),
                 redirects: Vec::new(),
                 started,
@@ -260,6 +263,7 @@ pub(super) fn record_fetch_network_event(state: &OpState, ev: &FetchNetworkEvent
         body_size: ev.body_size,
         timestamp,
         error: None,
+        failure: None,
         final_url: ev.final_url.clone(),
         redirects: ev.redirects.clone(),
         started: ev.started,
@@ -506,6 +510,7 @@ pub(crate) async fn op_fetch_url_body(
                             url: url.clone(),
                             method: method.clone(),
                             reason: reason.clone(),
+                            kind: diting_net::NetFailure::Other,
                             final_url: url.clone(),
                             redirects: Vec::new(),
                             started: started_unix,
@@ -561,6 +566,7 @@ pub(crate) async fn op_fetch_url_body(
                                 url: new_url.clone(),
                                 method: method.clone(),
                                 reason: error.clone(),
+                                kind: diting_net::NetFailure::Other,
                                 final_url: new_url.clone(),
                                 redirects: Vec::new(),
                                 started: started_unix,
@@ -586,6 +592,7 @@ pub(crate) async fn op_fetch_url_body(
                             url: new_url.clone(),
                             method: method.clone(),
                             reason: error.clone(),
+                            kind: diting_net::NetFailure::Other,
                             final_url: new_url.clone(),
                             redirects: Vec::new(),
                             started: started_unix,
@@ -751,6 +758,7 @@ pub(super) fn record_failed_fetch(state: &OpState, f: &FetchFailure) {
         body_size: 0,
         timestamp,
         error: Some(f.reason.clone()),
+        failure: Some(f.kind.clone()),
         final_url: f.final_url.clone(),
         redirects: f.redirects.clone(),
         started: f.started,
@@ -913,6 +921,7 @@ pub(super) fn op_fetch_url_sync(
                     reason: "synchronous XHR abandoned: script execution was terminated \
                              — the worker's late result is not logged"
                         .to_string(),
+                    kind: diting_net::NetFailure::Other,
                     final_url: abandon_url,
                     redirects: Vec::new(),
                     started: abandon_started,
@@ -937,6 +946,7 @@ pub(super) fn op_fetch_url_sync(
                         "synchronous XHR driver timed out after {timeout_ms}ms — \
                          the worker's late result is not logged"
                     ),
+                    kind: diting_net::NetFailure::Other,
                     final_url: abandon_url,
                     redirects: Vec::new(),
                     started: abandon_started,
@@ -960,6 +970,7 @@ pub(super) fn op_fetch_url_sync(
                         reason: "synchronous XHR worker died before replying — \
                                  the worker's late result is not logged"
                             .to_string(),
+                        kind: diting_net::NetFailure::Other,
                         final_url: abandon_url,
                         redirects: Vec::new(),
                         started: abandon_started,

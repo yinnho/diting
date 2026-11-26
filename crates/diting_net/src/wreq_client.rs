@@ -869,17 +869,24 @@ impl StealthHttpClient {
                         tokio::time::sleep(std::time::Duration::from_millis(1_000)).await;
                         continue;
                     }
+                    let kind = crate::classify_transport(&e);
                     return Err(match (&self.proxy_url, unreachable) {
-                        (Some(proxy), true) => NetError::Network(format!(
-                            "upstream proxy {} unreachable while fetching {}: {} — unset DITING_PROXY to connect directly",
-                            proxy, current_url, e
-                        )),
-                        _ => NetError::Network(format!(
-                            "{}: {} (source: {:?})",
-                            current_url,
-                            e,
-                            e.source()
-                        )),
+                        (Some(proxy), true) => NetError::Transport {
+                            kind,
+                            message: format!(
+                                "upstream proxy {} unreachable while fetching {}: {} — unset DITING_PROXY to connect directly",
+                                proxy, current_url, e
+                            ),
+                        },
+                        _ => NetError::Transport {
+                            kind,
+                            message: format!(
+                                "{}: {} (source: {:?})",
+                                current_url,
+                                e,
+                                e.source()
+                            ),
+                        },
                     });
                 }
             };
