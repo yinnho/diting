@@ -525,3 +525,104 @@ async fn requests_carry_the_fields_chrome_sends_with_them() {
     let sent = event_params(&fetched, "Network.requestWillBeSent").unwrap();
     assert_eq!(sent["initiator"]["type"], "script");
 }
+
+/// The `Network.loadingFailed` params that `events_until` collected, for
+/// the request whose URL ends in `suffix`.
+fn failed_params<'a>(events: &'a [Value], suffix: &str) -> &'a Value {
+    let id = events
+        .iter()
+        .filter(|event| event["method"] == "Network.requestWillBeSent")
+        .find(|event| {
+            event["params"]["request"]["url"]
+                .as_str()
+                .is_some_and(|url| url.ends_with(suffix))
+        })
+        .and_then(|event| event["params"]["requestId"].as_str())
+        .unwrap_or_else(|| panic!("no request for {suffix} in {events:?}"));
+    events
+        .iter()
+        .find(|event| {
+            event["method"] == "Network.loadingFailed" && event["params"]["requestId"] == id
+        })
+        .map(|event| &event["params"])
+        .unwrap_or_else(|| panic!("{suffix} did not fail: {events:?}"))
+}
+
+#[tokio::test]
+async fn a_request_that_fails_is_told_in_chromes_words() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (router, _site) = site();
+    let (mut client, addr) = connect(router).await;
+    let origin = format!("http://{addr}");
+    let session = page_at(&mut client, 1, &format!("{origin}/echo")).await;
+    let on = Some(session.as_str());
+    client.run("Network.enable", json!({}), on).await;
+    client
+        .run(
+            "Network.setBlockedURLs",
+            json!({ "urls": ["*blockme*"] }),
+            on,
+        )
+        .await;
+    // A port that was open a moment ago and is closed now.
+    let dead = {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.local_addr().unwrap().port()
+    };
+    let expression = format!(
+        "fetch('http://127.0.0.1:{dead}/refused').catch(() => 0); \
+         fetch('/blockme').catch(() => 0); \
+         fetch('http://localhost:{}/echo?cors').catch(() => 0); 1",
+        addr.port()
+    );
+    client.events.clear();
+    client
+        .run("Runtime.evaluate", json!({ "expression": expression }), on)
+        .await;
+    let mut seen = Vec::new();
+    for _ in 0..3 {
+        seen.extend(
+            client
+                .events_until("Network.loadingFailed", Duration::from_secs(5))
+                .await,
+        );
+    }
+    let refused = failed_params(&seen, "/refused");
+    assert_eq!(refused["errorText"], "net::ERR_CONNECTION_REFUSED");
+    assert_eq!(refused["canceled"], false);
+    assert!(refused.get("blockedReason").is_none());
+
+    let blocked = failed_params(&seen, "/blockme");
+    assert_eq!(blocked["errorText"], "");
+    assert_eq!(blocked["blockedReason"], "inspector");
+
+    let cors = failed_params(&seen, "/echo?cors");
+    assert_eq!(cors["errorText"], "net::ERR_FAILED");
+    assert_eq!(
+        cors["corsErrorStatus"]["corsError"],
+        "MissingAllowOriginHeader"
+    );
+    assert_eq!(cors["corsErrorStatus"]["failedParameter"], "");
+}
+
+#[tokio::test]
+async fn a_navigation_that_fails_answers_with_a_net_error() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (mut client, _) = connect(axum::Router::new()).await;
+    let (_, session) = open_owned_page(&mut client, 1).await;
+    let on = Some(session.as_str());
+    let dead = {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.local_addr().unwrap().port()
+    };
+    let reply = client
+        .run(
+            "Page.navigate",
+            json!({ "url": format!("http://127.0.0.1:{dead}/") }),
+            on,
+        )
+        .await;
+    assert_eq!(reply["errorText"], "net::ERR_CONNECTION_REFUSED");
+}
