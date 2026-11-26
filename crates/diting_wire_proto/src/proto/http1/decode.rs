@@ -264,8 +264,10 @@ macro_rules! byte (
         if !buf.is_empty() {
             buf[0]
         } else {
-            return Poll::Ready(Err(io::Error::new(io::ErrorKind::UnexpectedEof,
-                                      "unexpected EOF during chunk size line")));
+            return Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                IncompleteChunks,
+            )));
         }
     })
 );
@@ -675,7 +677,19 @@ fn decode_trailers(buf: &mut BytesMut, count: usize) -> Result<HeaderMap, io::Er
 }
 
 #[derive(Debug)]
-struct IncompleteBody;
+pub(crate) struct IncompleteBody;
+
+/// The connection ended inside a chunked body, before its last chunk.
+#[derive(Debug)]
+pub(crate) struct IncompleteChunks;
+
+impl fmt::Display for IncompleteChunks {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("unexpected EOF during chunk size line")
+    }
+}
+
+impl StdError for IncompleteChunks {}
 
 // === impl IncompleteBody ===
 

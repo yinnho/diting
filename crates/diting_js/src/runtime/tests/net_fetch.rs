@@ -2135,3 +2135,59 @@ async fn reqres_match_chrome_truth() {
         bad.join("\n")
     );
 }
+
+/// A body that dies mid-stream is a failed request, and leaves a row that
+/// says how: the server declares 100 bytes, sends 3 and hangs up. (The
+/// streaming read this goes through used to return the error and record
+/// nothing, so /network never showed the request at all.)
+#[allow(clippy::await_holding_lock)] // the env guard must span the await — that's the serialization
+#[tokio::test(flavor = "current_thread")]
+async fn a_body_that_ends_short_leaves_a_failed_row_with_its_kind() {
+    let _env_guard = crate::PRIVATE_NET_ENV_LOCK.lock().unwrap();
+    std::env::set_var("DITING_ALLOW_PRIVATE_NETWORK", "1");
+
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        use std::io::{Read, Write};
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut buf = [0u8; 4096];
+        let _ = stream.read(&mut buf).unwrap();
+        stream
+            .write_all(
+                b"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: 100\r\n\r\nabc",
+            )
+            .unwrap();
+        stream.flush().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    });
+
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.set_url(&format!("http://127.0.0.1:{port}/test"));
+    let result = rt
+        .call_function_on_remote(
+            r#"async () => {
+                    try { await (await fetch('/short')).text(); return 'read'; }
+                    catch (e) { return 'rejected'; }
+                }"#,
+            None,
+            &[],
+            true,
+            true,
+        )
+        .await
+        .unwrap();
+    std::env::remove_var("DITING_ALLOW_PRIVATE_NETWORK");
+    assert_eq!(result.value.unwrap(), serde_json::json!("rejected"));
+
+    let rows = rt.take_js_network_events();
+    let row = rows
+        .iter()
+        .find(|row| row.url.ends_with("/short"))
+        .unwrap_or_else(|| panic!("the failed request left no row: {} rows", rows.len()));
+    assert_eq!(row.status, 0);
+    assert_eq!(
+        row.failure,
+        Some(diting_net::NetFailure::ContentLengthMismatch)
+    );
+}

@@ -1178,7 +1178,10 @@ impl HttpClient {
                         status,
                         response_headers.get("content-type")
                     );
-                    NetError::Network(format!("Failed to read body: {}", e))
+                    NetError::Transport {
+                        kind: crate::classify_transport(&e),
+                        message: format!("Failed to read body: {}", e),
+                    }
                 })?
                 .to_vec();
 

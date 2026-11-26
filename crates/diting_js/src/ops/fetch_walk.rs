@@ -1131,11 +1131,25 @@ pub(crate) async fn fetch_url_walk(
                 }
             };
             let mut bytes: Vec<u8> = Vec::new();
-            while let Some(chunk) = live
-                .chunk()
-                .await
-                .map_err(|e| deno_error::JsErrorBox::generic(e.to_string()))?
-            {
+            loop {
+                let chunk = match live.chunk().await {
+                    Ok(Some(chunk)) => chunk,
+                    Ok(None) => break,
+                    Err(e) => {
+                        // A body that dies mid-stream is a failed request:
+                        // it leaves a row, as every other failure does.
+                        deps.failures.push(FetchFailure {
+                            url: url.clone(),
+                            method: current_method.as_str().to_string(),
+                            reason: e.to_string(),
+                            kind: diting_net::classify_transport(&e),
+                            final_url: current_url.clone(),
+                            redirects: redirect_hops.clone(),
+                            started: deps.started_unix,
+                        });
+                        return Err(deno_error::JsErrorBox::generic(e.to_string()));
+                    }
+                };
                 bytes.extend_from_slice(&chunk);
                 if bytes.len() > body_limit {
                     return Err(deno_error::JsErrorBox::generic(format!(

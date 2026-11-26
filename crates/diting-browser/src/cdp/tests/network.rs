@@ -719,3 +719,125 @@ async fn a_navigation_to_a_port_a_browser_refuses_answers_with_unsafe_port() {
         .await;
     assert_eq!(reply["errorText"], "net::ERR_UNSAFE_PORT");
 }
+
+/// A server that does what its path says once it has the request — the
+/// same one `reset-probe.cjs` put to Chrome: `/empty` closes, `/reset`
+/// resets, `/shortfin` and `/shortrst` send 3 of a declared 100 body
+/// bytes and then close or reset, `/chunkcut` ends inside a chunked body,
+/// and `/doc` is an ordinary page.
+async fn misbehaving_site() -> u16 {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut sock, _)) = listener.accept().await else {
+                break;
+            };
+            tokio::spawn(async move {
+                let mut buf = vec![0u8; 4096];
+                let n = sock.read(&mut buf).await.unwrap_or(0);
+                let request = String::from_utf8_lossy(&buf[..n]).to_string();
+                let line = request.lines().next().unwrap_or("").to_string();
+                let reset = |sock: &tokio::net::TcpStream| {
+                    // SO_LINGER 0 turns the close into a reset. The deprecation is
+                    // about blocking the thread on drop; these sockets are test-local.
+                    #[allow(deprecated)]
+                    let _ = sock.set_linger(Some(Duration::ZERO));
+                };
+                if line.contains("/doc") {
+                    let body = "<!doctype html><body>x</body>";
+                    let _ = sock
+                        .write_all(
+                            format!(
+                                "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\n\
+                                 content-length: {}\r\nconnection: close\r\n\r\n{body}",
+                                body.len()
+                            )
+                            .as_bytes(),
+                        )
+                        .await;
+                } else if line.contains("/reset") {
+                    reset(&sock);
+                } else if line.contains("/shortfin") || line.contains("/shortrst") {
+                    let _ = sock
+                        .write_all(
+                            b"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\n\
+                              content-length: 100\r\n\r\nabc",
+                        )
+                        .await;
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    if line.contains("/shortrst") {
+                        reset(&sock);
+                    }
+                } else if line.contains("/chunkcut") {
+                    let _ = sock
+                        .write_all(
+                            b"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\n\
+                              transfer-encoding: chunked\r\n\r\n3\r\nabc\r\n",
+                        )
+                        .await;
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+                // `/empty`: the socket is dropped unanswered.
+            });
+        }
+    });
+    port
+}
+
+#[tokio::test]
+async fn a_connection_that_goes_wrong_is_told_as_chrome_tells_it() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let origin = format!("http://127.0.0.1:{}", misbehaving_site().await);
+    let (mut client, _) = connect(axum::Router::new()).await;
+    let session = page_at(&mut client, 1, &format!("{origin}/doc")).await;
+    let on = Some(session.as_str());
+    client.run("Network.enable", json!({}), on).await;
+    // Chrome 158's answer to each (`reset-probe.cjs`, `run-reset.log`).
+    for (path, chrome) in [
+        ("empty", "net::ERR_EMPTY_RESPONSE"),
+        ("reset", "net::ERR_CONNECTION_RESET"),
+        ("shortfin", "net::ERR_CONTENT_LENGTH_MISMATCH"),
+        ("shortrst", "net::ERR_CONNECTION_RESET"),
+        ("chunkcut", "net::ERR_INCOMPLETE_CHUNKED_ENCODING"),
+    ] {
+        client.events.clear();
+        client
+            .run(
+                "Runtime.evaluate",
+                json!({ "expression": format!("fetch('{origin}/{path}').then(r => r.text()).catch(() => 0); 1") }),
+                on,
+            )
+            .await;
+        let seen = client
+            .events_until("Network.loadingFailed", Duration::from_secs(5))
+            .await;
+        let failed = failed_params(&seen, &format!("/{path}"));
+        assert_eq!(failed["errorText"], chrome, "{path}");
+    }
+}
+
+#[tokio::test]
+async fn a_navigation_to_a_server_that_hangs_up_answers_as_chrome_does() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let origin = format!("http://127.0.0.1:{}", misbehaving_site().await);
+    let (mut client, _) = connect(axum::Router::new()).await;
+    let (_, session) = open_owned_page(&mut client, 1).await;
+    let on = Some(session.as_str());
+    for (path, chrome) in [
+        ("empty", "net::ERR_EMPTY_RESPONSE"),
+        ("reset", "net::ERR_CONNECTION_RESET"),
+    ] {
+        let reply = client
+            .run(
+                "Page.navigate",
+                json!({ "url": format!("{origin}/{path}") }),
+                on,
+            )
+            .await;
+        assert_eq!(reply["errorText"], chrome, "{path}");
+    }
+}
