@@ -3,12 +3,39 @@
 //! (ratchet); pure function over `url::Url`, no OpState.
 use diting_net::client::policy::PRIVATE_NETWORK_HINT;
 
+/// What [`validate_fetch_url`]'s refusal of `url` was, as a value: a port a
+/// browser will not speak to, or any other policy.
+pub(crate) fn gate_failure(url: &url::Url) -> diting_net::NetFailure {
+    if is_web(url) && diting_net::port::restricted_port(url).is_some() {
+        diting_net::NetFailure::UnsafePort
+    } else {
+        diting_net::NetFailure::Other
+    }
+}
+
 /// Also applied by the ES module loader (obscura #849): dynamic import() is
 /// as page-reachable as fetch(), so it answers to the same scheme and
 /// private-network policy. The cached client these paths share never
 /// auto-follows redirects, so validating the resolved specifier covers
 /// every hop a fetch can actually take.
 pub fn validate_fetch_url(url: &url::Url) -> Result<(), String> {
+    let policy = check_fetch_url(url);
+    // A browser refuses a restricted port whoever the host is, so this does
+    // not answer to the private-network switch. Where the URL is also
+    // refused for another reason, that reason's words stay: they carry the
+    // opt-in hint. The reason otherwise is Chrome's name for it, as the
+    // scheme refusal is.
+    if policy.is_ok() && is_web(url) && diting_net::port::restricted_port(url).is_some() {
+        return Err("net::ERR_UNSAFE_PORT".to_string());
+    }
+    policy
+}
+
+fn is_web(url: &url::Url) -> bool {
+    matches!(url.scheme(), "http" | "https")
+}
+
+fn check_fetch_url(url: &url::Url) -> Result<(), String> {
     let scheme = url.scheme();
     // file:// is rejected up front for page-reachable fetch/XHR, matching the
     // deny-by-default navigation posture (upstream obscura #708: the old gate

@@ -74,6 +74,7 @@ pub(super) fn failed(failure: &NetFailure) -> Failed {
     match failure {
         NetFailure::ConnectionRefused => plain("net::ERR_CONNECTION_REFUSED"),
         NetFailure::NameNotResolved => plain("net::ERR_NAME_NOT_RESOLVED"),
+        NetFailure::UnsafePort => plain("net::ERR_UNSAFE_PORT"),
         NetFailure::BlockedByInspector => Failed {
             error_text: String::new(),
             blocked_reason: Some("inspector"),
@@ -278,6 +279,10 @@ mod tests {
         assert_eq!(
             failed(&NetFailure::NameNotResolved).error_text,
             "net::ERR_NAME_NOT_RESOLVED"
+        );
+        assert_eq!(
+            failed(&NetFailure::UnsafePort).error_text,
+            "net::ERR_UNSAFE_PORT"
         );
         // Told apart by the engine, not yet by Chrome's probe.
         for unread in [

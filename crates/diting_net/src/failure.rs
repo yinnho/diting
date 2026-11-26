@@ -23,6 +23,9 @@ pub enum NetFailure {
     CorsMissingAllowOrigin,
     /// The response named another origin than the page's.
     CorsAllowOriginMismatch(String),
+    /// The port is one a browser refuses to speak HTTP to, so no socket
+    /// was opened.
+    UnsafePort,
     /// Any other failure: the free-text reason is all there is.
     Other,
 }

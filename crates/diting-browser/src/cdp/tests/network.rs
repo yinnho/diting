@@ -673,3 +673,49 @@ async fn a_cors_refusal_by_a_wrong_header_names_the_origin_it_allowed() {
         "http://example.test"
     );
 }
+
+#[tokio::test]
+async fn a_request_to_a_port_a_browser_refuses_never_leaves() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (router, _site) = site();
+    let (mut client, addr) = connect(router).await;
+    let origin = format!("http://{addr}");
+    let session = page_at(&mut client, 1, &format!("{origin}/echo")).await;
+    let on = Some(session.as_str());
+    client.run("Network.enable", json!({}), on).await;
+    client.events.clear();
+    // Port 6000 is on Chrome's list. Nothing listens there, so a request
+    // that was sent would be refused (`ERR_CONNECTION_REFUSED`); this one
+    // is turned back before a socket is opened.
+    client
+        .run(
+            "Runtime.evaluate",
+            json!({ "expression": "fetch('http://127.0.0.1:6000/unsafe').catch(() => 0); 1" }),
+            on,
+        )
+        .await;
+    let seen = client
+        .events_until("Network.loadingFailed", Duration::from_secs(5))
+        .await;
+    let failed = failed_params(&seen, "/unsafe");
+    assert_eq!(failed["errorText"], "net::ERR_UNSAFE_PORT");
+    assert_eq!(failed["canceled"], false);
+}
+
+#[tokio::test]
+async fn a_navigation_to_a_port_a_browser_refuses_answers_with_unsafe_port() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (mut client, _) = connect(axum::Router::new()).await;
+    let (_, session) = open_owned_page(&mut client, 1).await;
+    let on = Some(session.as_str());
+    let reply = client
+        .run(
+            "Page.navigate",
+            json!({ "url": "http://127.0.0.1:6000/" }),
+            on,
+        )
+        .await;
+    assert_eq!(reply["errorText"], "net::ERR_UNSAFE_PORT");
+}

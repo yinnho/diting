@@ -846,7 +846,7 @@ pub(crate) async fn fetch_url_walk(
                 url: url.clone(),
                 method: current_method.as_str().to_string(),
                 reason: error.clone(),
-                kind: diting_net::NetFailure::Other,
+                kind: super::fetch_gate::gate_failure(&next_url),
                 final_url: next_url.to_string(),
                 redirects: redirect_hops.clone(),
                 started: deps.started_unix,
