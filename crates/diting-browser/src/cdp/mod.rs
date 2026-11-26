@@ -34,6 +34,7 @@
 
 pub(crate) mod emulation;
 mod envelope;
+mod network_events;
 mod objects;
 mod params;
 mod push;
@@ -158,6 +159,8 @@ struct SessionSlot {
     runtime_on: bool,
     /// `Page.setLifecycleEventsEnabled`.
     lifecycle_on: bool,
+    /// `Network.enable`: the page's requests, responses and their ends.
+    network_on: bool,
 }
 
 impl SessionSlot {
@@ -172,6 +175,7 @@ impl SessionSlot {
             page_on: false,
             runtime_on: false,
             lifecycle_on: false,
+            network_on: false,
         }
     }
 
@@ -771,8 +775,8 @@ async fn page_method(
             optional_string(params, "promptText")?;
             Err(invalid("No dialog is showing"))
         }
-        // Its fields are read, though nothing is done with them: network
-        // events are not pushed yet.
+        // Its fields are read, though nothing is done with them: the
+        // engine buffers no bodies by size.
         "Network.enable" => {
             kinds(
                 params,
@@ -782,6 +786,11 @@ async fn page_method(
                     ("maxPostDataSize", Kind::Integer),
                 ],
             )?;
+            set_network(&hub, session, true).await;
+            Ok(ack(id, session))
+        }
+        "Network.disable" => {
+            set_network(&hub, session, false).await;
             Ok(ack(id, session))
         }
         _ if PAGE_CHANNEL.contains(&method) => {
@@ -789,6 +798,13 @@ async fn page_method(
         }
         _ if STATELESS.contains(&method) => Ok(ack(id, session)),
         _ => Err(Failure::NotFound(method.to_string())),
+    }
+}
+
+/// `Network.enable` / `Network.disable` for the session they came on.
+async fn set_network(hub: &SharedHub, session: &str, on: bool) {
+    if let Some(slot) = hub.lock().await.sessions.get_mut(session) {
+        slot.network_on = on;
     }
 }
 
@@ -859,7 +875,6 @@ const STATELESS: &[&str] = &[
     "CSS.enable",
     "CSS.disable",
     "Runtime.runIfWaitingForDebugger",
-    "Network.disable",
 ];
 
 async fn runtime_forward(

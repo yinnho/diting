@@ -243,6 +243,8 @@ pub struct Page {
     /// page and the optimistic `url` must not shadow it (#101).
     pub realm_epoch: u64,
     network_event_counter: u32,
+    /// Last [`NetworkEvent::seq`] handed out.
+    network_seq: u64,
     /// Passive on_request/on_response callbacks, scoped to this page (upstream
     /// issue #408): they fire for document/subresource fetches this Page makes
     /// and for script-initiated fetch()/XHR in its realm, never for a sibling
@@ -386,6 +388,7 @@ impl Page {
             redirect_chain: Vec::new(),
             realm_epoch: 0,
             network_event_counter: 0,
+            network_seq: 0,
             session_storage: None,
             suspended_console: Vec::new(),
             viewport_override: None,

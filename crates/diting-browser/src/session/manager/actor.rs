@@ -11,6 +11,7 @@
 
 mod emulate;
 mod eval_remote;
+mod network;
 mod page_op;
 
 use std::collections::HashMap;
@@ -22,32 +23,13 @@ use super::super::commands::{
     ScrollDirection, SessionClickResponse, SessionCommand, SessionNavResponse,
 };
 use super::super::interact::{
-    click_by_index, click_xy, drag_xy, extract_indexed_state, input_by_index, merge_dom_candidates,
-    set_files_by_selector, DOM_MEDIA_SCRIPT,
+    click_by_index, click_xy, drag_xy, extract_indexed_state, input_by_index, set_files_by_selector,
 };
 use super::super::record::{inject_storage_js, RecordedAction};
 use super::super::snapshot::extract_snapshot;
-use super::super::state::{drain_console_publish, ConsoleFilter, NavFrameShared, SessionError};
-
-/// A script-initiated request older than this is not "slow", it is hung —
-/// every transport the engine rides carries a 30s read timeout and a 120s
-/// sync-XHR cap, so a 13-minute in-flight entry (the #203 taobao submit
-/// shape) means the completion never reached JS at all. `hung: true` tells
-/// the reading agent that waiting longer is pointless and the page's own
-/// handler will never fire — the honest signal before a re-issue decision.
-const HUNG_INFLIGHT_AFTER_MS: u64 = 300_000;
-
-/// One `in_flight` row for the Network payload: url/method/age, plus the
-/// `hung` verdict once the age crosses [`HUNG_INFLIGHT_AFTER_MS`].
-fn in_flight_row(f: &diting::diting_net::InFlightScripted, now_ms: u64) -> serde_json::Value {
-    let age_ms = now_ms.saturating_sub(f.dispatched_at_ms);
-    json!({
-        "url": f.url,
-        "method": f.method,
-        "age_ms": age_ms,
-        "hung": age_ms >= HUNG_INFLIGHT_AFTER_MS,
-    })
-}
+use super::super::state::{
+    drain_console_publish, publish_network, ConsoleFilter, NavFrameShared, SessionError,
+};
 
 /// Drain `pending` web-storage into the current page, origin-gated
 /// (issue #141). A blob carrying an `"origin"` key (record- or
@@ -308,6 +290,7 @@ pub(super) fn session_thread(
                     recorder,
                     console_ring,
                     console_subs: Vec::new(),
+                    net_seen: 0,
                     pages_loaded,
                     last_nav_error,
                     pending_storage,
@@ -343,6 +326,7 @@ pub(super) fn session_thread(
                         },
                         _ = actor.page.pump_event_loop_slice(if drain_budget > 0 { 1500 } else { 200 }) => {
                             drain_console_publish(&mut actor.page, &mut actor.console_ring, &mut actor.console_subs);
+                            publish_network(&mut actor.page, &mut actor.net_seen, &mut actor.console_subs);
                             drain_budget = 0;
                             // #276 idle shrink: once the drain is spent the
                             // page has had a quiet 200ms slice — five more
@@ -387,6 +371,7 @@ pub(super) fn session_thread(
                     }
                     match cmd {
                         SessionCommand::Navigate { url, reply } => actor.on_navigate(url, reply, &mut cmd_rx).await,
+                        SessionCommand::NavigateCdp { url, reply } => actor.on_navigate_cdp(url, reply, &mut cmd_rx).await,
                         SessionCommand::SetPreload { scripts, reply } => actor.on_set_preload(scripts, reply).await,
                         SessionCommand::SetContent { html, reply } => actor.on_set_content(html, reply).await,
                         SessionCommand::State { reply } => actor.on_state(reply).await,
@@ -403,10 +388,7 @@ pub(super) fn session_thread(
                         SessionCommand::EvalRemote { script, await_promise, return_by_value, timeout_ms, reply } => actor.on_eval_remote(script, await_promise, return_by_value, timeout_ms, reply).await,
                         SessionCommand::CallOn { args, reply } => actor.on_call_on(args, reply).await,
                         SessionCommand::ReleaseObject { object_id, parts, reply } => actor.on_release_object(object_id, parts, reply).await,
-                        SessionCommand::Subscribe { sink, reply } => {
-                            actor.console_subs.push(sink);
-                            let _ = reply.send(Ok(()));
-                        }
+                        SessionCommand::Subscribe { sink, reply } => actor.on_subscribe(sink, reply),
                         SessionCommand::Emulate { op, reply } => actor.on_emulate(op, reply).await,
                         SessionCommand::Page { op, reply } => actor.on_page_op(op, reply).await,
                         SessionCommand::PageMetrics { reply } => actor.on_page_metrics(reply).await,
@@ -477,6 +459,8 @@ struct SessionActor {
     console_ring: std::collections::VecDeque<Value>,
     /// Who is pushed console calls as they are drained (`Subscribe`).
     console_subs: Vec<tokio::sync::mpsc::UnboundedSender<super::super::commands::SessionEvent>>,
+    /// The last request row pushed or claimed (`NetworkEvent::seq`).
+    net_seen: u64,
     /// Page budget counter (rate.rs): every page this session walks.
     pages_loaded: u32,
     /// Kept until the next navigation succeeds (#80).
@@ -1229,98 +1213,6 @@ impl SessionActor {
             .join("\n");
         let _ = reply.send(Ok(jsonl));
     }
-
-    async fn on_network(
-        &mut self,
-        media_only: bool,
-        include_bodies: bool,
-        include_headers: bool,
-        url_contains: Option<String>,
-        body_max_chars: usize,
-        reply: oneshot::Sender<Result<String, String>>,
-    ) {
-        let Self { page, .. } = self;
-        let record = page.inner.navigation_record();
-        let payload = if media_only {
-            // Media elements and player iframes are never
-            // fetched by the engine (no media/frame
-            // loading), so they cannot surface in the
-            // network log — collect their DOM sources and
-            // merge them in as candidates.
-            let dom = page
-                .evaluate(DOM_MEDIA_SCRIPT)
-                .as_str()
-                .unwrap_or("[]")
-                .to_string();
-            let events = &record.events;
-            let mut media = crate::har::media_entries(events);
-            merge_dom_candidates(&mut media, &dom);
-            let body_of = |rid: &str| page.inner.get_response_body(rid);
-            media.extend(crate::har::media_from_bodies(events, &body_of));
-            serde_json::json!({
-                "url": page.url(),
-                "media": media,
-            })
-        } else {
-            let events = &record.events;
-            let body_of = |rid: &str| page.inner.get_response_body(rid);
-            let mut payload = serde_json::json!({
-                "url": page.url(),
-                // Current navigation generation (#101):
-                // rows with a lower "nav" below are
-                // earlier attempts' leftovers.
-                "nav": record.epoch,
-                "total": events.len(),
-                "requests": crate::har::compact_events(events, include_headers),
-            });
-            // #116: hung script-initiated fetches are
-            // invisible in the request log (entries land
-            // at completion) — surface what is still
-            // flying so a timed-out caller can tell a
-            // slow save from a dead one before re-issuing.
-            // #130: the key is always present, `[]` when
-            // quiet — an absent field is indistinguishable
-            // from a wrong endpoint / stale version for
-            // the reading agent, so "zero in flight"
-            // must read as an empty array, not silence.
-            let in_flight = page.inner.scripted_in_flight();
-            let now_ms = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_millis() as u64)
-                .unwrap_or(0);
-            payload["in_flight"] = json!(in_flight
-                .iter()
-                .map(|f| in_flight_row(f, now_ms))
-                .collect::<Vec<_>>());
-            // Anti-bot challenges answer 200, so they
-            // hide among successful rows — surface the
-            // count at the top level so an agent that
-            // just asks "did we get punished" doesn't
-            // have to scan every URL. Same detection as
-            // the Challenges command (URL shape + the
-            // MTop risk-control bodies), so the numbers
-            // agree. Same always-present contract as
-            // in_flight (#130).
-            let challenges = crate::har::challenge_rows(events, &body_of).len();
-            payload["challenges"] = json!(challenges);
-            if include_bodies {
-                let filters = url_contains
-                    .as_deref()
-                    .map(|s| vec![s.to_string()])
-                    .unwrap_or_default();
-                payload["xhr"] = json!(crate::har::xhr_bodies(
-                    events,
-                    &filters,
-                    body_max_chars,
-                    include_headers,
-                    &body_of
-                ));
-            }
-            payload
-        };
-        let _ = reply.send(Ok(payload.to_string()));
-    }
-
     async fn on_har(&mut self, reply: oneshot::Sender<Result<String, String>>) {
         let Self { page, .. } = self;
         let record = page.inner.navigation_record();
@@ -1495,41 +1387,5 @@ impl SessionActor {
         };
         let payload = crate::verdict::fact_sheet(&input, started.elapsed().as_millis() as u64);
         let _ = reply.send(Ok(payload.to_string()));
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{in_flight_row, HUNG_INFLIGHT_AFTER_MS};
-    use diting::diting_net::InFlightScripted;
-
-    /// The #203 taobao submit shape: an entry aged past every engine-side
-    /// timeout must read `hung: true` — the reading agent's stop-waiting
-    /// signal. A young entry stays `hung: false` even though it is already
-    /// surfaced (slow ≠ hung).
-    #[test]
-    fn in_flight_row_flags_entries_older_than_the_hung_threshold() {
-        let now = 1_000_000u64;
-        let young = in_flight_row(
-            &InFlightScripted {
-                url: "https://x/slow".into(),
-                method: "POST".into(),
-                dispatched_at_ms: now - 5_000,
-            },
-            now,
-        );
-        assert_eq!(young["hung"], false, "a 5s-old entry is slow, not hung");
-        assert_eq!(young["age_ms"], 5_000);
-
-        let hung = in_flight_row(
-            &InFlightScripted {
-                url: "https://x/submit.htm".into(),
-                method: "POST".into(),
-                dispatched_at_ms: now - HUNG_INFLIGHT_AFTER_MS,
-            },
-            now,
-        );
-        assert_eq!(hung["hung"], true, "age == threshold counts as hung");
-        assert_eq!(hung["age_ms"], HUNG_INFLIGHT_AFTER_MS);
     }
 }

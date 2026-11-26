@@ -591,11 +591,15 @@ async fn load(hub: SharedHub, session: &str, url: &str) -> Result<(Out, Value), 
         let hub = hub.lock().await;
         page_of(&hub, session)?.engine_session.clone()
     };
-    let nav = send_command(&engine, |reply| SessionCommand::Navigate {
+    let (nav, rows) = match send_command(&engine, |reply| SessionCommand::NavigateCdp {
         url: url.to_string(),
         reply,
     })
-    .await;
+    .await
+    {
+        Ok(answer) => answer,
+        Err(err) => (Err(session_msg(err)), Vec::new()),
+    };
     let mut hub = hub.lock().await;
     let local = local_of(&hub, session);
     {
@@ -609,6 +613,9 @@ async fn load(hub: SharedHub, session: &str, url: &str) -> Result<(Out, Value), 
     }
     let page = page_of(&hub, session)?;
     let mut out = Out::default();
+    // The requests come before the navigation: Playwright looks for the
+    // document's request when `frameNavigated` arrives.
+    super::network_events::network_frames(&hub, local, page, &rows, &mut out);
     let reply = match &nav {
         Ok(_) => {
             nav_events(&hub, page, local, &mut out);
@@ -620,7 +627,7 @@ async fn load(hub: SharedHub, session: &str, url: &str) -> Result<(Out, Value), 
         }
         Err(err) => json!({
             "frameId": page.target_id,
-            "errorText": session_msg(err.clone()),
+            "errorText": err,
             "isDownload": false,
             "loaderId": loader_of(page),
         }),

@@ -18,6 +18,10 @@ use super::{IdentityDefaults, Page};
 /// read by the session /network and /har surfaces.
 #[derive(Debug, Clone)]
 pub struct NetworkEvent {
+    /// Order the row was filed in, for the life of the page — a reader
+    /// that remembers the last one it saw asks for what came after, however
+    /// many navigations have moved the rows since.
+    pub seq: u64,
     pub request_id: String,
     pub url: String,
     pub method: String,
@@ -164,7 +168,9 @@ impl Page {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs_f64();
+        self.network_seq += 1;
         self.network_events.push(NetworkEvent {
+            seq: self.network_seq,
             request_id: request_id.clone(),
             url: url.to_string(),
             method: method.to_string(),
@@ -319,7 +325,9 @@ impl Page {
             None => return,
         };
         for ev in events {
+            self.network_seq += 1;
             self.network_events.push(NetworkEvent {
+                seq: self.network_seq,
                 request_id: ev.request_id,
                 url: ev.url,
                 method: ev.method,
@@ -344,6 +352,22 @@ impl Page {
                 started: Some(ev.started),
             });
         }
+    }
+
+    /// Every row filed after `seen` (a [`NetworkEvent::seq`]), oldest
+    /// first — the current navigation's and the ones it carried. Script
+    /// rows are drained first.
+    pub fn network_events_since(&mut self, seen: u64) -> Vec<NetworkEvent> {
+        self.sync_js_network_events();
+        let mut rows: Vec<NetworkEvent> = self
+            .carried_network_events
+            .iter()
+            .chain(self.network_events.iter())
+            .filter(|row| row.seq > seen)
+            .cloned()
+            .collect();
+        rows.sort_by_key(|row| row.seq);
+        rows
     }
 
     /// This navigation's request log, generation, and redirect trail.
