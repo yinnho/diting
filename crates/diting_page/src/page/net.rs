@@ -196,6 +196,45 @@ impl Page {
         request_id
     }
 
+    /// File a request that got no response: the document a navigation
+    /// asked for and never received. A browser's network log shows these
+    /// as failed rows, and so does this one — `error` is what happened in
+    /// words, `failure` as a value.
+    pub(super) fn record_failed_network_event(
+        &mut self,
+        url: &str,
+        method: &str,
+        resource_type: &str,
+        error: String,
+        failure: diting_net::NetFailure,
+    ) {
+        self.network_event_counter += 1;
+        let request_id = format!("{}.{}", self.id, self.network_event_counter);
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs_f64();
+        self.network_seq += 1;
+        self.network_events.push(NetworkEvent {
+            seq: self.network_seq,
+            request_id,
+            url: url.to_string(),
+            method: method.to_string(),
+            resource_type: resource_type.to_string(),
+            nav: self.navigation_epoch,
+            status: 0,
+            headers: std::collections::HashMap::new(),
+            response_headers: Arc::new(std::collections::HashMap::new()),
+            body_size: 0,
+            timestamp,
+            error: Some(error),
+            failure: Some(failure),
+            final_url: String::new(),
+            redirects: Vec::new(),
+            started: None,
+        });
+    }
+
     /// Record the event and retain the body for `get_response_body`. The
     /// text/base64 split follows the Chromium DevTools body policy (Chrome
     /// 152 verified, obscura #791).

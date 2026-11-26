@@ -841,3 +841,41 @@ async fn a_navigation_to_a_server_that_hangs_up_answers_as_chrome_does() {
         assert_eq!(reply["errorText"], chrome, "{path}");
     }
 }
+
+#[tokio::test]
+async fn a_navigation_that_fails_is_told_as_a_document_request_that_failed() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (mut client, _) = connect(axum::Router::new()).await;
+    let (_, session) = open_owned_page(&mut client, 1).await;
+    let on = Some(session.as_str());
+    client.run("Network.enable", json!({}), on).await;
+    let dead = {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.local_addr().unwrap().port()
+    };
+    let url = format!("http://127.0.0.1:{dead}/x");
+    client.events.clear();
+    let reply = client.run("Page.navigate", json!({ "url": url }), on).await;
+    assert_eq!(reply["errorText"], "net::ERR_CONNECTION_REFUSED");
+    // Chrome 158 (`failnav-probe.cjs`): the document's request, with the
+    // loader the navigation answered, then its failure.
+    let events = std::mem::take(&mut client.events);
+    let sent = event_params(&events, "Network.requestWillBeSent")
+        .unwrap_or_else(|| panic!("no requestWillBeSent in {events:?}"));
+    assert_eq!(sent["type"], "Document");
+    assert_eq!(sent["request"]["url"], url);
+    assert_eq!(sent["loaderId"], reply["loaderId"]);
+    assert_eq!(sent["frameId"], reply["frameId"]);
+    let failed = event_params(&events, "Network.loadingFailed").expect("loadingFailed");
+    assert_eq!(failed["type"], "Document");
+    assert_eq!(failed["errorText"], "net::ERR_CONNECTION_REFUSED");
+    assert_eq!(failed["canceled"], false);
+    assert_eq!(failed["requestId"], sent["requestId"]);
+    assert!(
+        position_of(&events, "Network.requestWillBeSent")
+            < position_of(&events, "Network.loadingFailed")
+    );
+    // No response came, so none is told.
+    assert!(position_of(&events, "Network.responseReceived").is_none());
+}
