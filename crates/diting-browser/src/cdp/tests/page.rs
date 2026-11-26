@@ -331,14 +331,14 @@ async fn key_events_take_their_shapes_as_chrome_takes_them() {
 #[tokio::test]
 async fn key_events_reach_the_page_as_keyboard_events() {
     let (mut client, session) = bridge(
-        "data:text/html,<input id=inp><script>        window.log = [];        const inp = document.getElementById('inp');        inp.focus();        for (const k of ['keydown', 'keypress', 'input', 'keyup']) {            inp.addEventListener(k, (e) => {                const key = e instanceof KeyboardEvent ? e.key : '-';                const code = e instanceof KeyboardEvent ? e.code : '-';                window.log.push(k + ':' + key + ':' + code);            }, true);        }        </script>",
+        "data:text/html,<input id=inp><script>        window.log = [];        const inp = document.getElementById('inp');        inp.focus();        for (const k of ['keydown', 'keypress', 'input', 'keyup']) {            inp.addEventListener(k, (e) => {                const key = e instanceof KeyboardEvent ? e.key : '-';                const code = e instanceof KeyboardEvent ? e.code : '-';                window.log.push(k + ':' + key + ':' + code + (e instanceof KeyboardEvent ? '/' + e.keyCode + '/' + e.charCode + '/' + e.which : ''));            }, true);        }        </script>",
     )
     .await;
     let on = Some(session.as_str());
     // KeyDown carrying the text — the full printable sequence.
     for params in [
-        json!({ "type": "keyDown", "key": "a", "code": "KeyA", "text": "a" }),
-        json!({ "type": "keyUp", "key": "a", "code": "KeyA" }),
+        json!({ "type": "keyDown", "key": "a", "code": "KeyA", "text": "a", "windowsVirtualKeyCode": 65 }),
+        json!({ "type": "keyUp", "key": "a", "code": "KeyA", "windowsVirtualKeyCode": 65 }),
         json!({ "type": "rawKeyDown", "key": "Enter", "code": "Enter" }),
         json!({ "type": "keyUp", "key": "Enter", "code": "Enter" }),
         json!({ "type": "char", "text": "b", "key": "b" }),
@@ -351,7 +351,7 @@ async fn key_events_reach_the_page_as_keyboard_events() {
     let log = client.eval("window.log.join('|')", &session).await;
     assert_eq!(
         log,
-        "keydown:a:KeyA|keypress:a:KeyA|input:-:-|keyup:a:KeyA|keydown:Enter:Enter|keyup:Enter:Enter|keypress:b:|input:-:-",
+        "keydown:a:KeyA/65/0/65|keypress:a:KeyA/97/97/97|input:-:-|keyup:a:KeyA/65/0/65|keydown:Enter:Enter/0/0/0|keyup:Enter:Enter/0/0/0|keypress:b:/98/98/98|input:-:-",
         "the event order Chrome 158 showed, verbatim — the char press carries no code"
     );
     assert_eq!(
