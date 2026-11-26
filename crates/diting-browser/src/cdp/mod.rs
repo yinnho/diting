@@ -789,6 +789,10 @@ async fn page_method(
             set_network(&hub, session, true).await;
             Ok(ack(id, session))
         }
+        "Network.getResponseBody" => {
+            let body = network_events::response_body(hub, session, params).await?;
+            Ok(Out::from_frames(vec![ok(id, on, body)]))
+        }
         "Network.disable" => {
             set_network(&hub, session, false).await;
             Ok(ack(id, session))

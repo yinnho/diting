@@ -356,3 +356,172 @@ async fn a_session_without_network_is_told_nothing() {
         "Network events without Network.enable: {events:?}"
     );
 }
+
+/// The `requestId` of the response `events` carries for a URL ending in
+/// `suffix`.
+fn request_id_of(events: &[Value], suffix: &str) -> String {
+    events
+        .iter()
+        .filter(|event| event["method"] == "Network.responseReceived")
+        .find(|event| {
+            event["params"]["response"]["url"]
+                .as_str()
+                .is_some_and(|url| url.ends_with(suffix))
+        })
+        .and_then(|event| event["params"]["requestId"].as_str())
+        .unwrap_or_else(|| panic!("no response for {suffix} in {events:?}"))
+        .to_string()
+}
+
+#[tokio::test]
+async fn a_response_body_is_what_the_page_kept_worded_as_chrome_words_it() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (router, _site) = site();
+    let (mut client, addr) = connect(router).await;
+    let origin = format!("http://{addr}");
+    let (_, session) = open_owned_page(&mut client, 1).await;
+    let on = Some(session.as_str());
+    client.run("Network.enable", json!({}), on).await;
+    client.events.clear();
+    client
+        .run(
+            "Page.navigate",
+            json!({ "url": format!("{origin}/echo") }),
+            on,
+        )
+        .await;
+    let document = request_id_of(&client.events, "/echo");
+    let body = client
+        .run(
+            "Network.getResponseBody",
+            json!({ "requestId": document }),
+            on,
+        )
+        .await;
+    assert_eq!(body["base64Encoded"], false);
+    assert!(
+        body["body"]
+            .as_str()
+            .unwrap_or("")
+            .contains("<body id=b>none</body>"),
+        "the document's text: {body}"
+    );
+
+    // A script's fetch, text and binary: the binary one is base64.
+    client.events.clear();
+    client
+        .run(
+            "Runtime.evaluate",
+            json!({ "expression": "fetch('/echo?t').then(r => r.text()); \
+                                   fetch('/pixel/1.png').then(r => r.arrayBuffer()); 1" }),
+            on,
+        )
+        .await;
+    // Two requests, two ends: what `events_until` takes off the socket is
+    // all there is to read them from.
+    let mut seen = client
+        .events_until("Network.loadingFinished", Duration::from_secs(5))
+        .await;
+    seen.extend(
+        client
+            .events_until("Network.loadingFinished", Duration::from_secs(5))
+            .await,
+    );
+    let text_id = request_id_of(&seen, "/echo?t");
+    let png_id = request_id_of(&seen, "/pixel/1.png");
+    let text = client
+        .run(
+            "Network.getResponseBody",
+            json!({ "requestId": text_id }),
+            on,
+        )
+        .await;
+    assert_eq!(text["base64Encoded"], false);
+    assert!(text["body"].as_str().unwrap_or("").contains("<body id=b>"));
+    let png = client
+        .run(
+            "Network.getResponseBody",
+            json!({ "requestId": png_id }),
+            on,
+        )
+        .await;
+    assert_eq!(png["base64Encoded"], true);
+    assert!(png["body"]
+        .as_str()
+        .unwrap_or("")
+        .starts_with("iVBORw0KGgo"));
+}
+
+#[tokio::test]
+async fn a_response_body_nobody_kept_is_chromes_refusal() {
+    let _guard = CDP_LOCK.lock().await;
+    let (mut client, _) = connect(axum::Router::new()).await;
+    let (_, session) = open_owned_page(&mut client, 1).await;
+    let on = Some(session.as_str());
+    // Chrome answers an id it never issued the same way before and after
+    // `Network.enable`.
+    for enabled in [false, true] {
+        if enabled {
+            client.run("Network.enable", json!({}), on).await;
+        }
+        for id in ["no-such-request", ""] {
+            assert_eq!(
+                client
+                    .refusal("Network.getResponseBody", json!({ "requestId": id }), on)
+                    .await,
+                "No resource with given identifier found"
+            );
+        }
+    }
+    for params in [json!({}), json!({ "requestId": 5 })] {
+        assert_eq!(
+            client.invalid("Network.getResponseBody", params, on).await,
+            "Invalid parameters"
+        );
+    }
+}
+
+#[tokio::test]
+async fn requests_carry_the_fields_chrome_sends_with_them() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (router, _site) = site();
+    let (mut client, addr) = connect(router).await;
+    let origin = format!("http://{addr}");
+    let (_, session) = open_owned_page(&mut client, 1).await;
+    let on = Some(session.as_str());
+    client.run("Network.enable", json!({}), on).await;
+    client.events.clear();
+    client
+        .run(
+            "Page.navigate",
+            json!({ "url": format!("{origin}/echo") }),
+            on,
+        )
+        .await;
+    let document = std::mem::take(&mut client.events);
+    let sent = event_params(&document, "Network.requestWillBeSent").unwrap();
+    assert_eq!(sent["request"]["mixedContentType"], "none");
+    assert_eq!(sent["initiator"]["type"], "other");
+    let received = event_params(&document, "Network.responseReceived").unwrap();
+    assert_eq!(received["response"]["charset"], "utf-8");
+    for flag in ["fromDiskCache", "fromServiceWorker", "fromPrefetchCache"] {
+        assert_eq!(received["response"][flag], false, "{flag}");
+    }
+    let finished = event_params(&document, "Network.loadingFinished").unwrap();
+    assert_eq!(finished["encodedBodyLength"], finished["encodedDataLength"]);
+
+    client
+        .run(
+            "Runtime.evaluate",
+            json!({ "expression": "fetch('/echo?f'); 1" }),
+            on,
+        )
+        .await;
+    let fetched = client
+        .events_until("Network.loadingFinished", Duration::from_secs(5))
+        .await;
+    let sent = event_params(&fetched, "Network.requestWillBeSent").unwrap();
+    assert_eq!(sent["initiator"]["type"], "script");
+}

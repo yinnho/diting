@@ -438,6 +438,15 @@ pub enum SessionCommand {
         op: EmulateOp,
         reply: oneshot::Sender<Result<(), String>>,
     },
+    /// The body a request's response left behind, by the request id the
+    /// rows carry; `None` when the page kept none (too big, evicted, or
+    /// not a request of this page).
+    ResponseBody {
+        request_id: String,
+        reply: oneshot::Sender<
+            Result<Option<diting::diting_browser::page::StoredResponseBody>, String>,
+        >,
+    },
     /// Push this session's page events to `sink` from now on, whether or
     /// not a command is in flight. The subscription ends when the
     /// receiver is dropped.

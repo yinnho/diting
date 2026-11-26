@@ -8,7 +8,9 @@
 use diting::diting_browser::page::NetworkEvent;
 use serde_json::{json, Map, Value};
 
-use super::{loader_of, to_sessions, Hub, Out, PageSlot};
+use super::params::string;
+use super::{loader_of, page_of, session_msg, to_sessions, Failure, Hub, Out, PageSlot, SharedHub};
+use crate::session::{send_command, SessionCommand};
 
 /// Chrome's resource types; what the engine calls anything else is `Other`.
 const TYPES: &[&str] = &[
@@ -38,6 +40,15 @@ fn resource_type(row: &NetworkEvent) -> &str {
         .find(|known| **known == row.resource_type)
         .copied()
         .unwrap_or("Other")
+}
+
+/// Who asked: a script for what a script fetched, otherwise nothing the
+/// engine tracks.
+fn initiator(kind: &str) -> Value {
+    match kind {
+        "Fetch" | "XHR" => json!({ "type": "script", "stack": { "callFrames": [] } }),
+        _ => json!({ "type": "other" }),
+    }
 }
 
 fn headers(map: &std::collections::HashMap<String, String>) -> Value {
@@ -86,10 +97,11 @@ pub(super) fn network_frames(
                     "headers": headers(&row.headers),
                     "initialPriority": "High",
                     "referrerPolicy": "strict-origin-when-cross-origin",
+                    "mixedContentType": "none",
                 },
                 "timestamp": started,
                 "wallTime": started,
-                "initiator": { "type": "other" },
+                "initiator": initiator(kind),
                 "redirectHasExtraInfo": false,
                 "type": kind,
                 "frameId": target,
@@ -114,12 +126,19 @@ pub(super) fn network_frames(
         } else {
             &row.final_url
         };
-        let mime = row
+        let content_type = row
             .response_headers
             .iter()
             .find(|(name, _)| name.eq_ignore_ascii_case("content-type"))
-            .map(|(_, value)| value.split(';').next().unwrap_or("").trim().to_string())
-            .unwrap_or_default();
+            .map(|(_, value)| value.as_str())
+            .unwrap_or("");
+        let mime = content_type.split(';').next().unwrap_or("").trim();
+        let charset = content_type
+            .split(';')
+            .skip(1)
+            .find_map(|part| part.trim().strip_prefix("charset="))
+            .unwrap_or("")
+            .trim_matches('"');
         send(
             "Network.responseReceived",
             json!({
@@ -133,6 +152,10 @@ pub(super) fn network_frames(
                     "statusText": "",
                     "headers": headers(&row.response_headers),
                     "mimeType": mime,
+                    "charset": charset,
+                    "fromDiskCache": false,
+                    "fromServiceWorker": false,
+                    "fromPrefetchCache": false,
                     "connectionReused": false,
                     "connectionId": 0,
                     "encodedDataLength": row.body_size,
@@ -148,7 +171,34 @@ pub(super) fn network_frames(
                 "requestId": row.request_id,
                 "timestamp": row.timestamp,
                 "encodedDataLength": row.body_size,
+                "encodedBodyLength": row.body_size,
             }),
         );
+    }
+}
+
+/// `Network.getResponseBody`: the body the page kept for the request, as
+/// Chrome words it — text as is, anything else base64. A request nothing
+/// was kept for is `No resource with given identifier found`, enabled or
+/// not.
+pub(super) async fn response_body(
+    hub: SharedHub,
+    session: &str,
+    params: &Value,
+) -> Result<Value, Failure> {
+    let request_id = string(params, "requestId")?.to_string();
+    let engine = {
+        let hub = hub.lock().await;
+        page_of(&hub, session)?.engine_session.clone()
+    };
+    let kept = send_command(&engine, |reply| SessionCommand::ResponseBody {
+        request_id,
+        reply,
+    })
+    .await
+    .map_err(|err| Failure::from(session_msg(err)))?;
+    match kept {
+        Some(body) => Ok(json!({ "body": body.body, "base64Encoded": body.base64_encoded })),
+        None => Err(Failure::from("No resource with given identifier found")),
     }
 }
