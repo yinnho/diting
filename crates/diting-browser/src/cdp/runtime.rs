@@ -534,6 +534,7 @@ const KEY_UNREAD: &[(&str, Kind)] = &[
 fn key_event_script(params: &Value) -> Result<Option<String>, Failure> {
     let kind = string(params, "type")?;
     let key = optional_string(params, "key")?;
+    let code = optional_string(params, "code")?;
     let text = optional_string(params, "text")?;
     let modifiers = optional_integer(params, "modifiers")?;
     kinds(params, KEY_UNREAD)?;
@@ -541,34 +542,58 @@ fn key_event_script(params: &Value) -> Result<Option<String>, Failure> {
         return Err(invalid(&format!("Unexpected event type '{kind}'")));
     }
     let (key, text) = (key.unwrap_or(""), text.unwrap_or(""));
+    let code = code.unwrap_or("");
     let modifiers = modifiers.unwrap_or(0) as u64;
-    if kind == "keyUp" {
-        return Ok(None);
+    // Chrome 158 (`key-probe.cjs`): every event is a KeyboardEvent on the
+    // focused element. `keyDown` with a text inserts it — keydown, then
+    // keypress, then the insertion and its input; `rawKeyDown` is only the
+    // keydown; `char` is keypress plus the insertion, no keydown at all;
+    // `keyUp` is the keyup. The modifiers bits are CDP's: 1 alt, 2 ctrl,
+    // 4 meta, 8 shift.
+    let key_lit = serde_json::to_string(key).map_err(|err| err.to_string())?;
+    let code_lit = serde_json::to_string(code).map_err(|err| err.to_string())?;
+    let dispatch = |event: &str| {
+        format!(
+            "var ev = new KeyboardEvent('{event}', {{                key: {key_lit}, code: {code_lit}, bubbles: true, cancelable: true,                altKey: {}, ctrlKey: {}, metaKey: {}, shiftKey: {}            }});            (document.activeElement || document.body).dispatchEvent(ev);            ",
+            modifiers & 1 != 0,
+            modifiers & 2 != 0,
+            modifiers & 4 != 0,
+            modifiers & 8 != 0,
+        )
+    };
+    let select_all = "(function() {            var el = document.activeElement;            if (!el) return;            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {                try { el.setSelectionRange(0, el.value.length); } catch (e) {}            } else if (el.isContentEditable) {                var range = document.createRange();                range.selectNodeContents(el);                var sel = window.getSelection();                if (sel) { sel.removeAllRanges(); sel.addRange(range); }            }        })()"
+        .to_string();
+    let text_literal = serde_json::to_string(text).map_err(|err| err.to_string())?;
+    let insert = |out: &mut String| {
+        if !text.is_empty() {
+            out.push_str(&insert_text_js(&text_literal));
+        }
+    };
+    let mut script = String::from("(function() {");
+    match kind {
+        "keyUp" => {
+            script.push_str(&dispatch("keyup"));
+        }
+        "rawKeyDown" => {
+            script.push_str(&dispatch("keydown"));
+        }
+        "keyDown" => {
+            script.push_str(&dispatch("keydown"));
+            if modifiers & 0b110 != 0 && key.eq_ignore_ascii_case("a") {
+                script.push_str(&select_all);
+            } else if !text.is_empty() {
+                script.push_str(&dispatch("keypress"));
+                insert(&mut script);
+            }
+        }
+        _ => {
+            // `char`: the press and the insertion, no keydown.
+            script.push_str(&dispatch("keypress"));
+            insert(&mut script);
+        }
     }
-    // Ctrl or Meta + A selects the field. Playwright's fill selects in the
-    // page before insertText; keyboard.press("Control+A") comes through here.
-    if modifiers & 0b110 != 0 && key.eq_ignore_ascii_case("a") {
-        return Ok(Some(
-            "(function() {\
-                var el = document.activeElement;\
-                if (!el) return;\
-                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {\
-                    try { el.setSelectionRange(0, el.value.length); } catch (e) {}\
-                } else if (el.isContentEditable) {\
-                    var range = document.createRange();\
-                    range.selectNodeContents(el);\
-                    var sel = window.getSelection();\
-                    if (sel) { sel.removeAllRanges(); sel.addRange(range); }\
-                }\
-            })()"
-                .to_string(),
-        ));
-    }
-    if text.is_empty() {
-        return Ok(None);
-    }
-    let literal = serde_json::to_string(text).map_err(|err| err.to_string())?;
-    Ok(Some(insert_text_js(&literal)))
+    script.push_str("})()");
+    Ok(Some(script))
 }
 
 fn insert_text_js(literal: &str) -> String {

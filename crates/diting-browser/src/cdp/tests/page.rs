@@ -323,3 +323,72 @@ async fn key_events_take_their_shapes_as_chrome_takes_them() {
         );
     }
 }
+
+/// Key events reach the page as KeyboardEvents on the focused element, in
+/// Chrome's order (`key-probe.cjs`, Chrome 158): keyDown with a text is
+/// keydown, keypress, the insertion and its input; rawKeyDown only the
+/// keydown; a char is keypress plus insertion with no keydown at all.
+#[tokio::test]
+async fn key_events_reach_the_page_as_keyboard_events() {
+    let (mut client, session) = bridge(
+        "data:text/html,<input id=inp><script>        window.log = [];        const inp = document.getElementById('inp');        inp.focus();        for (const k of ['keydown', 'keypress', 'input', 'keyup']) {            inp.addEventListener(k, (e) => {                const key = e instanceof KeyboardEvent ? e.key : '-';                const code = e instanceof KeyboardEvent ? e.code : '-';                window.log.push(k + ':' + key + ':' + code);            }, true);        }        </script>",
+    )
+    .await;
+    let on = Some(session.as_str());
+    // KeyDown carrying the text — the full printable sequence.
+    for params in [
+        json!({ "type": "keyDown", "key": "a", "code": "KeyA", "text": "a" }),
+        json!({ "type": "keyUp", "key": "a", "code": "KeyA" }),
+        json!({ "type": "rawKeyDown", "key": "Enter", "code": "Enter" }),
+        json!({ "type": "keyUp", "key": "Enter", "code": "Enter" }),
+        json!({ "type": "char", "text": "b", "key": "b" }),
+    ] {
+        assert_eq!(
+            client.ask("Input.dispatchKeyEvent", params, on).await,
+            Ok(json!({}))
+        );
+    }
+    let log = client.eval("window.log.join('|')", &session).await;
+    assert_eq!(
+        log,
+        "keydown:a:KeyA|keypress:a:KeyA|input:-:-|keyup:a:KeyA|keydown:Enter:Enter|keyup:Enter:Enter|keypress:b:|input:-:-",
+        "the event order Chrome 158 showed, verbatim — the char press carries no code"
+    );
+    assert_eq!(
+        client
+            .eval("document.getElementById('inp').value", &session)
+            .await,
+        "ab"
+    );
+}
+
+/// Ctrl/Meta+A still selects the focused field's contents — and the keydown
+/// reaches the page now.
+#[tokio::test]
+async fn control_a_selects_and_reaches_the_page() {
+    let (mut client, session) = bridge(
+        "data:text/html,<input id=inp value=hello><script>        window.downs = 0;        const inp = document.getElementById('inp');        inp.focus();        inp.addEventListener('keydown', (e) => {            if (e.key.toLowerCase() === 'a' && e.ctrlKey) window.downs += 1;        });        </script>",
+    )
+    .await;
+    let on = Some(session.as_str());
+    assert_eq!(
+        client
+            .ask(
+                "Input.dispatchKeyEvent",
+                json!({ "type": "keyDown", "key": "a", "code": "KeyA", "modifiers": 2 }),
+                on
+            )
+            .await,
+        Ok(json!({}))
+    );
+    assert_eq!(client.eval("window.downs", &session).await, 1);
+    assert_eq!(
+        client
+            .eval(
+                "const inp = document.getElementById('inp'); inp.selectionStart + '/' + inp.selectionEnd",
+                &session
+            )
+            .await,
+        "0/5"
+    );
+}

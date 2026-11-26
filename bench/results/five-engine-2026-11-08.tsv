@@ -1,0 +1,33 @@
+engine	url	round	wall_s	text_chars	peak_rss_kb	error
+diting	https://example.com	r0	2.018	911	1041728	
+diting	https://example.com	r1	5.894	911	1042080	
+diting	https://github.com/yinnho/diting	r0	10.009	0	1038944	HTTP Error 504: Gateway Timeout
+diting	https://github.com/yinnho/diting	r1	10.011	0	1039024	HTTP Error 502: Bad Gateway
+diting	https://www.rust-lang.org/	r0	5.783	3451	1048304	
+diting	https://www.rust-lang.org/	r1	10.006	0	1050544	HTTP Error 502: Bad Gateway
+diting	https://blog.rust-lang.org/	r0	3.415	16372	1077936	
+diting	https://blog.rust-lang.org/	r1	3.133	16372	1080112	
+diting	https://react.dev/	r0	22.243	7827	1101120	
+diting	https://react.dev/	r1	25.662	7827	1102912	
+diting	https://nextjs.org/	r0	22.342	4012	1113840	
+diting	https://nextjs.org/	r1	17.867	4012	1123888	
+diting	https://nodejs.org/en	r0	8.505	1539	1117712	
+diting	https://nodejs.org/en	r1	9.063	1539	1071136	
+diting	https://bun.sh/	r0	15.421	13310	1224816	
+diting	https://bun.sh/	r1	16.713	13112	1217264	
+obscura	https://example.com	r0	1.342	960	27648	
+obscura	https://example.com	r1	3.677	960	27696	
+obscura	https://github.com/yinnho/diting	r0	30.029	0	11520	
+obscura	https://github.com/yinnho/diting	r1	30.02	0	11536	
+obscura	https://www.rust-lang.org/	r0	11.147	7169	59552	
+obscura	https://www.rust-lang.org/	r1	6.338	7169	53360	
+obscura	https://blog.rust-lang.org/	r0	11.09	51579	55776	
+obscura	https://blog.rust-lang.org/	r1	5.06	51579	65104	
+obscura	https://react.dev/	r0	10.336	16025	159072	
+obscura	https://react.dev/	r1	15.349	16025	159712	
+obscura	https://nextjs.org/	r0	30.03	0	198592	
+obscura	https://nextjs.org/	r1	20.465	8982	197712	
+obscura	https://nodejs.org/en	r0	5.737	4321	126368	
+obscura	https://nodejs.org/en	r1	6.326	4321	130176	
+obscura	https://bun.sh/	r0	9.333	24087	189696	
+obscura	https://bun.sh/	r1	10.508	24087	189936	
