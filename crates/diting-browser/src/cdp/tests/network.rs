@@ -1157,3 +1157,104 @@ async fn a_document_write_in_a_timer_rewrites_the_document_and_is_told() {
         "<div id=\"rw\">rw</div>"
     );
 }
+
+#[tokio::test]
+async fn a_redirected_navigation_is_told_hop_by_hop() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (router, _site) = site();
+    let router = router
+        .route(
+            "/hop1",
+            axum::routing::get(|| async {
+                axum::response::Response::builder()
+                    .status(301)
+                    .header("location", "/hop2")
+                    .body(axum::body::Body::empty())
+                    .unwrap()
+            }),
+        )
+        .route(
+            "/hop2",
+            axum::routing::get(|| async {
+                axum::response::Response::builder()
+                    .status(302)
+                    .header("location", "/dest")
+                    .body(axum::body::Body::empty())
+                    .unwrap()
+            }),
+        )
+        .route(
+            "/dest",
+            axum::routing::get(|| async {
+                axum::response::Html("<html><body id=dest>dest</body></html>")
+            }),
+        );
+    let (mut client, addr) = connect(router).await;
+    let origin = format!("http://{addr}");
+    let (_, session) = open_owned_page(&mut client, 1).await;
+    let on = Some(session.as_str());
+    client.run("Network.enable", json!({}), on).await;
+    client.run("Page.enable", json!({}), on).await;
+    client.events.clear();
+    client
+        .run(
+            "Page.navigate",
+            json!({ "url": format!("{origin}/hop1") }),
+            on,
+        )
+        .await;
+    // Chrome 158 (`redir-probe.cjs`): one `requestWillBeSent` per hop under
+    // one requestId, each hop after the first carrying the response that
+    // sent it onward, and only the final hop answering.
+    let seen = std::mem::take(&mut client.events);
+    let hops: Vec<&serde_json::Value> = seen
+        .iter()
+        .filter(|event| {
+            event["method"] == "Network.requestWillBeSent" && event["params"]["type"] == "Document"
+        })
+        .collect();
+    assert_eq!(hops.len(), 3, "one frame per hop: {seen:?}");
+    let urls: Vec<&str> = hops
+        .iter()
+        .map(|event| event["params"]["request"]["url"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        urls,
+        [
+            format!("{origin}/hop1"),
+            format!("{origin}/hop2"),
+            format!("{origin}/dest")
+        ]
+    );
+    let ids: Vec<&str> = hops
+        .iter()
+        .map(|event| event["params"]["requestId"].as_str().unwrap())
+        .collect();
+    assert!(
+        ids.windows(2).all(|pair| pair[0] == pair[1]),
+        "one id: {ids:?}"
+    );
+    assert!(hops[0]["params"].get("redirectResponse").is_none());
+    assert_eq!(hops[1]["params"]["redirectResponse"]["status"], 301);
+    assert_eq!(
+        hops[1]["params"]["redirectResponse"]["url"],
+        format!("{origin}/hop1")
+    );
+    assert_eq!(hops[2]["params"]["redirectResponse"]["status"], 302);
+    assert_eq!(
+        hops[2]["params"]["redirectResponse"]["url"],
+        format!("{origin}/hop2")
+    );
+    // Only the final hop answers, and the frame navigates to where it landed.
+    let responses: Vec<&serde_json::Value> = seen
+        .iter()
+        .filter(|event| {
+            event["method"] == "Network.responseReceived" && event["params"]["type"] == "Document"
+        })
+        .collect();
+    assert_eq!(responses.len(), 1, "{seen:?}");
+    assert_eq!(responses[0]["params"]["response"]["status"], 200);
+    let navigated = event_params(&seen, "Page.frameNavigated").expect("frameNavigated");
+    assert_eq!(navigated["frame"]["url"], format!("{origin}/dest"));
+}

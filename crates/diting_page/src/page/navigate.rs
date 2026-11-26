@@ -1076,6 +1076,9 @@ impl Page {
             &response.request_headers,
             &response.body,
         );
+        if !response.redirect_hops.is_empty() {
+            self.fill_redirect_trail(response.url.to_string(), response.redirect_hops.clone());
+        }
 
         // #102: keep the hop trail for the session face — a login bounce,
         // a rewritten parameter error and a plain landing are
