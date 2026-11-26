@@ -559,6 +559,7 @@ mod tests {
 
     fn event(url: &str, resource_type: &str, status: u16, ts: f64) -> NetworkEvent {
         NetworkEvent {
+            seq: 0,
             request_id: format!("p.{}", ts as u32),
             url: url.to_string(),
             method: "GET".to_string(),

@@ -179,6 +179,31 @@ pub(crate) fn drain_console_publish(
     });
 }
 
+/// Push the request rows nobody has claimed since `seen` to every
+/// subscriber, and move `seen` past them. Only the idle pump calls this:
+/// a face that must tell the rows in order (`NavigateCdp`) claims them
+/// inside its own command instead.
+pub(crate) fn publish_network(
+    page: &mut Page,
+    seen: &mut u64,
+    subs: &mut Vec<mpsc::UnboundedSender<SessionEvent>>,
+) {
+    if subs.is_empty() {
+        return;
+    }
+    let rows = page.inner.network_events_since(*seen);
+    let Some(last) = rows.last().map(|row| row.seq) else {
+        return;
+    };
+    *seen = last;
+    subs.retain(|sub| {
+        rows.iter().all(|row| {
+            sub.send(SessionEvent::Network(Box::new(row.clone())))
+                .is_ok()
+        })
+    });
+}
+
 /// Optional narrowing for a Console read (session tool + HTTP query share
 /// this). All fields absent → the full ring comes back, newest last. `limit`
 /// keeps the most recent N matches — with a rolling buffer that is the

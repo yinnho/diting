@@ -9,6 +9,7 @@ use tokio::sync::mpsc;
 
 use crate::session::{send_command, SessionCommand, SessionEvent};
 
+use super::network_events::network_frames;
 use super::{page_side_frames, runtime, Out, SharedHub};
 
 /// Follow `engine`'s events and write them as CDP events for the page
@@ -24,14 +25,6 @@ pub(super) async fn follow(hub: SharedHub, target: String, engine: &str) {
     }
     tokio::spawn(async move {
         while let Some(event) = events.recv().await {
-            let SessionEvent::Console { level, text, url } = event;
-            let Some(kind) = runtime::console_type(&level) else {
-                continue;
-            };
-            let side = json!({
-                "console": [{ "type": kind, "text": text, "url": url }],
-                "writeNav": false,
-            });
             let mut out = Out::default();
             {
                 let hub = hub.lock().await;
@@ -41,7 +34,21 @@ pub(super) async fn follow(hub: SharedHub, target: String, engine: &str) {
                     continue;
                 };
                 // No socket has the id 0, so every frame goes to an outbox.
-                page_side_frames(&hub, 0, page, &side, &mut out);
+                match event {
+                    SessionEvent::Console { level, text, url } => {
+                        let Some(kind) = runtime::console_type(&level) else {
+                            continue;
+                        };
+                        let side = json!({
+                            "console": [{ "type": kind, "text": text, "url": url }],
+                            "writeNav": false,
+                        });
+                        page_side_frames(&hub, 0, page, &side, &mut out);
+                    }
+                    SessionEvent::Network(row) => {
+                        network_frames(&hub, 0, page, &[*row], &mut out);
+                    }
+                }
             }
             for (outbox, frame) in out.spill {
                 let _ = outbox.send(frame);

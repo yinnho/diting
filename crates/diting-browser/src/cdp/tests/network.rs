@@ -233,3 +233,126 @@ async fn blocked_urls_never_reach_the_wire_and_extra_headers_do() {
         "none"
     );
 }
+
+/// What `events` says of `method`: the params of the first such event.
+fn event_params<'a>(events: &'a [Value], method: &str) -> Option<&'a Value> {
+    events
+        .iter()
+        .find(|event| event["method"] == method)
+        .map(|event| &event["params"])
+}
+
+fn position_of(events: &[Value], method: &str) -> Option<usize> {
+    events.iter().position(|event| event["method"] == method)
+}
+
+#[tokio::test]
+async fn a_navigation_is_told_as_its_requests_before_frame_navigated() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (router, _site) = site();
+    let (mut client, addr) = connect(router).await;
+    let origin = format!("http://{addr}");
+    let (_, session) = open_owned_page(&mut client, 1).await;
+    let on = Some(session.as_str());
+    client.run("Page.enable", json!({}), on).await;
+    client.run("Network.enable", json!({}), on).await;
+    client.events.clear();
+    client
+        .run(
+            "Page.navigate",
+            json!({ "url": format!("{origin}/echo") }),
+            on,
+        )
+        .await;
+    let events = std::mem::take(&mut client.events);
+    let sent = event_params(&events, "Network.requestWillBeSent")
+        .unwrap_or_else(|| panic!("no requestWillBeSent in {events:?}"));
+    assert_eq!(sent["type"], "Document");
+    assert_eq!(sent["request"]["url"], format!("{origin}/echo"));
+    assert_eq!(sent["request"]["method"], "GET");
+    let received = event_params(&events, "Network.responseReceived").expect("responseReceived");
+    assert_eq!(received["response"]["status"], 200);
+    assert_eq!(received["response"]["mimeType"], "text/html");
+    assert_eq!(received["requestId"], sent["requestId"]);
+    let finished = event_params(&events, "Network.loadingFinished").expect("loadingFinished");
+    assert_eq!(finished["requestId"], sent["requestId"]);
+    // Playwright looks for the document's request when the frame
+    // navigates: it has to be there already.
+    let navigated = position_of(&events, "Page.frameNavigated").expect("frameNavigated");
+    for method in [
+        "Network.requestWillBeSent",
+        "Network.responseReceived",
+        "Network.loadingFinished",
+    ] {
+        assert!(
+            position_of(&events, method).unwrap() < navigated,
+            "{method} came after frameNavigated"
+        );
+    }
+    assert_eq!(sent["loaderId"], received["loaderId"]);
+}
+
+#[tokio::test]
+async fn a_request_the_page_makes_between_commands_is_pushed() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (router, site) = site();
+    let (mut client, addr) = connect(router).await;
+    let origin = format!("http://{addr}");
+    let session = page_at(&mut client, 1, &format!("{origin}/echo")).await;
+    let on = Some(session.as_str());
+    client.run("Network.enable", json!({}), on).await;
+    client
+        .run(
+            "Runtime.evaluate",
+            json!({ "expression": "fetch('/echo?later'); 1" }),
+            on,
+        )
+        .await;
+    client.events.clear();
+    // Nothing is sent from here: the page's own fetch finishes on the
+    // idle page, and its rows are pushed.
+    let seen = client
+        .events_until("Network.loadingFinished", Duration::from_secs(5))
+        .await;
+    let sent = seen
+        .iter()
+        .find(|event| {
+            event["method"] == "Network.requestWillBeSent"
+                && event["params"]["request"]["url"]
+                    .as_str()
+                    .is_some_and(|url| url.ends_with("/echo?later"))
+        })
+        .unwrap_or_else(|| panic!("the fetch was not told: {seen:?}; log {:?}", site.log()));
+    assert_eq!(sent["params"]["type"], "Fetch");
+    assert_eq!(sent["sessionId"], session);
+    assert!(position_of(&seen, "Network.responseReceived").is_some());
+}
+
+#[tokio::test]
+async fn a_session_without_network_is_told_nothing() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (router, _site) = site();
+    let (mut client, addr) = connect(router).await;
+    let origin = format!("http://{addr}");
+    let (_, session) = open_owned_page(&mut client, 1).await;
+    let on = Some(session.as_str());
+    client.events.clear();
+    client
+        .run(
+            "Page.navigate",
+            json!({ "url": format!("{origin}/echo") }),
+            on,
+        )
+        .await;
+    let events = std::mem::take(&mut client.events);
+    assert!(
+        events.iter().all(|event| !event["method"]
+            .as_str()
+            .unwrap_or("")
+            .starts_with("Network.")),
+        "Network events without Network.enable: {events:?}"
+    );
+}

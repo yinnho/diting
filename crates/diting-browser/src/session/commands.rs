@@ -59,6 +59,18 @@ pub enum EmulateOp {
     ClearDeviceMetrics,
 }
 
+/// The answer to [`SessionCommand::NavigateCdp`]: how the navigation
+/// went, and the request rows it filed.
+pub type NavigateCdpReply = oneshot::Sender<
+    Result<
+        (
+            Result<SessionNavResponse, String>,
+            Vec<diting::diting_browser::page::NetworkEvent>,
+        ),
+        String,
+    >,
+>;
+
 /// Something the page did on its own, pushed to whoever subscribed — not
 /// the answer to a command. The faces project it in their own words.
 #[derive(Clone, Debug)]
@@ -70,6 +82,9 @@ pub enum SessionEvent {
         text: String,
         url: String,
     },
+    /// A request the page filed: one finished row, which the faces tell
+    /// as the request, its response and its end.
+    Network(Box<diting::diting_browser::page::NetworkEvent>),
 }
 
 /// A `Page.*`/`Network.*` page-level op — fields already read and
@@ -136,6 +151,14 @@ pub enum SessionCommand {
     Navigate {
         url: String,
         reply: oneshot::Sender<Result<SessionNavResponse, String>>,
+    },
+    /// [`SessionCommand::Navigate`] for a face that has to tell the page's
+    /// requests before it tells the navigation: the rows filed while it
+    /// ran come back with the answer, claimed here so they are not pushed
+    /// again.
+    NavigateCdp {
+        url: String,
+        reply: NavigateCdpReply,
     },
     /// Load literal HTML as the page's content (local, free — no network,
     /// no page budget, no rate gate). Same load path as a navigation so
