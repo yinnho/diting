@@ -61,6 +61,9 @@ async fn each_session_hears_only_what_it_enabled() {
             "Page.frameStartedNavigating",
             "Page.frameStartedLoading",
             "Runtime.executionContextsCleared",
+            // `init` carries the new loader — the one event a client
+            // cannot do without (Puppeteer takes the frame's loader here).
+            "Page.lifecycleEvent",
             "Runtime.executionContextsCleared",
             "Page.frameNavigated",
             "Runtime.executionContextCreated",
@@ -81,7 +84,7 @@ async fn each_session_hears_only_what_it_enabled() {
         .filter(|event| event["method"] == "Page.lifecycleEvent")
         .map(|event| event["params"]["name"].as_str().unwrap())
         .collect();
-    assert_eq!(named, ["DOMContentLoaded", "load"]);
+    assert_eq!(named, ["init", "DOMContentLoaded", "load"]);
     let loud_world = world_of(&heard, &loud);
     assert_eq!(loud_world.len(), 1);
 
@@ -373,6 +376,108 @@ async fn closing_a_target_ends_its_sessions() {
         .as_array()
         .unwrap()
         .is_empty());
+}
+
+#[tokio::test]
+async fn browser_contexts_are_made_listed_named_and_disposed() {
+    let _guard = CDP_LOCK.lock().await;
+    let (mut client, _) = connect(axum::Router::new()).await;
+    // Chrome 158 (`bctx-probe.cjs`): the default context has an id and is
+    // never in the list; a made one is, until it is disposed.
+    let initial = client
+        .run("Target.getBrowserContexts", json!({}), None)
+        .await;
+    assert_eq!(initial["browserContextIds"], json!([]));
+    let default_id = initial["defaultBrowserContextId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(!default_id.is_empty());
+
+    let made = client
+        .run("Target.createBrowserContext", json!({}), None)
+        .await;
+    let bcid = made["browserContextId"].as_str().unwrap().to_string();
+    let listed = client
+        .run("Target.getBrowserContexts", json!({}), None)
+        .await;
+    assert_eq!(listed["browserContextIds"], json!([bcid.clone()]));
+
+    // A target made in it carries the id in its info; one made without a
+    // context carries the default's.
+    let in_ctx = client
+        .run(
+            "Target.createTarget",
+            json!({ "url": "about:blank", "browserContextId": bcid }),
+            None,
+        )
+        .await;
+    let info = client
+        .run(
+            "Target.getTargetInfo",
+            json!({ "targetId": in_ctx["targetId"] }),
+            None,
+        )
+        .await;
+    assert_eq!(info["targetInfo"]["browserContextId"], bcid);
+    let plain = client
+        .run("Target.createTarget", json!({ "url": "about:blank" }), None)
+        .await;
+    let info = client
+        .run(
+            "Target.getTargetInfo",
+            json!({ "targetId": plain["targetId"] }),
+            None,
+        )
+        .await;
+    assert_eq!(info["targetInfo"]["browserContextId"], default_id);
+
+    // A bogus id is refused with Chrome's words (`bctx2-probe.cjs`).
+    let err = client
+        .ask(
+            "Target.createTarget",
+            json!({ "url": "about:blank", "browserContextId": "NOPE" }),
+            None,
+        )
+        .await;
+    assert_eq!(
+        err,
+        Err((
+            -32000,
+            "Failed to find browser context with id NOPE".to_string()
+        ))
+    );
+    // The default context is a valid target home.
+    client
+        .run(
+            "Target.createTarget",
+            json!({ "url": "about:blank", "browserContextId": default_id }),
+            None,
+        )
+        .await;
+
+    client
+        .run(
+            "Target.disposeBrowserContext",
+            json!({ "browserContextId": bcid }),
+            None,
+        )
+        .await;
+    let gone = client
+        .run("Target.getBrowserContexts", json!({}), None)
+        .await;
+    assert_eq!(gone["browserContextIds"], json!([]));
+    let err = client
+        .ask(
+            "Target.disposeBrowserContext",
+            json!({ "browserContextId": "NOPE" }),
+            None,
+        )
+        .await;
+    assert_eq!(
+        err,
+        Err((-32000, "Failed to find context with id NOPE".to_string()))
+    );
 }
 
 #[tokio::test]

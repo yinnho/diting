@@ -149,7 +149,7 @@ impl SessionActor {
     /// A move the page made inside its document — `history.pushState`, a
     /// fragment, history stepped within it — adopted as the page's URL and
     /// told to the subscribers, as what it is: no new document.
-    fn follow_same_document_move(&mut self) {
+    pub(super) fn follow_same_document_move(&mut self) {
         let before = self.page.url();
         if !self.page.inner.sync_virtual_url() {
             return;

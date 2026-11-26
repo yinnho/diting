@@ -81,6 +81,16 @@ impl SessionActor {
             )
         });
         let _ = reply.send(outcome);
+        // A pushState the evaluation just ran is the page's move already —
+        // adopt it with the command, as Chrome reports it in the same task,
+        // instead of a pump slice later (measured 1-2.5s late, past what a
+        // client's post-evaluate check waits).
+        if !self.console_subs.is_empty()
+            && !self.page.inner.has_pending_history_jump()
+            && !self.page.inner.has_pending_navigation()
+        {
+            self.follow_same_document_move();
+        }
     }
 
     /// `SessionCommand::CallOn`: `Runtime.callFunctionOn` — Chrome's
@@ -188,6 +198,16 @@ impl SessionActor {
             )
         });
         let _ = reply.send(outcome);
+        // A pushState the evaluation just ran is the page's move already —
+        // adopt it with the command, as Chrome reports it in the same task,
+        // instead of a pump slice later (measured 1-2.5s late, past what a
+        // client's post-evaluate check waits).
+        if !self.console_subs.is_empty()
+            && !self.page.inner.has_pending_history_jump()
+            && !self.page.inner.has_pending_navigation()
+        {
+            self.follow_same_document_move();
+        }
     }
 }
 
