@@ -27,7 +27,7 @@ use super::super::interact::{
 };
 use super::super::record::{inject_storage_js, RecordedAction};
 use super::super::snapshot::extract_snapshot;
-use super::super::state::{drain_console, ConsoleFilter, NavFrameShared, SessionError};
+use super::super::state::{drain_console_publish, ConsoleFilter, NavFrameShared, SessionError};
 
 /// A script-initiated request older than this is not "slow", it is hung —
 /// every transport the engine rides carries a 30s read timeout and a 120s
@@ -307,6 +307,7 @@ pub(super) fn session_thread(
                     page,
                     recorder,
                     console_ring,
+                    console_subs: Vec::new(),
                     pages_loaded,
                     last_nav_error,
                     pending_storage,
@@ -341,7 +342,7 @@ pub(super) fn session_thread(
                             None => break,
                         },
                         _ = actor.page.pump_event_loop_slice(if drain_budget > 0 { 1500 } else { 200 }) => {
-                            drain_console(&mut actor.page, &mut actor.console_ring);
+                            drain_console_publish(&mut actor.page, &mut actor.console_ring, &mut actor.console_subs);
                             drain_budget = 0;
                             // #276 idle shrink: once the drain is spent the
                             // page has had a quiet 200ms slice — five more
@@ -402,6 +403,10 @@ pub(super) fn session_thread(
                         SessionCommand::EvalRemote { script, await_promise, return_by_value, timeout_ms, reply } => actor.on_eval_remote(script, await_promise, return_by_value, timeout_ms, reply).await,
                         SessionCommand::CallOn { args, reply } => actor.on_call_on(args, reply).await,
                         SessionCommand::ReleaseObject { object_id, parts, reply } => actor.on_release_object(object_id, parts, reply).await,
+                        SessionCommand::Subscribe { sink, reply } => {
+                            actor.console_subs.push(sink);
+                            let _ = reply.send(Ok(()));
+                        }
                         SessionCommand::Emulate { op, reply } => actor.on_emulate(op, reply).await,
                         SessionCommand::Page { op, reply } => actor.on_page_op(op, reply).await,
                         SessionCommand::PageMetrics { reply } => actor.on_page_metrics(reply).await,
@@ -427,7 +432,7 @@ pub(super) fn session_thread(
 
                     // The post-command drain happens in the pump arm above
                     // (stretched slice, preemptible by the next command).
-                    drain_console(&mut actor.page, &mut actor.console_ring);
+                    drain_console_publish(&mut actor.page, &mut actor.console_ring, &mut actor.console_subs);
                     // #278 on-demand layout: at a command boundary the
                     // session owns no live layout tree — idle RAM is the
                     // DOM plus the stamp counters, and the next geometry
@@ -470,6 +475,8 @@ struct SessionActor {
     recorder: Vec<RecordedAction>,
     /// Recent page console output, fed by drain_console after every command.
     console_ring: std::collections::VecDeque<Value>,
+    /// Who is pushed console calls as they are drained (`Subscribe`).
+    console_subs: Vec<tokio::sync::mpsc::UnboundedSender<super::super::commands::SessionEvent>>,
     /// Page budget counter (rate.rs): every page this session walks.
     pages_loaded: u32,
     /// Kept until the next navigation succeeds (#80).
@@ -1100,9 +1107,12 @@ impl SessionActor {
         reply: oneshot::Sender<Result<String, String>>,
     ) {
         let Self {
-            page, console_ring, ..
+            page,
+            console_ring,
+            console_subs,
+            ..
         } = self;
-        drain_console(page, console_ring);
+        drain_console_publish(page, console_ring, console_subs);
         let total = console_ring.len();
         let mut messages: Vec<Value> = console_ring
             .iter()
@@ -1131,11 +1141,14 @@ impl SessionActor {
         reply: oneshot::Sender<Result<String, String>>,
     ) {
         let Self {
-            page, console_ring, ..
+            page,
+            console_ring,
+            console_subs,
+            ..
         } = self;
         let out = match action.as_str() {
             "list" => {
-                drain_console(page, console_ring);
+                drain_console_publish(page, console_ring, console_subs);
                 let (accept, prompt_text) = page.inner.dialog_policy();
                 let dialogs: Vec<Value> = console_ring
                     .iter()
@@ -1434,6 +1447,7 @@ impl SessionActor {
         let Self {
             page,
             console_ring,
+            console_subs,
             session_id,
             account,
             ..
@@ -1444,7 +1458,7 @@ impl SessionActor {
         // URL. The classification itself is pure code
         // (verdict.rs) — no model, no page scripts.
         let started = std::time::Instant::now();
-        drain_console(page, console_ring);
+        drain_console_publish(page, console_ring, console_subs);
         let record = page.inner.navigation_record();
         let events = &record.events;
         let body_of = |rid: &str| page.inner.get_response_body(rid);
