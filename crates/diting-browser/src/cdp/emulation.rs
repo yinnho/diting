@@ -70,7 +70,7 @@ use serde_json::{json, Value};
 
 use crate::page::{Page, INTERACTION_EVAL_TIMEOUT};
 
-use crate::session::{send_command, EmulateOp, SessionCommand};
+use crate::session::{send_command, EmulateOp, PageOp, SessionCommand};
 
 use super::params::{
     boolean, integer, invalid, invalid_params, kinds, number, object, optional, optional_boolean,
@@ -245,6 +245,118 @@ async fn apply_op(page: &mut Page, op: EmulateOp) {
             page.inner.clear_viewport_override();
         }
     }
+}
+
+/// The `Page.*`/`Network.*` params as the [`PageOp`] they run — the
+/// face's whole job: read, check, mint the init-script identifier.
+fn page_op(method: &str, params: &Value) -> Result<PageOp, Failure> {
+    match method {
+        "Page.addScriptToEvaluateOnNewDocument" => {
+            const METHOD: &str = "Page.addScriptToEvaluateOnNewDocument";
+            let source = string(params, "source")?;
+            kinds(
+                params,
+                &[
+                    ("runImmediately", Kind::Bool),
+                    ("includeCommandLineAPI", Kind::Bool),
+                    ("worldName", Kind::Text),
+                ],
+            )?;
+            no_such_flag(
+                METHOD,
+                params,
+                &[("includeCommandLineAPI", "there is no command line API")],
+            )?;
+            Ok(PageOp::AddInitScript {
+                identifier: super::SCRIPT_IDS
+                    .fetch_add(1, Ordering::Relaxed)
+                    .to_string(),
+                source: source.to_string(),
+                run_immediately: optional_boolean(params, "runImmediately")? == Some(true),
+            })
+        }
+        "Page.removeScriptToEvaluateOnNewDocument" => Ok(PageOp::RemoveInitScript {
+            identifier: string(params, "identifier")?.to_string(),
+        }),
+        "Network.setBlockedURLs" => {
+            // Left out, the list is emptied — nothing blocked.
+            let urls = texts(params, "urls")?
+                .unwrap_or_default()
+                .into_iter()
+                .map(str::to_string)
+                .collect();
+            Ok(PageOp::BlockedUrls { urls })
+        }
+        "Network.setExtraHTTPHeaders" => {
+            let sent = optional(params, "headers", Value::as_object)?.ok_or_else(invalid_params)?;
+            let headers: HashMap<String, String> = sent
+                .iter()
+                .map(|(name, value)| Ok((name.clone(), header_value(value)?)))
+                .collect::<Result<_, Failure>>()?;
+            for (name, value) in &headers {
+                check_header(name, value)?;
+            }
+            Ok(PageOp::ExtraHeaders { headers })
+        }
+        _ => Err(Failure::from(format!("'{method}' is not a page command"))),
+    }
+}
+
+/// A `Page.*`/`Network.*` command on the IR — params become a [`PageOp`]
+/// here, the session thread applies it.
+pub(super) async fn page_run(engine: &str, method: &str, params: &Value) -> Result<Value, Failure> {
+    let op = page_op(method, params)?;
+    // The init-script identifier is the face's — minted in `page_op`,
+    // so the answer names it without a reply payload.
+    let identifier = match &op {
+        PageOp::AddInitScript { identifier, .. } => Some(identifier.clone()),
+        _ => None,
+    };
+    send_command(engine, |reply| SessionCommand::Page { op, reply })
+        .await
+        .map_err(|err| engine_failure_word(super::session_msg(err)))?;
+    Ok(match identifier {
+        Some(identifier) => json!({ "identifier": identifier }),
+        None => json!({}),
+    })
+}
+
+/// `Page.getLayoutMetrics` on the IR: the session thread reads the raw
+/// numbers, the face shapes Chrome's triplet from them.
+pub(super) async fn metrics_run(engine: &str) -> Result<Value, Failure> {
+    let metrics = send_command(engine, |reply| SessionCommand::PageMetrics { reply })
+        .await
+        .map_err(|err| engine_failure_word(super::session_msg(err)))?;
+    let f = |name: &str| metrics.get(name).and_then(Value::as_f64).unwrap_or(0.0);
+    let (iw, ih) = (f("iw"), f("ih"));
+    let (sx, sy) = (f("sx"), f("sy"));
+    let (vw, vh) = (f("vw"), f("vh"));
+    let (px, py) = (sx + f("ox"), sy + f("oy"));
+    let layout = json!({
+        "pageX": measure(sx), "pageY": measure(sy),
+        "clientWidth": measure(iw), "clientHeight": measure(ih),
+    });
+    let visual = json!({
+        "offsetX": measure(f("ox")), "offsetY": measure(f("oy")),
+        "pageX": measure(px), "pageY": measure(py),
+        "clientWidth": measure(vw), "clientHeight": measure(vh),
+        "scale": measure(f("scale")), "zoom": 1,
+    });
+    let content = json!({ "x": 0, "y": 0, "width": measure(f("cw")), "height": measure(f("ch")) });
+    Ok(json!({
+        "layoutViewport": layout,
+        "visualViewport": visual,
+        "contentSize": content,
+        "cssLayoutViewport": layout,
+        "cssVisualViewport": visual,
+        "cssContentSize": content,
+    }))
+}
+
+/// Engine errors through the CDP face's words — `engine_failure` for
+/// the generic case.
+fn engine_failure_word(err: String) -> Failure {
+    super::runtime::engine_failure(err)
 }
 
 /// An `Emulation.*` command on the IR: params become an [`EmulateOp`]

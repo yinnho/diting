@@ -1036,6 +1036,20 @@ async fn forward(
     if method.starts_with("Emulation.") {
         return emulation::emulate_run(&engine, method, &params).await;
     }
+    // The last page-level commands on the IR: init-script registry,
+    // blocked URLs, extra headers — and the layout-metrics read.
+    if matches!(
+        method,
+        "Page.addScriptToEvaluateOnNewDocument"
+            | "Page.removeScriptToEvaluateOnNewDocument"
+            | "Network.setBlockedURLs"
+            | "Network.setExtraHTTPHeaders"
+    ) {
+        return emulation::page_run(&engine, method, &params).await;
+    }
+    if method == "Page.getLayoutMetrics" {
+        return emulation::metrics_run(&engine).await;
+    }
     let mut result = send_command(&engine, |reply| SessionCommand::Cdp {
         method: method.to_string(),
         params,
