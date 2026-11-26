@@ -51,6 +51,17 @@ impl SessionActor {
         let _ = reply.send(Ok((nav, rows)));
     }
 
+    /// The stored response body of `request_id`, if the page kept one.
+    pub(super) fn on_response_body(
+        &mut self,
+        request_id: String,
+        reply: oneshot::Sender<
+            Result<Option<diting::diting_browser::page::StoredResponseBody>, String>,
+        >,
+    ) {
+        let _ = reply.send(Ok(self.page.inner.get_response_body(&request_id)));
+    }
+
     /// Push this session's page events to `sink` from now on.
     pub(super) fn on_subscribe(
         &mut self,

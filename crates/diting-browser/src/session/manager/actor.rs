@@ -389,6 +389,7 @@ pub(super) fn session_thread(
                         SessionCommand::CallOn { args, reply } => actor.on_call_on(args, reply).await,
                         SessionCommand::ReleaseObject { object_id, parts, reply } => actor.on_release_object(object_id, parts, reply).await,
                         SessionCommand::Subscribe { sink, reply } => actor.on_subscribe(sink, reply),
+                        SessionCommand::ResponseBody { request_id, reply } => actor.on_response_body(request_id, reply),
                         SessionCommand::Emulate { op, reply } => actor.on_emulate(op, reply).await,
                         SessionCommand::Page { op, reply } => actor.on_page_op(op, reply).await,
                         SessionCommand::PageMetrics { reply } => actor.on_page_metrics(reply).await,
