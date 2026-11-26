@@ -34,10 +34,6 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use super::routes;
 
-/// The CDP hub is process-wide. These tests each bind their own port, but
-/// they share that hub, so they must not run at the same time.
-static CDP_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-
 /// A session id this bridge never minted.
 const NO_SUCH_ID: &str = "00000000000000000000000000000000";
 
@@ -421,11 +417,13 @@ async fn page_at(client: &mut Client, n: u64, url: &str) -> String {
     session
 }
 
-/// The bridge with one page of its own at `url`: the hub lock, held for as
-/// long as the test runs, the socket, and the page's session.
-async fn bridge(url: &str) -> (tokio::sync::MutexGuard<'static, ()>, Client, String) {
-    let guard = CDP_LOCK.lock().await;
+/// The bridge with one page of its own at `url`: the socket and the
+/// page's session. Every test's bridge is its own hub — `routes()` builds
+/// one per instance — so tests run in parallel and nothing here serializes
+/// them. What truly shares a process is the private-network env knob, and
+/// it has its own lock (`net_env_guard`).
+async fn bridge(url: &str) -> (Client, String) {
     let (mut client, _) = connect(axum::Router::new()).await;
     let session = page_at(&mut client, 1, url).await;
-    (guard, client, session)
+    (client, session)
 }

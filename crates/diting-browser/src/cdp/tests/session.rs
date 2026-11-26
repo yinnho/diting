@@ -20,7 +20,6 @@ fn minted(event: &Value) -> &str {
 
 #[tokio::test]
 async fn each_session_hears_only_what_it_enabled() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut client, _) = connect(axum::Router::new()).await;
     let (target, quiet) = owned_page(&mut client, 1).await;
     let loud = client
@@ -150,7 +149,6 @@ async fn each_session_hears_only_what_it_enabled() {
 
 #[tokio::test]
 async fn auto_attach_is_a_switch_on_the_socket() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut client, _) = connect(axum::Router::new()).await;
     for (params, message) in [
         (json!({ "autoAttach": true }), "Invalid parameters"),
@@ -259,7 +257,6 @@ async fn auto_attach_is_a_switch_on_the_socket() {
 
 #[tokio::test]
 async fn closing_a_target_ends_its_sessions() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut client, addr) = connect(axum::Router::new()).await;
     assert_eq!(
         client
@@ -380,7 +377,6 @@ async fn closing_a_target_ends_its_sessions() {
 
 #[tokio::test]
 async fn browser_contexts_are_made_listed_named_and_disposed() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut client, _) = connect(axum::Router::new()).await;
     // Chrome 158 (`bctx-probe.cjs`): the default context has an id and is
     // never in the list; a made one is, until it is disposed.
@@ -482,7 +478,6 @@ async fn browser_contexts_are_made_listed_named_and_disposed() {
 
 #[tokio::test]
 async fn a_browser_session_speaks_for_the_browser() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut client, _) = connect(axum::Router::new()).await;
     let (target, page) = owned_page(&mut client, 1).await;
 
@@ -607,7 +602,6 @@ async fn a_browser_session_speaks_for_the_browser() {
 
 #[tokio::test]
 async fn a_session_belongs_to_its_socket() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut owner, addr) = connect(axum::Router::new()).await;
     let (target, session) = open_owned_page(&mut owner, 1).await;
     let mut other = another(addr).await;
@@ -664,7 +658,6 @@ async fn a_session_belongs_to_its_socket() {
 
 #[tokio::test]
 async fn a_page_websocket_is_that_pages_root_level() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut owner, addr) = connect(axum::Router::new()).await;
     let (target, session) = open_owned_page(&mut owner, 1).await;
     let listed = http_get(addr, "/json/list").await;
@@ -774,7 +767,6 @@ async fn a_page_websocket_is_that_pages_root_level() {
 
 #[tokio::test]
 async fn a_socket_takes_its_pages_when_it_leaves() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut owner, addr) = connect(axum::Router::new()).await;
     let (target, _) = open_owned_page(&mut owner, 1).await;
     let mut page = page_socket(addr, &target).await;
@@ -812,7 +804,6 @@ fn page_target_ids(targets: &Value) -> Vec<String> {
 
 #[tokio::test]
 async fn two_clients_keep_their_own_pages() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut a, addr) = connect(axum::Router::new()).await;
     let mut b = another(addr).await;
     let (target_a, session_a) = open_owned_page(&mut a, 1).await;
@@ -894,7 +885,6 @@ fn context_announcements(client: &Client, session: &str) -> usize {
 
 #[tokio::test]
 async fn a_detached_session_ends_until_it_is_attached_again() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut client, _) = connect(axum::Router::new()).await;
     let (target, session) = open_owned_page(&mut client, 1).await;
     let on = Some(session.as_str());

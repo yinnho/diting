@@ -601,7 +601,6 @@ fn expect_frame(text: &str, id: Option<i64>, error: Option<(i64, &str)>, answer:
 
 #[tokio::test]
 async fn a_frame_is_read_as_chrome_reads_one() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut browser, addr) = connect(axum::Router::new()).await;
     let (target, _) = owned_page(&mut browser, 1).await;
     let mut page = page_socket(addr, &target).await;
@@ -618,7 +617,6 @@ async fn a_frame_is_read_as_chrome_reads_one() {
 
 #[tokio::test]
 async fn a_page_command_is_no_command_of_the_browser_socket() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut browser, addr) = connect(axum::Router::new()).await;
     let (target, _) = owned_page(&mut browser, 1).await;
     let mut page = page_socket(addr, &target).await;
@@ -635,7 +633,6 @@ async fn a_page_command_is_no_command_of_the_browser_socket() {
 /// at the top of the frame; in `params` Chrome's own reader does the same.
 #[tokio::test]
 async fn a_key_written_twice_keeps_its_last_value() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut client, _) = connect(axum::Router::new()).await;
     for (text, id) in [
         (r#"{"id":2,"id":3,"method":"NoSuch.method"}"#, 3),
@@ -681,7 +678,6 @@ async fn a_key_written_twice_keeps_its_last_value() {
 /// What a command on that session answers does name it.
 #[tokio::test]
 async fn a_refused_frame_names_no_session_even_on_a_live_one() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut browser, addr) = connect(axum::Router::new()).await;
     let (target, session) = open_owned_page(&mut browser, 1).await;
     let named = |rest: &str| format!(r#"{{"id":1,"sessionId":"{session}"{rest}"#);
@@ -1008,7 +1004,7 @@ const READ: &[(&str, Level, [Read; 5])] = &[
 
 #[tokio::test]
 async fn params_is_read_the_same_way_everywhere() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     for &(method, level, spelled) in READ {
         for (spelling, expected) in SPELLINGS.iter().zip(spelled) {
             let params = serde_json::from_str(spelling).expect("spelling");
@@ -1577,7 +1573,7 @@ fn taken() -> Vec<(&'static str, Value)> {
 
 #[tokio::test]
 async fn what_chrome_would_not_read_is_invalid_parameters() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     answered_as(&mut client, &session, not_read()).await;
     // Nothing else rides on the error.
     let reply = client
@@ -1591,25 +1587,25 @@ async fn what_chrome_would_not_read_is_invalid_parameters() {
 
 #[tokio::test]
 async fn some_bad_parameters_are_named_as_chrome_names_them() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     answered_as(&mut client, &session, chromes_words()).await;
 }
 
 #[tokio::test]
 async fn what_chrome_refuses_is_refused_in_its_words() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     answered_as(&mut client, &session, refused()).await;
 }
 
 #[tokio::test]
 async fn what_this_engine_cannot_do_is_refused_and_says_why() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     answered_as(&mut client, &session, own_words()).await;
 }
 
 #[tokio::test]
 async fn a_call_chrome_takes_is_taken() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     for (method, params) in taken() {
         let asked = client.ask(method, params, Some(&session)).await;
         assert!(asked.is_ok(), "{method}: {:?}", asked.err());
@@ -1655,7 +1651,7 @@ const NOT_ANSWERED: &[(&str, Level)] = &[
 
 #[tokio::test]
 async fn what_this_bridge_does_not_have_is_said_by_name() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     for &(method, level) in NOT_ANSWERED {
         let asked = match level {
             Level::Page => client.ask(method, json!({}), Some(&session)).await,
@@ -1674,7 +1670,7 @@ async fn what_this_bridge_does_not_have_is_said_by_name() {
 /// does not have, not for a route that ends nowhere.
 #[tokio::test]
 async fn every_routed_command_is_met_at_its_end() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     for method in super::super::PAGE_CHANNEL {
         match client.ask(method, json!({}), Some(&session)).await {
             Ok(_) => {}
@@ -1697,7 +1693,6 @@ async fn every_routed_command_is_met_at_its_end() {
 /// engine named where Chrome names its own.
 #[tokio::test]
 async fn the_version_has_chromes_keys_and_names_this_engine() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut client, addr) = connect(axum::Router::new()).await;
     let version = http_get(addr, "/json/version/").await;
     let product = format!("diting/{}", env!("CARGO_PKG_VERSION"));
@@ -1758,7 +1753,7 @@ async fn the_version_has_chromes_keys_and_names_this_engine() {
 #[cfg(not(feature = "screenshot"))]
 #[tokio::test]
 async fn a_screenshot_that_cannot_be_taken_says_so() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     assert_eq!(
         client
             .refusal("Page.captureScreenshot", json!({}), Some(&session))

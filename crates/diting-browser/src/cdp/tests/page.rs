@@ -22,7 +22,7 @@ fn sorted_keys(value: &Value) -> Vec<String> {
 /// `Page.navigate`'s receipt has exactly these keys — nothing more.
 #[tokio::test]
 async fn navigate_answers_with_its_receipt() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let on = Some(session.as_str());
     for url in ["about:blank", "  about:blank  ", "data:text/html,hi"] {
         let reply = client.run("Page.navigate", json!({ "url": url }), on).await;
@@ -55,7 +55,7 @@ async fn navigate_answers_with_its_receipt() {
 /// What is no URL at all is refused in Chrome's words.
 #[tokio::test]
 async fn navigate_refuses_what_is_no_url() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let on = Some(session.as_str());
     // `""` and `"not a url"` are pinned in `tests/protocol.rs` already.
     for url in ["http://", "//", "http://[::1", "#y"] {
@@ -74,7 +74,7 @@ async fn navigate_refuses_what_is_no_url() {
 #[tokio::test]
 async fn reload_loads_the_document_again() {
     let page = "data:text/html,<script>window.loads=(window.loads||0)+1</script>";
-    let (_guard, mut client, session) = bridge(page).await;
+    let (mut client, session) = bridge(page).await;
     let on = Some(session.as_str());
     client.run("Page.enable", json!({}), on).await;
     assert_eq!(client.eval("window.loads", &session).await, json!(1));
@@ -109,7 +109,7 @@ async fn reload_loads_the_document_again() {
 /// `{accept: true}` half is pinned in `tests/protocol.rs`.
 #[tokio::test]
 async fn a_dialog_that_is_not_there_is_said_so() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let on = Some(session.as_str());
     assert_eq!(
         client
@@ -128,7 +128,7 @@ async fn a_dialog_that_is_not_there_is_said_so() {
 /// them. What the events do to the page is not pinned here.
 #[tokio::test]
 async fn input_parameters_are_read_as_chrome_reads_them() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let on = Some(session.as_str());
     let invalid = |message: &str| Err((-32602, message.to_string()));
     let bad = || invalid("Invalid parameters");
@@ -270,7 +270,7 @@ async fn input_parameters_are_read_as_chrome_reads_them() {
 /// and `commands` given a string.
 #[tokio::test]
 async fn key_events_take_their_shapes_as_chrome_takes_them() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let on = Some(session.as_str());
     let key = |params: Value| ("Input.dispatchKeyEvent", params);
     for (_, params) in [

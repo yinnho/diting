@@ -65,7 +65,7 @@ async fn touch(client: &mut Client, session: &str) -> Value {
 /// back to `screen`, `features` left out is none.
 #[tokio::test]
 async fn emulated_media_replaces_the_whole_set_on_every_call() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     // What the host answers for the colour scheme is the host's business.
     let own = media(&mut client, &session).await;
     assert_eq!(
@@ -143,7 +143,7 @@ async fn emulated_media_replaces_the_whole_set_on_every_call() {
 #[cfg(feature = "screenshot")]
 #[tokio::test]
 async fn emulated_media_moves_the_cascade_with_the_queries() {
-    let (_guard, mut client, session) = bridge(PAGE).await;
+    let (mut client, session) = bridge(PAGE).await;
     let colour = "getComputedStyle(document.getElementById('t')).color";
     let on = Some(session.as_str());
     let own = client.eval(colour, &session).await;
@@ -180,7 +180,7 @@ async fn emulated_media_moves_the_cascade_with_the_queries() {
 /// answer — not whether the page has touch events, as in Chrome.
 #[tokio::test]
 async fn touch_emulation_moves_the_pointers_and_the_touch_points() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let on = Some(session.as_str());
     let own = touch(&mut client, &session).await;
     assert_eq!(own, json!([0, false, false, true, false, false]), "{own}");
@@ -212,7 +212,7 @@ async fn touch_emulation_moves_the_pointers_and_the_touch_points() {
 /// an empty `userAgent`, an `acceptLanguage` left out.
 #[tokio::test]
 async fn the_pins_are_the_sessions_and_outlive_the_page() {
-    let (_guard, mut client, session) = bridge(PAGE).await;
+    let (mut client, session) = bridge(PAGE).await;
     let on = Some(session.as_str());
     // The page's own zone, locale, language, UA and platform.
     let own = identity(&mut client, &session).await;

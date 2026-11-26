@@ -148,7 +148,7 @@ async fn main_world(client: &mut Client, session: &str) -> i64 {
 
 #[tokio::test]
 async fn a_handle_says_what_it_is() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let on = Some(session.as_str());
     client
         .run(
@@ -336,7 +336,7 @@ async fn a_handle_says_what_it_is() {
 
 #[tokio::test]
 async fn a_value_asked_for_comes_back_as_chrome_brings_one() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let on = Some(session.as_str());
     let a_value = |value: Value| answer(json!({ "type": "object", "value": value }));
     for (expression, expected) in [
@@ -397,7 +397,7 @@ async fn a_value_asked_for_comes_back_as_chrome_brings_one() {
 
 #[tokio::test]
 async fn what_cannot_be_brought_back_by_value_is_chromes_word() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let on = Some(session.as_str());
     let internal = || Err((-32603, "Internal error".to_string()));
     for (expression, expected) in [
@@ -447,7 +447,7 @@ fn number(n: i64) -> Value {
 
 #[tokio::test]
 async fn a_script_that_throws_is_shown_not_refused() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let on = Some(session.as_str());
     let the_error = error("TypeError", "TypeError: outer\n    at <anonymous>:1:7");
     // Asked back by value or not: a throw is the result, and the exception.
@@ -810,7 +810,7 @@ async fn a_script_that_throws_is_shown_not_refused() {
 
 #[tokio::test]
 async fn a_script_is_read_as_chrome_reads_one() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let on = Some(session.as_str());
     let a_colon = error("SyntaxError", "SyntaxError: Unexpected token ':'");
     let a_return = error("SyntaxError", "SyntaxError: Illegal return statement");
@@ -847,7 +847,7 @@ async fn a_script_is_read_as_chrome_reads_one() {
 
 #[tokio::test]
 async fn call_function_on_runs_on_the_handle() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let on = Some(session.as_str());
     let context = main_world(&mut client, &session).await;
     let object = handle_of(&mut client, &session, "({n: 41})").await;
@@ -1074,7 +1074,7 @@ async fn call_function_on_runs_on_the_handle() {
 
 #[tokio::test]
 async fn an_argument_is_read_by_what_keys_it_has() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let world = in_world(main_world(&mut client, &session).await);
     let live = handle_of(&mut client, &session, "({tag: 'live'})").await;
     let let_go = handle_of(&mut client, &session, "({tag: 'dead'})").await;
@@ -1228,7 +1228,7 @@ const OTHER_WORLD: &str = "Argument should belong to the same JavaScript world a
 
 #[tokio::test]
 async fn an_id_that_names_nothing_is_chromes_word() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let on = Some(session.as_str());
     let world = in_world(main_world(&mut client, &session).await);
     let one = "function(){ return 1 }";
@@ -1383,7 +1383,7 @@ async fn an_id_that_names_nothing_is_chromes_word() {
 
 #[tokio::test]
 async fn the_error_that_comes_first_is_chromes() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let world = in_world(main_world(&mut client, &session).await);
     let live = handle_of(&mut client, &session, "({tag: 'live'})").await;
     let other = handle_of(&mut client, &session, "({tag: 'other'})").await;
@@ -1504,7 +1504,7 @@ async fn the_error_that_comes_first_is_chromes() {
 
 #[tokio::test]
 async fn a_declaration_that_is_no_function_is_said_so() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let world = in_world(main_world(&mut client, &session).await);
     let live = handle_of(&mut client, &session, "({tag: 'live'})").await;
     for declaration in [
@@ -1705,7 +1705,7 @@ async fn a_declaration_that_is_no_function_is_said_so() {
 
 #[tokio::test]
 async fn serialization_options_say_whether_the_value_is_asked_for() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let on = Some(session.as_str());
     let world = in_world(main_world(&mut client, &session).await);
     let returns = "function(){ return {a:1} }";
@@ -1808,7 +1808,6 @@ async fn serialization_options_say_whether_the_value_is_asked_for() {
 /// reach a real client only when a scheduling race happened to save it.
 #[tokio::test]
 async fn a_console_call_during_navigation_is_told_after_the_context() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let router = axum::Router::new().route(
         "/logs",
@@ -1861,7 +1860,7 @@ async fn a_console_call_during_navigation_is_told_after_the_context() {
 /// command in flight to carry it.
 #[tokio::test]
 async fn a_console_call_between_commands_is_pushed() {
-    let (_guard, mut client, session) = bridge("about:blank").await;
+    let (mut client, session) = bridge("about:blank").await;
     let on = Some(session.as_str());
     client.run("Runtime.enable", json!({}), on).await;
     client
