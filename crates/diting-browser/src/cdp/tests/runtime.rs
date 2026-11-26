@@ -1800,6 +1800,62 @@ async fn serialization_options_say_whether_the_value_is_asked_for() {
     }
 }
 
+/// A console call the page makes while its document loads rides the
+/// navigation's own batch, told after the new document's contexts are
+/// announced: the id it names is one the client has already heard of.
+/// Playwright drops the call otherwise (`crPage._onConsoleAPI` returns on
+/// an unknown context) — which is how a load-time `console.log` used to
+/// reach a real client only when a scheduling race happened to save it.
+#[tokio::test]
+async fn a_console_call_during_navigation_is_told_after_the_context() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let router = axum::Router::new().route(
+        "/logs",
+        axum::routing::get(|| async {
+            axum::response::Html(
+                "<html><head><script>console.log('at-load');</script></head><body>x</body></html>",
+            )
+        }),
+    );
+    let (mut client, addr) = connect(router).await;
+    let (_, session) = open_owned_page(&mut client, 1).await;
+    let on = Some(session.as_str());
+    client.run("Page.enable", json!({}), on).await;
+    client.events.clear();
+    client
+        .run(
+            "Page.navigate",
+            json!({ "url": format!("http://{addr}/logs") }),
+            on,
+        )
+        .await;
+    let seen = std::mem::take(&mut client.events);
+    let position = |method: &str| {
+        seen.iter()
+            .position(|event| event["method"] == method)
+            .unwrap_or_else(|| panic!("no {method} in {seen:?}"))
+    };
+    let created = position("Runtime.executionContextCreated");
+    let call_pos = position("Runtime.consoleAPICalled");
+    assert!(
+        created < call_pos,
+        "the context is announced before the call: {seen:?}"
+    );
+    let call = &seen[call_pos];
+    assert_eq!(call["params"]["args"][0]["value"], "at-load");
+    // The id the call names is one of the contexts the batch announced.
+    let announced: Vec<i64> = seen
+        .iter()
+        .filter(|event| event["method"] == "Runtime.executionContextCreated")
+        .filter_map(|event| event["params"]["context"]["id"].as_i64())
+        .collect();
+    assert!(
+        announced.contains(&call["params"]["executionContextId"].as_i64().unwrap()),
+        "the call names an announced context {announced:?}: {call:?}"
+    );
+}
+
 /// A console call the page makes on its own, between commands, reaches a
 /// socket that has `Runtime` on: pushed as the session drains it, with no
 /// command in flight to carry it.

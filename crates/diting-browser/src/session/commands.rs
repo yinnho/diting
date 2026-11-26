@@ -60,13 +60,18 @@ pub enum EmulateOp {
 }
 
 /// The answer to [`SessionCommand::NavigateCdp`]: how the navigation
-/// went, the request rows it filed, and — when it failed — how.
+/// went, the request rows it filed, the console calls the load made,
+/// and — when it failed — how. The console calls ride the reply because
+/// the face must tell them after the new document's contexts are
+/// announced; pushed on their own they would race ahead of the
+/// announcement and be dropped for naming a context nobody knows.
 pub type NavigateCdpReply = oneshot::Sender<
     Result<
         (
             Result<SessionNavResponse, String>,
             Vec<diting::diting_browser::page::NetworkEvent>,
             diting::diting_net::NetFailure,
+            Vec<(String, String, String)>,
         ),
         String,
     >,

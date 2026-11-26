@@ -595,19 +595,21 @@ async fn load(hub: SharedHub, session: &str, url: &str) -> Result<(Out, Value), 
         let hub = hub.lock().await;
         page_of(&hub, session)?.engine_session.clone()
     };
-    let (nav, rows, failure) = match send_command(&engine, |reply| SessionCommand::NavigateCdp {
-        url: url.to_string(),
-        reply,
-    })
-    .await
-    {
-        Ok(answer) => answer,
-        Err(err) => (
-            Err(session_msg(err)),
-            Vec::new(),
-            diting::diting_net::NetFailure::Other,
-        ),
-    };
+    let (nav, rows, failure, calls) =
+        match send_command(&engine, |reply| SessionCommand::NavigateCdp {
+            url: url.to_string(),
+            reply,
+        })
+        .await
+        {
+            Ok(answer) => answer,
+            Err(err) => (
+                Err(session_msg(err)),
+                Vec::new(),
+                diting::diting_net::NetFailure::Other,
+                Vec::new(),
+            ),
+        };
     let mut hub = hub.lock().await;
     let local = local_of(&hub, session);
     {
@@ -628,6 +630,7 @@ async fn load(hub: SharedHub, session: &str, url: &str) -> Result<(Out, Value), 
     let reply = match &nav {
         Ok(_) => {
             nav_events(&hub, page, local, &mut out);
+            super::page_side::navigation_console_frames(&hub, local, page, &calls, &mut out);
             json!({
                 "frameId": page.target_id,
                 "loaderId": loader_of(page),
@@ -689,7 +692,7 @@ pub(super) async fn navigate_to_entry(
         page_of(&hub, session)?.engine_session.clone()
     };
     let index = entry as usize;
-    let (nav, rows, failure) = match send_command(&engine, |reply| {
+    let (nav, rows, failure, calls) = match send_command(&engine, |reply| {
         SessionCommand::NavigateHistoryCdp { index, reply }
     })
     .await
@@ -699,6 +702,7 @@ pub(super) async fn navigate_to_entry(
             Err(session_msg(err)),
             Vec::new(),
             diting::diting_net::NetFailure::Other,
+            Vec::new(),
         ),
     };
     let mut hub = hub.lock().await;
@@ -718,6 +722,7 @@ pub(super) async fn navigate_to_entry(
     super::network_events::network_frames(&hub, local, page, &rows, &mut out);
     if nav.is_ok() {
         nav_events(&hub, page, local, &mut out);
+        super::page_side::navigation_console_frames(&hub, local, page, &calls, &mut out);
     }
     let _ = failure;
     out.frames.push(ok(id, Some(session), json!({})));
