@@ -120,7 +120,6 @@ async fn await_hits(site: &Site, path: &str, count: usize) -> bool {
 #[tokio::test]
 async fn blocked_urls_never_reach_the_wire_and_extra_headers_do() {
     let _guard = CDP_LOCK.lock().await;
-    fresh_hub().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, site) = site();
     let (mut client, addr) = connect(router).await;

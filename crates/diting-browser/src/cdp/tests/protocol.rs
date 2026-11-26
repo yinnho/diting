@@ -602,7 +602,6 @@ fn expect_frame(text: &str, id: Option<i64>, error: Option<(i64, &str)>, answer:
 #[tokio::test]
 async fn a_frame_is_read_as_chrome_reads_one() {
     let _guard = CDP_LOCK.lock().await;
-    fresh_hub().await;
     let (mut browser, addr) = connect(axum::Router::new()).await;
     let (target, _) = owned_page(&mut browser, 1).await;
     let mut page = page_socket(addr, &target).await;
@@ -620,7 +619,6 @@ async fn a_frame_is_read_as_chrome_reads_one() {
 #[tokio::test]
 async fn a_page_command_is_no_command_of_the_browser_socket() {
     let _guard = CDP_LOCK.lock().await;
-    fresh_hub().await;
     let (mut browser, addr) = connect(axum::Router::new()).await;
     let (target, _) = owned_page(&mut browser, 1).await;
     let mut page = page_socket(addr, &target).await;
@@ -638,7 +636,6 @@ async fn a_page_command_is_no_command_of_the_browser_socket() {
 #[tokio::test]
 async fn a_key_written_twice_keeps_its_last_value() {
     let _guard = CDP_LOCK.lock().await;
-    fresh_hub().await;
     let (mut client, _) = connect(axum::Router::new()).await;
     for (text, id) in [
         (r#"{"id":2,"id":3,"method":"NoSuch.method"}"#, 3),
@@ -685,7 +682,6 @@ async fn a_key_written_twice_keeps_its_last_value() {
 #[tokio::test]
 async fn a_refused_frame_names_no_session_even_on_a_live_one() {
     let _guard = CDP_LOCK.lock().await;
-    fresh_hub().await;
     let (mut browser, addr) = connect(axum::Router::new()).await;
     let (target, session) = open_owned_page(&mut browser, 1).await;
     let named = |rest: &str| format!(r#"{{"id":1,"sessionId":"{session}"{rest}"#);
@@ -1704,7 +1700,6 @@ async fn every_routed_command_is_met_at_its_end() {
 #[tokio::test]
 async fn the_version_has_chromes_keys_and_names_this_engine() {
     let _guard = CDP_LOCK.lock().await;
-    fresh_hub().await;
     let (mut client, addr) = connect(axum::Router::new()).await;
     let version = http_get(addr, "/json/version/").await;
     let product = format!("diting/{}", env!("CARGO_PKG_VERSION"));

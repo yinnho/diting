@@ -38,18 +38,6 @@ use super::routes;
 /// they share that hub, so they must not run at the same time.
 static CDP_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
-/// The hub is one per process: under `cargo test` every test shares it,
-/// where nextest gives each its own. A test starts with no page, session
-/// or socket of the last one's. The engine sessions are let go, not
-/// closed: their threads lived on runtimes that are already gone, and
-/// waiting on each would stall the suite for nothing.
-async fn fresh_hub() {
-    let mut hub = super::HUB.lock().await;
-    hub.pages.clear();
-    hub.sessions.clear();
-    hub.clients.clear();
-}
-
 /// A session id this bridge never minted.
 const NO_SUCH_ID: &str = "00000000000000000000000000000000";
 
@@ -334,27 +322,6 @@ impl Client {
             self.events.push(frame);
         }
     }
-
-    /// `Runtime.evaluate` of `expression`: its reply whole — `result`, and
-    /// `exceptionDetails` when something was thrown.
-    async fn evaluate(&mut self, expression: &str, session: &str, by_value: bool) -> Value {
-        self.run(
-            "Runtime.evaluate",
-            json!({ "expression": expression, "returnByValue": by_value }),
-            Some(session),
-        )
-        .await
-    }
-}
-
-/// Serve `site` beside the bridge; where it listens.
-async fn serve(site: axum::Router) -> std::net::SocketAddr {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-    tokio::spawn(async move {
-        axum::serve(listener, routes().merge(site)).await.unwrap();
-    });
-    addr
 }
 
 /// A browser socket that also serves `site`.
@@ -458,7 +425,6 @@ async fn page_at(client: &mut Client, n: u64, url: &str) -> String {
 /// long as the test runs, the socket, and the page's session.
 async fn bridge(url: &str) -> (tokio::sync::MutexGuard<'static, ()>, Client, String) {
     let guard = CDP_LOCK.lock().await;
-    fresh_hub().await;
     let (mut client, _) = connect(axum::Router::new()).await;
     let session = page_at(&mut client, 1, url).await;
     (guard, client, session)

@@ -75,9 +75,7 @@
 //!   `keydown` or `keyup` is dispatched, so a key without text moves
 //!   nothing and `keyUp` is an empty ok — except Ctrl/Meta+A, which
 //!   selects the field.
-use diting::diting_js::runtime::{
-    EvalOutcome, ExceptionInfo, JsRuntime, ObjectIdState, RemoteObjectInfo,
-};
+use diting::diting_js::runtime::{EvalOutcome, ExceptionInfo, RemoteObjectInfo};
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -262,59 +260,6 @@ pub(super) fn eval_result(
     Ok(outcome_result(outcome, thrown))
 }
 
-/// `returnByValue` — and `serialization: "json"`, which asks the same: the
-/// value where the handle was, the way Chrome brings one back
-/// ([`JsRuntime::value_of`]). A primitive is its own value already, and
-/// `null` keeps its `subtype`. A symbol has no value to bring back.
-///
-/// What a promise was rejected with comes back the way a result does; what a
-/// script threw does not — it is shown as thrown, whatever was asked for
-/// (Chrome 158, measured).
-fn serialize_by_value(js: &mut JsRuntime, outcome: &mut EvalOutcome) -> Result<(), Failure> {
-    let rejected = match &outcome.exception {
-        Some(exception) if !exception.in_promise => return Ok(()),
-        Some(_) => true,
-        None => false,
-    };
-    let info = &mut outcome.info;
-    match info.js_type.as_str() {
-        "object" | "function" if info.subtype.as_deref() != Some("null") => {}
-        "symbol" => {
-            // The reply is the error, and nothing will name a rejected
-            // one's slot.
-            if rejected {
-                if let Some(id) = &info.object_id {
-                    js.release_object(id);
-                }
-            }
-            return Err("Object couldn't be returned by value".into());
-        }
-        _ => return Ok(()),
-    }
-    let Some(id) = info.object_id.clone() else {
-        return Ok(());
-    };
-    let read = js.value_of(&id);
-    // Asked for by value: there is no handle to hand out, so none is kept —
-    // unless the one in `exceptionDetails` still names the slot, and the
-    // reply is not the error.
-    if !rejected || read.is_err() {
-        js.release_object(&id);
-    }
-    let value = read.map_err(engine_failure)?;
-    let js_type = info.js_type.clone();
-    *info = RemoteObjectInfo {
-        js_type,
-        subtype: None,
-        class_name: String::new(),
-        description: String::new(),
-        object_id: None,
-        value: Some(value),
-        unserializable_value: None,
-    };
-    Ok(())
-}
-
 /// What the engine could not do, as Chrome says it. A value the engine
 /// could not bring back comes in Chrome's own words, and the one Chrome
 /// gives a code of its own is the getter that threw.
@@ -427,28 +372,8 @@ fn context_is_live(params: &Value, context: i64) -> bool {
 }
 
 /// What Chrome says of an `objectId` that names nothing it will run
-/// against — three answers, by what is wrong with the id
-/// ([`ObjectIdState`]). Nothing for a handle the page holds.
-fn dead_handle(state: ObjectIdState) -> Option<&'static str> {
-    match state {
-        ObjectIdState::Held => None,
-        ObjectIdState::Unparseable => Some("Invalid remote object id"),
-        ObjectIdState::Gone => Some("Cannot find context with specified id"),
-        ObjectIdState::Released => Some("Could not find object with given id"),
-    }
-}
 
 /// The same for an `objectId` among the arguments, where Chrome words an
-/// id of a world that is not the receiver's — or of a document gone — its
-/// own way.
-fn dead_argument(state: ObjectIdState) -> Option<&'static str> {
-    match state {
-        ObjectIdState::Gone => {
-            Some("Argument should belong to the same JavaScript world as target object")
-        }
-        state => dead_handle(state),
-    }
-}
 
 /// `arguments`: each one an object, carrying an `objectId` that is a string
 /// and an `unserializableValue` that is a string.
@@ -795,8 +720,6 @@ const NO_BOX: &str = "Could not compute box model.";
 /// answers — see [`words`].
 enum Refusal {
     /// `objectId` names nothing the page holds: Chrome's word for the way
-    /// it is dead ([`dead_handle`]).
-    Dead(&'static str),
     /// `backendNodeId` is no number this page gave.
     NoNumber,
     /// A `nodeId`: the frontend's own numbering, which nothing here hands
@@ -821,7 +744,6 @@ enum Refusal {
 /// no whole number is `-32602` there, every other refusal `-32000`.
 fn words(refusal: Refusal) -> Failure {
     match refusal {
-        Refusal::Dead(word) => word.into(),
         Refusal::NoNumber => "No node found for given backend id".into(),
         Refusal::NoFrontendNode => "Could not find node with given id".into(),
         Refusal::Invalid => invalid_params(),
@@ -1190,25 +1112,6 @@ pub(super) fn input_script(method: &str, params: &Value) -> Result<Option<String
         "Input.dispatchKeyEvent" => key_event_script(params),
         _ => Err(Failure::from("not an input command")),
     }
-}
-
-/// The reply to an evaluate or a call: what came back — by value where that
-/// was asked for — and, when something was thrown, what it was, beside it.
-fn settled(
-    js: &mut JsRuntime,
-    mut outcome: EvalOutcome,
-    return_by_value: bool,
-) -> Result<Value, Failure> {
-    // What was thrown, the way a result shows it: taken before a value
-    // asked for is read off its slot.
-    let thrown = outcome
-        .exception
-        .as_ref()
-        .map(|_| remote_object(&outcome.info));
-    if return_by_value {
-        serialize_by_value(js, &mut outcome)?;
-    }
-    Ok(outcome_result(outcome, thrown))
 }
 
 /// Chrome sends the exception as `result` too, beside `exceptionDetails` —

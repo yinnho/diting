@@ -31,7 +31,6 @@ fn numbers(value: &Value) -> Vec<f64> {
 #[tokio::test]
 async fn a_node_is_asked_for_by_handle_and_by_number() {
     let _guard = CDP_LOCK.lock().await;
-    fresh_hub().await;
     let (mut client, _) = connect(axum::Router::new()).await;
     let (target, session) = open_owned_page(&mut client, 1).await;
     client
@@ -175,7 +174,6 @@ async fn a_node_is_asked_for_by_handle_and_by_number() {
 #[tokio::test]
 async fn its_boxes_are_content_padding_border_margin() {
     let _guard = CDP_LOCK.lock().await;
-    fresh_hub().await;
     let (mut client, _) = connect(axum::Router::new()).await;
     let (_, session) = open_owned_page(&mut client, 1).await;
     client
@@ -249,7 +247,6 @@ async fn its_boxes_are_content_padding_border_margin() {
 #[tokio::test]
 async fn what_cannot_be_found_is_named_in_chromes_words() {
     let _guard = CDP_LOCK.lock().await;
-    fresh_hub().await;
     let (mut client, _) = connect(axum::Router::new()).await;
     let session = page_at(&mut client, 1, NODES).await;
     let on = Some(session.as_str());
@@ -487,7 +484,6 @@ async fn what_cannot_be_found_is_named_in_chromes_words() {
 #[tokio::test]
 async fn a_number_of_a_document_gone_names_nothing() {
     let _guard = CDP_LOCK.lock().await;
-    fresh_hub().await;
     let (mut client, _) = connect(axum::Router::new()).await;
     let session = page_at(&mut client, 1, NODES).await;
     let on = Some(session.as_str());

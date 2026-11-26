@@ -46,6 +46,7 @@ use std::sync::atomic::AtomicU64;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::Path;
+use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -72,8 +73,9 @@ const UNKNOWN_SESSION: &str = "Session with given id not found.";
 
 static BROWSER_ID: std::sync::LazyLock<String> = std::sync::LazyLock::new(new_id);
 static SCRIPT_IDS: AtomicU64 = AtomicU64::new(1);
-static HUB: std::sync::LazyLock<tokio::sync::Mutex<Hub>> =
-    std::sync::LazyLock::new(|| tokio::sync::Mutex::new(Hub::default()));
+/// The bridge's shared state — one per `routes()` mount, not per
+/// process: two servers in one process (tests, embedders) get two hubs.
+type SharedHub = std::sync::Arc<tokio::sync::Mutex<Hub>>;
 
 /// Everything the bridge remembers, under one lock: the open sockets, the
 /// pages, and the sessions attached to either.
@@ -450,6 +452,7 @@ impl Hub {
 }
 
 pub(crate) fn routes() -> Router {
+    let hub: SharedHub = std::sync::Arc::new(tokio::sync::Mutex::new(Hub::default()));
     Router::new()
         .route("/json/version", get(version))
         .route("/json/version/", get(version))
@@ -457,6 +460,7 @@ pub(crate) fn routes() -> Router {
         .route("/json", get(list))
         .route("/devtools/browser/:id", get(browser_ws))
         .route("/devtools/page/:id", get(page_ws))
+        .with_state(hub)
 }
 
 fn product() -> String {
@@ -519,9 +523,9 @@ async fn version(headers: HeaderMap) -> Json<Value> {
     }))
 }
 
-async fn list(headers: HeaderMap) -> Json<Value> {
+async fn list(State(hub): State<SharedHub>, headers: HeaderMap) -> Json<Value> {
     let host = host_of(&headers);
-    let hub = HUB.lock().await;
+    let hub = hub.lock().await;
     let pages: Vec<Value> = hub
         .pages
         .values()
@@ -539,22 +543,30 @@ async fn list(headers: HeaderMap) -> Json<Value> {
     Json(Value::Array(pages))
 }
 
-async fn browser_ws(ws: WebSocketUpgrade, Path(id): Path<String>) -> Response {
+async fn browser_ws(
+    State(hub): State<SharedHub>,
+    ws: WebSocketUpgrade,
+    Path(id): Path<String>,
+) -> Response {
     if id != browser_id() {
         return (StatusCode::NOT_FOUND, "unknown browser").into_response();
     }
-    let (client, home, inbox) = HUB.lock().await.open(None);
-    ws.on_upgrade(move |socket| run_socket(socket, client, home, inbox))
+    let (client, home, inbox) = hub.lock().await.open(None);
+    ws.on_upgrade(move |socket| run_socket(hub, socket, client, home, inbox))
 }
 
-async fn page_ws(ws: WebSocketUpgrade, Path(id): Path<String>) -> Response {
+async fn page_ws(
+    State(hub): State<SharedHub>,
+    ws: WebSocketUpgrade,
+    Path(id): Path<String>,
+) -> Response {
     let opened = {
-        let mut hub = HUB.lock().await;
+        let mut hub = hub.lock().await;
         hub.pages.contains_key(&id).then(|| hub.open(Some(id)))
     };
     match opened {
         Some((client, home, inbox)) => {
-            ws.on_upgrade(move |socket| run_socket(socket, client, home, inbox))
+            ws.on_upgrade(move |socket| run_socket(hub, socket, client, home, inbox))
         }
         None => (StatusCode::NOT_FOUND, "unknown page").into_response(),
     }
@@ -565,6 +577,7 @@ async fn page_ws(ws: WebSocketUpgrade, Path(id): Path<String>) -> Response {
 /// its page was closed, it ran `Browser.close` — ends the socket once what
 /// is queued has gone out.
 async fn run_socket(
+    hub: SharedHub,
     mut socket: WebSocket,
     client: u64,
     home: Option<String>,
@@ -588,7 +601,7 @@ async fn run_socket(
                     Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
                     Some(Ok(_)) => continue,
                 };
-                let out = dispatch(client, home.as_deref(), &text).await;
+                let out = dispatch(hub.clone(), client, home.as_deref(), &text).await;
                 let mut open = true;
                 for frame in out.frames {
                     if socket.send(Message::Text(frame)).await.is_err() {
@@ -606,16 +619,16 @@ async fn run_socket(
         }
     }
     let (engine, spill) = {
-        let mut hub = HUB.lock().await;
-        hub.close_client(client)
+        let mut guard = hub.lock().await;
+        guard.close_client(client)
     };
     for (outbox, frame) in spill {
         let _ = outbox.send(frame);
     }
-    target::close_engine(engine).await;
+    target::close_engine(hub.clone(), engine).await;
 }
 
-async fn dispatch(client: u64, home: Option<&str>, text: &str) -> Out {
+async fn dispatch(hub: SharedHub, client: u64, home: Option<&str>, text: &str) -> Out {
     let envelope::Frame {
         id,
         session: named,
@@ -631,7 +644,7 @@ async fn dispatch(client: u64, home: Option<&str>, text: &str) -> Out {
         (Some(session), _) => Some(session.as_str()),
         (None, home) => home,
     };
-    match dispatch_method(client, &id, session, &method, &params).await {
+    match dispatch_method(hub, client, &id, session, &method, &params).await {
         Ok(out) => out,
         Err(Failure::NotFound(method)) => {
             refused(&id, session, -32601, &format!("'{method}' wasn't found"))
@@ -677,6 +690,7 @@ fn refused(id: &Value, session: Option<&str>, code: i64, message: &str) -> Out {
 }
 
 async fn dispatch_method(
+    hub: SharedHub,
     client: u64,
     id: &Value,
     session: Option<&str>,
@@ -686,7 +700,7 @@ async fn dispatch_method(
     // A session is its socket's: an id minted on another socket names
     // nothing here.
     let on_page = {
-        let hub = HUB.lock().await;
+        let hub = hub.lock().await;
         match session.filter(|session| {
             hub.sessions
                 .get(*session)
@@ -703,8 +717,8 @@ async fn dispatch_method(
         }
     };
     match session.filter(|_| on_page) {
-        Some(session) => page_method(id, session, method, params).await,
-        _ => target::browser_method(client, id, session, method, params).await,
+        Some(session) => page_method(hub, id, session, method, params).await,
+        _ => target::browser_method(hub, client, id, session, method, params).await,
     }
 }
 
@@ -714,6 +728,7 @@ fn browser_domain(method: &str) -> bool {
 }
 
 async fn page_method(
+    hub: SharedHub,
     id: &Value,
     session: &str,
     method: &str,
@@ -722,20 +737,20 @@ async fn page_method(
     let on = Some(session);
     match method {
         "Page.getFrameTree" => {
-            let hub = HUB.lock().await;
+            let hub = hub.lock().await;
             let tree = target::frame_tree(&hub, session)?;
             Ok(Out::from_frames(vec![ok(id, on, tree)]))
         }
-        "Page.navigate" => target::navigate(id, session, params).await,
-        "Page.reload" => target::reload(id, session, params).await,
-        "Page.close" => target::close_page(id, session).await,
-        "Page.captureScreenshot" => capture_screenshot(id, session, params).await,
+        "Page.navigate" => target::navigate(hub.clone(), id, session, params).await,
+        "Page.reload" => target::reload(hub.clone(), id, session, params).await,
+        "Page.close" => target::close_page(hub.clone(), id, session).await,
+        "Page.captureScreenshot" => capture_screenshot(hub, id, session, params).await,
         "Page.enable" | "Page.disable" | "Page.setLifecycleEventsEnabled" => {
-            target::page_switch(id, session, method, params).await
+            target::page_switch(hub.clone(), id, session, method, params).await
         }
-        "Page.createIsolatedWorld" => target::create_world(id, session, params).await,
-        "Runtime.enable" => target::runtime_enable(id, session).await,
-        "Runtime.disable" => target::runtime_disable(id, session).await,
+        "Page.createIsolatedWorld" => target::create_world(hub.clone(), id, session, params).await,
+        "Runtime.enable" => target::runtime_enable(hub.clone(), id, session).await,
+        "Runtime.disable" => target::runtime_disable(hub.clone(), id, session).await,
         "Target.setAutoAttach" => target::page_auto_attach(id, session, params),
         "Emulation.setFocusEmulationEnabled" => {
             standing_switch(params, "enabled", true, method, FOCUS)?;
@@ -768,7 +783,9 @@ async fn page_method(
             )?;
             Ok(ack(id, session))
         }
-        _ if PAGE_CHANNEL.contains(&method) => runtime_forward(id, session, method, params).await,
+        _ if PAGE_CHANNEL.contains(&method) => {
+            runtime_forward(hub, id, session, method, params).await
+        }
         _ if STATELESS.contains(&method) => Ok(ack(id, session)),
         _ => Err(Failure::NotFound(method.to_string())),
     }
@@ -777,10 +794,15 @@ async fn page_method(
 /// `Page.captureScreenshot`. A build without the `screenshot` feature has
 /// no raster: the command is refused by name — an empty picture would be
 /// a lie.
-async fn capture_screenshot(id: &Value, session: &str, params: &Value) -> Result<Out, Failure> {
+async fn capture_screenshot(
+    hub: SharedHub,
+    id: &Value,
+    session: &str,
+    params: &Value,
+) -> Result<Out, Failure> {
     #[cfg(feature = "screenshot")]
     {
-        screenshot::capture(id, session, params).await
+        screenshot::capture(hub, id, session, params).await
     }
     #[cfg(not(feature = "screenshot"))]
     {
@@ -840,13 +862,14 @@ const STATELESS: &[&str] = &[
 ];
 
 async fn runtime_forward(
+    hub: SharedHub,
     id: &Value,
     session: &str,
     method: &str,
     params: &Value,
 ) -> Result<Out, Failure> {
     let mut out = Out::default();
-    let result = forward(session, method, params, &mut out).await?;
+    let result = forward(hub, session, method, params, &mut out).await?;
     out.frames.push(ok(id, Some(session), result));
     Ok(out)
 }
@@ -854,13 +877,14 @@ async fn runtime_forward(
 /// Run one [`PAGE_CHANNEL`] command on the session thread. What it drags
 /// along — console events — goes into `out` before its reply.
 async fn forward(
+    hub: SharedHub,
     session: &str,
     method: &str,
     params: &Value,
     out: &mut Out,
 ) -> Result<Value, Failure> {
     let (engine, local, frame_id, number, contexts) = {
-        let mut hub = HUB.lock().await;
+        let mut hub = hub.lock().await;
         let local = local_of(&hub, session);
         let page = page_of_mut(&mut hub, session)?;
         // A node named by handle takes its number from the hub, which goes
@@ -938,7 +962,7 @@ async fn forward(
                 "writeNav": write_nav,
                 "contextId": context_id,
             });
-            let hub = HUB.lock().await;
+            let hub = hub.lock().await;
             side_frames(&hub, local, session, &side, out);
         }
         return Ok(value);
@@ -982,7 +1006,7 @@ async fn forward(
                 "writeNav": write_nav,
                 "contextId": context_id,
             });
-            let hub = HUB.lock().await;
+            let hub = hub.lock().await;
             side_frames(&hub, local, session, &side, out);
         }
         return Ok(value);
@@ -1012,7 +1036,7 @@ async fn forward(
     ) {
         let (value, side) = runtime::dom_run(&engine, method, &params).await?;
         if let Some(side) = side {
-            let hub = HUB.lock().await;
+            let hub = hub.lock().await;
             side_frames(&hub, local, session, &side, out);
         }
         return Ok(value);
@@ -1024,7 +1048,7 @@ async fn forward(
         if let Some(script) = script {
             let (value, side) = runtime::input_run(&engine, &script).await?;
             if let Some(side) = side {
-                let hub = HUB.lock().await;
+                let hub = hub.lock().await;
                 side_frames(&hub, local, session, &side, out);
             }
             return Ok(value);

@@ -51,7 +51,7 @@ use diting::diting_layout::image::{decode_png, encode_png_rgba, DecodedImage};
 use serde_json::{json, Value};
 
 use super::params::{invalid, kinds, number, object, optional_boolean, optional_string, Kind};
-use super::{forward, ok, page_of, session_msg, Failure, Out, HUB};
+use super::{forward, ok, page_of, session_msg, Failure, Out, SharedHub};
 use crate::session::send_screenshot;
 
 const METHOD: &str = "Page.captureScreenshot";
@@ -112,7 +112,12 @@ enum Take {
     Plain(Cut),
 }
 
-pub(super) async fn capture(id: &Value, session: &str, params: &Value) -> Result<Out, Failure> {
+pub(super) async fn capture(
+    hub: SharedHub,
+    id: &Value,
+    session: &str,
+    params: &Value,
+) -> Result<Out, Failure> {
     // Every field is read before any value is looked at, as Chrome reads them.
     let format = optional_string(params, "format")?;
     kinds(
@@ -152,8 +157,16 @@ pub(super) async fn capture(id: &Value, session: &str, params: &Value) -> Result
         )));
     }
     let mut out = Out::default();
-    let metrics = forward(session, "Page.getLayoutMetrics", &json!({}), &mut out).await?;
+    let metrics = forward(
+        hub.clone(),
+        session,
+        "Page.getLayoutMetrics",
+        &json!({}),
+        &mut out,
+    )
+    .await?;
     let ratio = forward(
+        hub.clone(),
         session,
         "Runtime.evaluate",
         &json!({ "expression": "devicePixelRatio", "returnByValue": true }),
@@ -166,8 +179,8 @@ pub(super) async fn capture(id: &Value, session: &str, params: &Value) -> Result
         .unwrap_or(1.0);
     let (take, scale) = plan(&geometry_of(&metrics, dpr), clip, beyond)?;
     let engine_session = {
-        let hub = HUB.lock().await;
-        page_of(&hub, session)?.engine_session.clone()
+        let guard = hub.lock().await;
+        page_of(&guard, session)?.engine_session.clone()
     };
     let data = match &take {
         Take::Plain(size) => white_base64(size)?,
