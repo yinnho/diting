@@ -10,7 +10,7 @@ use tokio::sync::mpsc;
 use crate::session::{send_command, SessionCommand, SessionEvent};
 
 use super::network_events::network_frames;
-use super::{page_side_frames, runtime, Out, SharedHub};
+use super::{page_side_frames, runtime, target, Out, SharedHub};
 
 /// Follow `engine`'s events and write them as CDP events for the page
 /// `target`. Best effort: a session that cannot be subscribed to simply
@@ -27,14 +27,32 @@ pub(super) async fn follow(hub: SharedHub, target: String, engine: &str) {
         while let Some(event) = events.recv().await {
             let mut out = Out::default();
             {
-                let hub = hub.lock().await;
+                let mut hub = hub.lock().await;
                 // The page may not be filed yet, or be gone: no sockets
                 // to tell either way.
-                let Some(page) = hub.pages.get(&target) else {
+                if !hub.pages.contains_key(&target) {
                     continue;
-                };
+                }
                 // No socket has the id 0, so every frame goes to an outbox.
                 match event {
+                    SessionEvent::Navigated(nav) => {
+                        // The same order a `Page.navigate` answers in: the
+                        // new loader first, then the requests it carried,
+                        // then the navigation.
+                        if let Some(page) = hub.pages.get_mut(&target) {
+                            page.loader += 1;
+                            if let Some((url, title)) = &nav.landed {
+                                page.url = url.clone();
+                                page.title = title.clone();
+                            }
+                            target::renew_worlds(page);
+                        }
+                        let page = &hub.pages[&target];
+                        network_frames(&hub, 0, page, &nav.rows, &mut out);
+                        if nav.landed.is_some() {
+                            target::nav_events(&hub, page, 0, &mut out);
+                        }
+                    }
                     SessionEvent::Console { level, text, url } => {
                         let Some(kind) = runtime::console_type(&level) else {
                             continue;
@@ -43,10 +61,10 @@ pub(super) async fn follow(hub: SharedHub, target: String, engine: &str) {
                             "console": [{ "type": kind, "text": text, "url": url }],
                             "writeNav": false,
                         });
-                        page_side_frames(&hub, 0, page, &side, &mut out);
+                        page_side_frames(&hub, 0, &hub.pages[&target], &side, &mut out);
                     }
                     SessionEvent::Network(row) => {
-                        network_frames(&hub, 0, page, &[*row], &mut out);
+                        network_frames(&hub, 0, &hub.pages[&target], &[*row], &mut out);
                     }
                 }
             }
