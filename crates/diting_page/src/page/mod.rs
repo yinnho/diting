@@ -21,6 +21,7 @@ mod history;
 mod load;
 mod navigate;
 mod net;
+mod pump;
 mod realm;
 pub use net::{NavigationRecord, NetworkEvent, StoredResponseBody};
 mod scripts;
@@ -318,6 +319,26 @@ pub struct Page {
     /// realm re-freezes one window after the last command; a parked burner
     /// (no commands) keeps the original containment.
     busy_probe_pending: bool,
+    /// Token bucket weighting the #66 command probe (11f): a full-speed
+    /// probe slice spends wall time 1:1 from this budget, and the budget
+    /// re-accrues at only a quarter of wall while the realm stays frozen —
+    /// so even a polling client (waitForFunction, an agent loop) can hold
+    /// the lift open for at most 25% of wall time aggregate instead of
+    /// defeating the containment outright (measured 98% for as long as
+    /// the commands keep arriving, the hours-long spin incident). Capped
+    /// so a quiet-then-driven realm still gets a solid interactive window.
+    probe_budget_ns: u64,
+    /// The wall instant the budget last accrued against; `None` until the
+    /// first frozen slice (or a fresh trip) starts the meter.
+    probe_tick: Option<tokio::time::Instant>,
+    /// Wall-clock mark of the last throttled burst start (11f). The frozen
+    /// burst/park arithmetic only yields 25% duty when slices COMPLETE —
+    /// but a polling client's next command preempts the park, never the
+    /// burst (cancellation lands at await points), so slice churn turned
+    /// the throttle into a burst-only loop at nearly full duty. Rate-limit
+    /// the bursts by wall clock instead: one per 200ms, whatever the
+    /// slicing.
+    throttled_burst_mark: Option<tokio::time::Instant>,
     /// Progress of the navigation currently in flight on this page, polled
     /// by the `/fetch` starvation checkpoint while `goto` still runs. See
     /// [`NavProgress`].
@@ -416,6 +437,9 @@ impl Page {
             busy_mark: None,
             busy_frozen: false,
             busy_probe_pending: false,
+            probe_budget_ns: 0,
+            probe_tick: None,
+            throttled_burst_mark: None,
             nav_progress: std::sync::Arc::new(NavProgress::default()),
             stealth_client,
         }
