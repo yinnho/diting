@@ -4,6 +4,7 @@ pub mod client;
 pub mod cookies;
 pub mod encoding;
 pub mod failure;
+pub mod port;
 pub mod progress;
 pub mod site;
 pub mod wreq_client;

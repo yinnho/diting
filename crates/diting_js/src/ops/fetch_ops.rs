@@ -11,7 +11,7 @@ use diting_ops::diting_op;
 use diting_runtime::state::OpState;
 
 use super::cors::request_origin;
-use super::fetch_gate::validate_fetch_url;
+use super::fetch_gate::{gate_failure, validate_fetch_url};
 use super::fetch_walk::{fetch_url_walk, FetchFailure, FetchNetworkEvent, FetchWalkDeps};
 use super::referrer::resolve_document_referrer_policy;
 use super::state::{
@@ -97,7 +97,7 @@ pub(super) fn gather_fetch_parts(
                     url: url.to_string(),
                     method: method.to_string(),
                     reason: e.clone(),
-                    kind: diting_net::NetFailure::Other,
+                    kind: gate_failure(&parsed_url),
                     final_url: url.to_string(),
                     redirects: Vec::new(),
                     started,

@@ -907,7 +907,14 @@ async fn scripted_stealth_hop_routes_flagged_client_with_identity() {
 async fn scripted_stealth_hop_err_on_closed_port() {
     let mut client = HttpClient::with_full_options(Arc::new(CookieJar::new()), None, true);
     client.rides_stealth = true;
-    let url = Url::parse("http://127.0.0.1:1/dead").unwrap();
+    // A port that was open a moment ago and is closed now. Not port 1: a
+    // browser refuses that one before it connects, which is a different
+    // answer (`None`, the gate's) from the transport's.
+    let port = {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.local_addr().unwrap().port()
+    };
+    let url = Url::parse(&format!("http://127.0.0.1:{port}/dead")).unwrap();
     match client
         .scripted_stealth_hop(&Method::GET, &url, None, None, None, true)
         .await

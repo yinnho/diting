@@ -183,6 +183,29 @@ pub fn set_allow_file_access(enabled: bool) {
 /// drop-guard restores both halves (flag + env) even on panic so the
 /// off-by-default contract can't leak across tests.
 pub fn validate_url(url: &Url, allow_private_network: bool) -> Result<(), NetError> {
+    let policy = check_url(url, allow_private_network);
+    // A browser refuses a restricted port whoever the host is, so this
+    // does not answer to the private-network switch. Where the URL is also
+    // refused for another reason, that reason's words stay (they carry the
+    // opt-in hint) and the kind says what a browser would have said.
+    let Some(port) = crate::port::restricted_port(url).filter(|_| is_web(url)) else {
+        return policy;
+    };
+    let message = match policy {
+        Err(NetError::Network(message)) => message,
+        _ => format!("net::ERR_UNSAFE_PORT: port {port} is blocked"),
+    };
+    Err(NetError::Transport {
+        kind: crate::NetFailure::UnsafePort,
+        message,
+    })
+}
+
+fn is_web(url: &Url) -> bool {
+    matches!(url.scheme(), "http" | "https")
+}
+
+fn check_url(url: &Url, allow_private_network: bool) -> Result<(), NetError> {
     let allow_private_network = allow_private_network || env_allows_private_network();
     let scheme = url.scheme();
     if scheme != "http" && scheme != "https" && scheme != "file" {
