@@ -24,6 +24,41 @@ pub type RemoteReply = oneshot::Sender<
     >,
 >;
 
+/// A page-state pin an `Emulation.*` setter sends — every field already
+/// read and checked on the face; the session thread only applies it.
+pub enum EmulateOp {
+    /// `Emulation.setEmulatedMedia`: `(prefers-color-scheme: dark)`-style
+    /// features plus the media type.
+    EmulatedMedia {
+        features: Vec<(String, String)>,
+        media: Option<String>,
+    },
+    /// `Emulation.setTouchEmulationEnabled`.
+    TouchEmulation { enabled: bool, max_points: u32 },
+    /// `Emulation.setTimezoneOverride`: `None` clears the pin.
+    Timezone { timezone: Option<String> },
+    /// `Emulation.setLocaleOverride`: `None` clears back to the persona.
+    Locale { locale: Option<String> },
+    /// `Emulation.setUserAgentOverride`.
+    UserAgent {
+        user_agent: String,
+        accept_language: Option<String>,
+        platform: Option<String>,
+    },
+    /// `Emulation.setDeviceMetricsOverride` — the viewport pin and the
+    /// screen panel it sits on, both already checked.
+    DeviceMetrics {
+        width: f32,
+        height: f32,
+        mobile: bool,
+        ratio: f64,
+        panel: Option<(f32, f32)>,
+        orientation: Option<(&'static str, i64)>,
+    },
+    /// `Emulation.clearDeviceMetricsOverride`.
+    ClearDeviceMetrics,
+}
+
 /// A wire `objectId` as the face already read it — the parts Chrome's
 /// reader took, never the spelling. The session thread asks the engine
 /// what the pair names; wire tolerance stays on the face.
@@ -329,6 +364,11 @@ pub enum SessionCommand {
     ReleaseObject {
         object_id: String,
         parts: HandleParts,
+        reply: oneshot::Sender<Result<(), String>>,
+    },
+    /// An `Emulation.*` page-state pin — see [`EmulateOp`].
+    Emulate {
+        op: EmulateOp,
         reply: oneshot::Sender<Result<(), String>>,
     },
     /// A CDP command that has to run on the session thread, where the page

@@ -70,6 +70,8 @@ use serde_json::{json, Value};
 
 use crate::page::{Page, INTERACTION_EVAL_TIMEOUT};
 
+use crate::session::{send_command, EmulateOp, SessionCommand};
+
 use super::params::{
     boolean, integer, invalid, invalid_params, kinds, number, object, optional, optional_boolean,
     optional_integer, optional_number, optional_string, string, texts, Kind,
@@ -107,33 +109,15 @@ pub(crate) async fn handle(
     params: &Value,
 ) -> Result<Value, Failure> {
     match method {
-        "Emulation.setEmulatedMedia" => emulated_media(page, params),
-        "Emulation.setTouchEmulationEnabled" => {
-            let enabled = boolean(params, "enabled")?;
-            // Read whatever `enabled` says, as Chrome reads it.
-            let points = match optional_integer(params, "maxTouchPoints")? {
-                None => 1,
-                Some(points) if (1..=16).contains(&points) => points,
-                Some(_) => return Err(invalid("Touch points must be between 1 and 16")),
-            };
-            page.inner.set_touch_emulation(enabled, points as u32);
-            Ok(json!({}))
-        }
-        "Emulation.setTimezoneOverride" => {
-            // An empty id clears the zone.
-            let tz = string(params, "timezoneId")?;
-            if !tz.is_empty() && !page.inner.timezone_id_supported(tz) {
-                return Err(invalid("Invalid timezone id"));
-            }
-            page.inner
-                .set_timezone_override((!tz.is_empty()).then(|| tz.to_string()));
-            Ok(json!({}))
-        }
-        "Emulation.setLocaleOverride" => set_locale(page, params),
-        "Emulation.setUserAgentOverride" => user_agent(page, params).await,
-        "Emulation.setDeviceMetricsOverride" => device_metrics(page, params),
-        "Emulation.clearDeviceMetricsOverride" => {
-            page.inner.clear_viewport_override();
+        op @ ("Emulation.setEmulatedMedia"
+        | "Emulation.setTouchEmulationEnabled"
+        | "Emulation.setTimezoneOverride"
+        | "Emulation.setLocaleOverride"
+        | "Emulation.setUserAgentOverride"
+        | "Emulation.setDeviceMetricsOverride"
+        | "Emulation.clearDeviceMetricsOverride") => {
+            let op = emulate_op(op, params)?;
+            apply_op(page, op).await;
             Ok(json!({}))
         }
         "Page.addScriptToEvaluateOnNewDocument" => {
@@ -166,7 +150,123 @@ pub(crate) async fn handle(
 /// Chrome — a `media` left out is back to `screen`, `features` left out is
 /// none. An unknown media type or feature name is taken and changes
 /// nothing; a feature with an empty value emulates nothing.
-fn emulated_media(page: &mut Page, params: &Value) -> Result<Value, Failure> {
+/// The `Emulation.*` params as the [`EmulateOp`] they pin — the face's
+/// whole job for these commands now: read and check, never touch the
+/// page.
+fn emulate_op(method: &str, params: &Value) -> Result<EmulateOp, Failure> {
+    match method {
+        "Emulation.setEmulatedMedia" => emulated_media_op(params),
+        "Emulation.setTouchEmulationEnabled" => {
+            let enabled = boolean(params, "enabled")?;
+            // Read whatever `enabled` says, as Chrome reads it.
+            let points = match optional_integer(params, "maxTouchPoints")? {
+                None => 1,
+                Some(points) if (1..=16).contains(&points) => points,
+                Some(_) => return Err(invalid("Touch points must be between 1 and 16")),
+            };
+            Ok(EmulateOp::TouchEmulation {
+                enabled,
+                max_points: points as u32,
+            })
+        }
+        "Emulation.setTimezoneOverride" => {
+            // An empty id clears the zone.
+            let tz = string(params, "timezoneId")?;
+            Ok(EmulateOp::Timezone {
+                timezone: Some(tz.to_string()),
+            })
+        }
+        "Emulation.setLocaleOverride" => locale_op(params),
+        "Emulation.setUserAgentOverride" => user_agent_op(params),
+        "Emulation.setDeviceMetricsOverride" => device_metrics_op(params),
+        "Emulation.clearDeviceMetricsOverride" => Ok(EmulateOp::ClearDeviceMetrics),
+        _ => Err(Failure::from(format!(
+            "'{method}' is not an emulation command"
+        ))),
+    }
+}
+
+/// Apply an [`EmulateOp`] on the session thread — the `handle()` fallback
+/// path's half of what `SessionActor::on_emulate` does for the IR path.
+async fn apply_op(page: &mut Page, op: EmulateOp) {
+    match op {
+        EmulateOp::EmulatedMedia { features, media } => {
+            page.inner.set_emulated_media(Some(features), Some(media));
+        }
+        EmulateOp::TouchEmulation {
+            enabled,
+            max_points,
+        } => {
+            page.inner.set_touch_emulation(enabled, max_points);
+        }
+        EmulateOp::Timezone { timezone } => {
+            if let Some(tz) = &timezone {
+                if !tz.is_empty() && !page.inner.timezone_id_supported(tz) {
+                    // The fallback path cannot report through the IR
+                    // reply — but `handle()` already validated via the op
+                    // producer, so this is unreachable in practice.
+                    return;
+                }
+                page.inner
+                    .set_timezone_override((!tz.is_empty()).then(|| tz.clone()));
+            } else {
+                page.inner.set_timezone_override(None);
+            }
+        }
+        EmulateOp::Locale { locale } => {
+            page.inner.set_locale_override(locale);
+        }
+        EmulateOp::UserAgent {
+            user_agent,
+            accept_language,
+            platform,
+        } => {
+            page.inner
+                .set_user_agent_override(
+                    &user_agent,
+                    accept_language.as_deref(),
+                    platform.as_deref(),
+                )
+                .await;
+        }
+        EmulateOp::DeviceMetrics {
+            width,
+            height,
+            mobile,
+            ratio,
+            panel,
+            orientation,
+        } => {
+            page.inner
+                .set_viewport_override(width, height, mobile, Some(ratio));
+            page.inner.set_screen_override(panel, orientation);
+        }
+        EmulateOp::ClearDeviceMetrics => {
+            page.inner.clear_viewport_override();
+        }
+    }
+}
+
+/// An `Emulation.*` command on the IR: params become an [`EmulateOp`]
+/// here, the session thread applies it, `{}` comes back. The one refusal
+/// the page itself must answer — a timezone the runtime does not know —
+/// comes back as its word and is mapped to `invalid` here.
+pub(super) async fn emulate_run(
+    engine: &str,
+    method: &str,
+    params: &Value,
+) -> Result<Value, Failure> {
+    let op = emulate_op(method, params)?;
+    send_command(engine, |reply| SessionCommand::Emulate { op, reply })
+        .await
+        .map_err(|err| match super::session_msg(err).as_str() {
+            "Invalid timezone id" => invalid("Invalid timezone id"),
+            msg => super::runtime::engine_failure(msg.to_string()),
+        })?;
+    Ok(json!({}))
+}
+
+fn emulated_media_op(params: &Value) -> Result<EmulateOp, Failure> {
     // The page's own setter keeps a part it is not given; this one is sent
     // both every time, or a call naming only `features` would leave the
     // media type `print` for the rest of the session.
@@ -183,8 +283,10 @@ fn emulated_media(page: &mut Page, params: &Value) -> Result<Value, Failure> {
         .into_iter()
         .filter(|(_, value)| !value.is_empty())
         .collect();
-    page.inner.set_emulated_media(Some(features), media);
-    Ok(json!({}))
+    Ok(EmulateOp::EmulatedMedia {
+        features,
+        media: media.flatten(),
+    })
 }
 
 /// Each feature is a `name` and a `value`, both strings; an empty name is
@@ -203,17 +305,15 @@ fn name_values(list: &[Value]) -> Result<Vec<(String, String)>, Failure> {
 /// `Emulation.setLocaleOverride`: no locale sent, or an empty one, clears
 /// back to the persona's language. Anything else is read as Chrome reads
 /// it ([`locale_tag`]); one it refuses is refused in its words.
-fn set_locale(page: &mut Page, params: &Value) -> Result<Value, Failure> {
+fn locale_op(params: &Value) -> Result<EmulateOp, Failure> {
     let locale = optional_string(params, "locale")?.unwrap_or("");
     if locale.is_empty() {
-        page.inner.set_locale_override(None);
-        return Ok(json!({}));
+        return Ok(EmulateOp::Locale { locale: None });
     }
     match locale_tag(locale) {
-        Some(tag) => page.inner.set_locale_override(Some(tag)),
-        None => return Err(Failure::from("Invalid locale name")),
+        Some(tag) => Ok(EmulateOp::Locale { locale: Some(tag) }),
+        None => Err(Failure::from("Invalid locale name")),
     }
-    Ok(json!({}))
 }
 
 /// The tag `Emulation.setLocaleOverride` pins for `locale`; `None` is one
@@ -374,7 +474,7 @@ fn legacy_key(name: &str) -> Option<&'static str> {
 /// replaces, so left out or empty is back on what the UA says. An empty
 /// `userAgent` is the page's own UA again and an `acceptLanguage` left out
 /// or empty its own language, as in Chrome.
-async fn user_agent(page: &mut Page, params: &Value) -> Result<Value, Failure> {
+fn user_agent_op(params: &Value) -> Result<EmulateOp, Failure> {
     let ua = string(params, "userAgent")?;
     let language = optional_string(params, "acceptLanguage")?;
     let platform = optional_string(params, "platform")?;
@@ -385,10 +485,11 @@ async fn user_agent(page: &mut Page, params: &Value) -> Result<Value, Failure> {
             "Empty userAgent invalid with userAgentMetadata provided",
         ));
     }
-    page.inner
-        .set_user_agent_override(ua, language, platform)
-        .await;
-    Ok(json!({}))
+    Ok(EmulateOp::UserAgent {
+        user_agent: ua.to_string(),
+        accept_language: language.map(str::to_string),
+        platform: platform.map(str::to_string),
+    })
 }
 
 /// `userAgentMetadata` the way Chrome reads it: an object with
@@ -420,7 +521,7 @@ fn user_agent_metadata(params: &Value) -> Result<bool, Failure> {
 /// `Emulation.setDeviceMetricsOverride`: the viewport pin and the panel
 /// the page sits on. Chrome's checks come first, in Chrome's order; what
 /// this engine cannot apply is refused after them.
-fn device_metrics(page: &mut Page, params: &Value) -> Result<Value, Failure> {
+fn device_metrics_op(params: &Value) -> Result<EmulateOp, Failure> {
     // Every field is read before any value is looked at.
     let width = integer(params, "width")?;
     let height = integer(params, "height")?;
@@ -504,19 +605,20 @@ fn device_metrics(page: &mut Page, params: &Value) -> Result<Value, Failure> {
         }
     }
 
-    page.inner
-        .set_viewport_override(width as f32, height as f32, mobile, Some(ratio));
     let orientation = orientation.map(|(kind, angle)| match kind {
         "portraitPrimary" => ("portrait-primary", angle),
         "portraitSecondary" => ("portrait-secondary", angle),
         "landscapePrimary" => ("landscape-primary", angle),
         _ => ("landscape-secondary", angle),
     });
-    page.inner.set_screen_override(
-        panel.map(|(width, height)| (width as f32, height as f32)),
+    Ok(EmulateOp::DeviceMetrics {
+        width: width as f32,
+        height: height as f32,
+        mobile,
+        ratio,
+        panel: panel.map(|(width, height)| (width as f32, height as f32)),
         orientation,
-    );
-    Ok(json!({}))
+    })
 }
 
 /// Register the source in the page's document-start group and answer the
