@@ -2,6 +2,7 @@
 //! the pieces of the page's own request and console traffic a face tells
 //! on its own terms. Split from actor.rs for the god-file cap.
 
+use diting::diting_net::NetFailure;
 use serde_json::json;
 use tokio::sync::{mpsc, oneshot};
 
@@ -40,6 +41,7 @@ impl SessionActor {
         cmd_rx: &mut mpsc::UnboundedReceiver<SessionCommand>,
     ) {
         let (tx, rx) = oneshot::channel();
+        self.last_nav_failure = None;
         self.on_navigate(url, tx, cmd_rx).await;
         let nav = rx
             .await
@@ -48,7 +50,8 @@ impl SessionActor {
         if let Some(last) = rows.last() {
             self.net_seen = last.seq;
         }
-        let _ = reply.send(Ok((nav, rows)));
+        let failure = self.last_nav_failure.take().unwrap_or(NetFailure::Other);
+        let _ = reply.send(Ok((nav, rows, failure)));
     }
 
     /// The stored response body of `request_id`, if the page kept one.

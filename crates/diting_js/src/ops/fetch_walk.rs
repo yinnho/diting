@@ -57,6 +57,8 @@ pub(crate) struct FetchFailure {
     pub(crate) url: String,
     pub(crate) method: String,
     pub(crate) reason: String,
+    /// What happened, as a value — `reason` is for people.
+    pub(crate) kind: diting_net::NetFailure,
     pub(crate) final_url: String,
     pub(crate) redirects: Vec<diting_net::RedirectHop>,
     /// Request dispatch time, unix seconds (#229).
@@ -234,6 +236,7 @@ async fn cors_preflight(
                 url: url.clone(),
                 method: method.clone(),
                 reason: error.clone(),
+                kind: diting_net::NetFailure::Other,
                 final_url: url.clone(),
                 redirects: Vec::new(),
                 started: deps.started_unix,
@@ -261,6 +264,7 @@ async fn cors_preflight(
                     url: url.clone(),
                     method: method.clone(),
                     reason: error.clone(),
+                    kind: diting_net::NetFailure::Other,
                     final_url: url.clone(),
                     redirects: Vec::new(),
                     started: deps.started_unix,
@@ -279,6 +283,7 @@ async fn cors_preflight(
             url: url.clone(),
             method: method.clone(),
             reason: message.clone(),
+            kind: diting_net::NetFailure::Other,
             final_url: url.clone(),
             redirects: Vec::new(),
             started: deps.started_unix,
@@ -769,6 +774,7 @@ pub(crate) async fn fetch_url_walk(
                 url: url.clone(),
                 method: current_method.as_str().to_string(),
                 reason: e.to_string(),
+                kind: e.failure(),
                 final_url: current_url.clone(),
                 redirects: redirect_hops.clone(),
                 started: deps.started_unix,
@@ -784,6 +790,7 @@ pub(crate) async fn fetch_url_walk(
                     url: url.clone(),
                     method: current_method.as_str().to_string(),
                     reason: e.to_string(),
+                    kind: diting_net::classify_transport(&e),
                     final_url: current_url.clone(),
                     redirects: redirect_hops.clone(),
                     started: deps.started_unix,
@@ -839,6 +846,7 @@ pub(crate) async fn fetch_url_walk(
                 url: url.clone(),
                 method: current_method.as_str().to_string(),
                 reason: error.clone(),
+                kind: diting_net::NetFailure::Other,
                 final_url: next_url.to_string(),
                 redirects: redirect_hops.clone(),
                 started: deps.started_unix,
@@ -870,6 +878,7 @@ pub(crate) async fn fetch_url_walk(
                 url: url.clone(),
                 method: current_method.as_str().to_string(),
                 reason: error.clone(),
+                kind: diting_net::NetFailure::Other,
                 final_url: next_url.to_string(),
                 redirects: redirect_hops.clone(),
                 started: deps.started_unix,
@@ -912,6 +921,7 @@ pub(crate) async fn fetch_url_walk(
                     url: url.clone(),
                     method: current_method.as_str().to_string(),
                     reason: error.clone(),
+                    kind: diting_net::NetFailure::Other,
                     final_url: current_url.clone(),
                     redirects: redirect_hops.clone(),
                     started: deps.started_unix,
@@ -995,6 +1005,7 @@ pub(crate) async fn fetch_url_walk(
             url: url.clone(),
             method: current_method.as_str().to_string(),
             reason: error.clone(),
+            kind: diting_net::NetFailure::Other,
             final_url: current_url.clone(),
             redirects: redirect_hops.clone(),
             started: deps.started_unix,
@@ -1040,21 +1051,28 @@ pub(crate) async fn fetch_url_walk(
             } else {
                 String::new()
             };
-            let error = if credentials == FetchCredentials::Include {
-                format!(
-                    "CORS error: credentialed request requires Access-Control-Allow-Origin '{}' and Access-Control-Allow-Credentials 'true'{}",
-                    page_origin, redirect_note
+            let (error, kind) = if credentials == FetchCredentials::Include {
+                (
+                    format!(
+                        "CORS error: credentialed request requires Access-Control-Allow-Origin '{}' and Access-Control-Allow-Credentials 'true'{}",
+                        page_origin, redirect_note
+                    ),
+                    diting_net::NetFailure::Other,
                 )
             } else {
-                format!(
-                    "CORS error: Origin '{}' not in Access-Control-Allow-Origin '{}'{}",
-                    page_origin, allowed, redirect_note
+                (
+                    format!(
+                        "CORS error: Origin '{}' not in Access-Control-Allow-Origin '{}'{}",
+                        page_origin, allowed, redirect_note
+                    ),
+                    diting_net::NetFailure::cors_allow_origin(allowed),
                 )
             };
             deps.failures.push(FetchFailure {
                 url: url.clone(),
                 method: current_method.as_str().to_string(),
                 reason: error.clone(),
+                kind,
                 final_url: current_url.clone(),
                 redirects: redirect_hops.clone(),
                 started: deps.started_unix,

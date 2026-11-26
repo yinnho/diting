@@ -86,6 +86,21 @@ async fn site_echo(
     axum::response::Html(format!("<html><body id=b>{probe}</body></html>"))
 }
 
+/// Answers, but names another origin than the page's: a CORS refusal
+/// whose header is there and wrong.
+async fn site_mismatch() -> impl axum::response::IntoResponse {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/plain"),
+            (
+                axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+                "http://example.test",
+            ),
+        ],
+        "x",
+    )
+}
+
 /// A 1×1 png.
 static PIXEL: std::sync::LazyLock<Vec<u8>> = std::sync::LazyLock::new(|| {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -102,6 +117,7 @@ fn site() -> (axum::Router, Site) {
         .route("/sheet/:n.css", axum::routing::get(site_sheet))
         .route("/script/:n.js", axum::routing::get(site_script))
         .route("/echo", axum::routing::get(site_echo))
+        .route("/mismatch", axum::routing::get(site_mismatch))
         .with_state(log.clone());
     (router, log)
 }
@@ -625,4 +641,35 @@ async fn a_navigation_that_fails_answers_with_a_net_error() {
         )
         .await;
     assert_eq!(reply["errorText"], "net::ERR_CONNECTION_REFUSED");
+}
+
+#[tokio::test]
+async fn a_cors_refusal_by_a_wrong_header_names_the_origin_it_allowed() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (router, _site) = site();
+    let (mut client, addr) = connect(router).await;
+    let origin = format!("http://{addr}");
+    let session = page_at(&mut client, 1, &format!("{origin}/echo")).await;
+    let on = Some(session.as_str());
+    client.run("Network.enable", json!({}), on).await;
+    client.events.clear();
+    // `localhost` against the page's `127.0.0.1`: another origin.
+    client
+        .run(
+            "Runtime.evaluate",
+            json!({ "expression": format!("fetch('http://localhost:{}/mismatch').catch(() => 0); 1", addr.port()) }),
+            on,
+        )
+        .await;
+    let seen = client
+        .events_until("Network.loadingFailed", Duration::from_secs(5))
+        .await;
+    let cors = failed_params(&seen, "/mismatch");
+    assert_eq!(cors["errorText"], "net::ERR_FAILED");
+    assert_eq!(cors["corsErrorStatus"]["corsError"], "AllowOriginMismatch");
+    assert_eq!(
+        cors["corsErrorStatus"]["failedParameter"],
+        "http://example.test"
+    );
 }

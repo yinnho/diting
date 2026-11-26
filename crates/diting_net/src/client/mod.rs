@@ -1112,12 +1112,19 @@ impl HttpClient {
                         tokio::time::sleep(std::time::Duration::from_millis(1_000)).await;
                         continue;
                     }
+                    let kind = crate::classify_transport(&e);
                     return Err(match (&self.proxy_url, unreachable) {
-                        (Some(proxy), true) => NetError::Network(format!(
-                            "upstream proxy {} unreachable while fetching {}: {} — unset DITING_PROXY to connect directly",
-                            proxy, current_url, e
-                        )),
-                        _ => NetError::Network(format!("{}: {}", current_url, e)),
+                        (Some(proxy), true) => NetError::Transport {
+                            kind,
+                            message: format!(
+                                "upstream proxy {} unreachable while fetching {}: {} — unset DITING_PROXY to connect directly",
+                                proxy, current_url, e
+                            ),
+                        },
+                        _ => NetError::Transport {
+                            kind,
+                            message: format!("{}: {}", current_url, e),
+                        },
                     });
                 }
             };
@@ -1240,10 +1247,28 @@ impl Default for HttpClient {
     }
 }
 
+impl NetError {
+    /// How the request failed, where that is known.
+    pub fn failure(&self) -> crate::NetFailure {
+        match self {
+            NetError::Transport { kind, .. } => kind.clone(),
+            _ => crate::NetFailure::Other,
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum NetError {
     #[error("Network error: {0}")]
     Network(String),
+
+    /// A request that failed in transit: what happened, and the words for
+    /// it. Reads exactly as [`NetError::Network`] does.
+    #[error("Network error: {message}")]
+    Transport {
+        kind: crate::NetFailure,
+        message: String,
+    },
 
     #[error("Too many redirects: {0}")]
     TooManyRedirects(String),

@@ -755,6 +755,7 @@ fn finish_event(gs: &mut super::ops::JsState, id: u32, ev: WsInbound) -> String 
                     .unwrap_or_default()
                     .as_secs_f64(),
                 error: None,
+                failure: None,
                 // A WebSocket open never redirects — the upgrade is 101 or
                 // the open fails.
                 final_url: sock.url.clone(),

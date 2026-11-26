@@ -409,6 +409,8 @@ pub struct JsNetworkEvent {
     /// die here reads as "never issued a request" (the taobao shop-SPA
     /// report chased exactly that ghost).
     pub error: Option<String>,
+    /// What `error` was, as a value — `None` on a row that did not fail.
+    pub failure: Option<diting_net::NetFailure>,
     /// Where the request actually landed when redirects carried it (#203);
     /// equal to `url` when it went straight through. `url` stays the
     /// REQUESTED address on both success and failure rows so a bounced

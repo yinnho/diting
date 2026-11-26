@@ -571,6 +571,7 @@ mod tests {
             body_size: 0,
             timestamp: ts,
             error: None,
+            failure: None,
             final_url: String::new(),
             redirects: Vec::new(),
             started: None,

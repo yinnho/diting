@@ -1048,7 +1048,7 @@ impl Page {
         }
         .map_err(|e| {
             self.lifecycle = LifecycleState::Failed;
-            PageError::NetworkError(e.to_string())
+            PageError::from(e)
         })?;
 
         self.record_network_event_with_body(

@@ -62,7 +62,7 @@ impl Page {
         self.inner
             .navigate(url)
             .await
-            .map_err(|e| Error::Navigation(e.to_string()))
+            .map_err(crate::error::navigation)
     }
 
     /// Get current URL.
@@ -78,7 +78,7 @@ impl Page {
         self.inner
             .process_pending_navigation()
             .await
-            .map_err(|e| Error::Navigation(e.to_string()))
+            .map_err(crate::error::navigation)
     }
 
     /// Execute JS in the page.

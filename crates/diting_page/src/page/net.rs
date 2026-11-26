@@ -45,6 +45,9 @@ pub struct NetworkEvent {
     /// servable response (SSRF block, CORS refusal, transport failure).
     /// Navigation/subresource rows leave it `None`.
     pub error: Option<String>,
+    /// What `error` was, as a value: how the request failed. `None` on a
+    /// row that did not fail, and on a failure nothing classified.
+    pub failure: Option<diting_net::NetFailure>,
     /// Where a redirected request actually landed (#203). `url` keeps the
     /// REQUESTED address on every row — a taobao submit that bounced to
     /// error.taobao.com used to read as "never issued" because failure rows
@@ -182,6 +185,7 @@ impl Page {
             body_size,
             timestamp,
             error: None,
+            failure: None,
             // Navigation/subresource rows don't track hops here (the
             // document's trail lives on the page-level `redirect_chain`,
             // #102); script rows get theirs from sync_js_network_events.
@@ -343,6 +347,7 @@ impl Page {
                 body_size: ev.body_size,
                 timestamp: ev.timestamp,
                 error: ev.error,
+                failure: ev.failure,
                 // #203: the requested url rides in `url`; where it landed
                 // and the hops it took follow it onto the page-level rows.
                 final_url: ev.final_url,
