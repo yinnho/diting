@@ -10,6 +10,7 @@ use serde_json::Value;
 use tokio::sync::oneshot;
 
 use super::super::super::commands::{CallOnRequest, HandleParts, RemoteReply};
+use super::super::super::state::drain_console;
 use super::SessionActor;
 
 impl SessionActor {
@@ -26,6 +27,7 @@ impl SessionActor {
         let Self {
             page,
             last_nav_error,
+            console_ring,
             ..
         } = self;
         let outcome = if !page.inner.has_js() {
@@ -74,7 +76,7 @@ impl SessionActor {
             (
                 outcome,
                 pre,
-                page.inner.take_pending_console_calls(),
+                drain_console(page, console_ring),
                 page.inner.take_pending_write_nav(),
             )
         });
@@ -98,7 +100,9 @@ impl SessionActor {
             receiver,
             arg_ids,
         } = args;
-        let Self { page, .. } = self;
+        let Self {
+            page, console_ring, ..
+        } = self;
         let outcome = if !page.inner.has_js() {
             Err("page has no JS runtime".to_string())
         } else {
@@ -179,7 +183,7 @@ impl SessionActor {
             (
                 outcome,
                 pre,
-                page.inner.take_pending_console_calls(),
+                drain_console(page, console_ring),
                 page.inner.take_pending_write_nav(),
             )
         });
