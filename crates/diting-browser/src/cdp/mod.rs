@@ -1050,23 +1050,11 @@ async fn forward(
     if method == "Page.getLayoutMetrics" {
         return emulation::metrics_run(&engine).await;
     }
-    let mut result = send_command(&engine, |reply| SessionCommand::Cdp {
-        method: method.to_string(),
-        params,
-        reply,
-    })
-    .await
-    .map_err(|err| Failure::from(session_msg(err)))?;
-    if let Ok(value) = &mut result {
-        let side = value
-            .as_object_mut()
-            .and_then(|obj| obj.remove(runtime::SIDE_KEY));
-        if let Some(side) = side {
-            let hub = HUB.lock().await;
-            side_frames(&hub, local, session, &side, out);
-        }
-    }
-    Ok(result?)
+    // Everything the bridge routes is an IR command now — what is left
+    // has no handler, in the words the old Cdp channel gave it.
+    Err(Failure::from(format!(
+        "'{method}' has no handler on the session thread"
+    )))
 }
 
 /// Console events first, then the document.write load — for every session
