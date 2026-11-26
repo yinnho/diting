@@ -59,6 +59,28 @@ pub enum EmulateOp {
     ClearDeviceMetrics,
 }
 
+/// A `Page.*`/`Network.*` page-level op — fields already read and
+/// checked on the face; the session thread applies them (the init-script
+/// registry is the actor's own `cdp_init_scripts`).
+pub enum PageOp {
+    /// `Page.addScriptToEvaluateOnNewDocument`: register the source for
+    /// every new document, and run it now when asked. The identifier is
+    /// the face's — it is wire vocabulary.
+    AddInitScript {
+        identifier: String,
+        source: String,
+        run_immediately: bool,
+    },
+    /// `Page.removeScriptToEvaluateOnNewDocument`.
+    RemoveInitScript { identifier: String },
+    /// `Network.setBlockedURLs`: the whole list replaces the old one.
+    BlockedUrls { urls: Vec<String> },
+    /// `Network.setExtraHTTPHeaders`: the whole set replaces the old one.
+    ExtraHeaders {
+        headers: std::collections::HashMap<String, String>,
+    },
+}
+
 /// A wire `objectId` as the face already read it — the parts Chrome's
 /// reader took, never the spelling. The session thread asks the engine
 /// what the pair names; wire tolerance stays on the face.
@@ -370,6 +392,17 @@ pub enum SessionCommand {
     Emulate {
         op: EmulateOp,
         reply: oneshot::Sender<Result<(), String>>,
+    },
+    /// A `Page.*`/`Network.*` page-level op — see [`PageOp`].
+    Page {
+        op: PageOp,
+        reply: oneshot::Sender<Result<(), String>>,
+    },
+    /// `Page.getLayoutMetrics`: the raw metric numbers off the page;
+    /// shaping them into Chrome's layout/visual/content triplet is the
+    /// face's.
+    PageMetrics {
+        reply: oneshot::Sender<Result<Value, String>>,
     },
     /// A CDP command that has to run on the session thread, where the page
     /// lives: `Runtime.*` / `Input.*` / `DOM.*` on the isolate (object ids

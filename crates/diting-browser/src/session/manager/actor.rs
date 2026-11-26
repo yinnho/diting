@@ -11,6 +11,7 @@
 
 mod emulate;
 mod eval_remote;
+mod page_op;
 
 use std::collections::HashMap;
 
@@ -402,6 +403,8 @@ pub(super) fn session_thread(
                         SessionCommand::CallOn { declaration, object_id, arguments, by_value, await_promise, return_by_value, timeout_ms, receiver, arg_ids, reply } => actor.on_call_on(declaration, object_id, arguments, by_value, await_promise, return_by_value, timeout_ms, receiver, arg_ids, reply).await,
                         SessionCommand::ReleaseObject { object_id, parts, reply } => actor.on_release_object(object_id, parts, reply).await,
                         SessionCommand::Emulate { op, reply } => actor.on_emulate(op, reply).await,
+                        SessionCommand::Page { op, reply } => actor.on_page_op(op, reply).await,
+                        SessionCommand::PageMetrics { reply } => actor.on_page_metrics(reply).await,
                         SessionCommand::Url { reply } => actor.on_url(reply).await,
                         SessionCommand::Storage { reply } => actor.on_storage(reply).await,
                         SessionCommand::Console { filter, reply } => actor.on_console(filter, reply).await,
