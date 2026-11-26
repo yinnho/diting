@@ -21,7 +21,7 @@ use super::runtime::engine_failure;
 use super::{
     browser_id, cdp_user_agent, context_of, deliver, event, frame_of, info_of, lifecycle,
     loader_of, local_of, new_id, now_secs, ok, page_of, page_of_mut, product, session_msg,
-    to_sessions, Attached, Failure, Hub, Out, PageSlot, SessionSlot, SharedHub, World,
+    to_sessions, Attached, Failure, Hub, Out, PageSlot, SessionSlot, SharedHub, World, CONTEXT_ID,
 };
 use crate::session::{send_command, SessionCommand, SESSIONS};
 
@@ -68,6 +68,41 @@ pub(super) async fn browser_method(
             )]))
         }
         "Target.createTarget" => create_target(hub.clone(), client, id, session, params).await,
+        "Target.getBrowserContexts" => {
+            let hub = hub.lock().await;
+            let mut ids: Vec<&String> = hub.contexts.iter().collect();
+            ids.sort();
+            Ok(Out::from_frames(vec![ok(
+                id,
+                session,
+                json!({
+                    "browserContextIds": ids,
+                    "defaultBrowserContextId": CONTEXT_ID,
+                }),
+            )]))
+        }
+        "Target.createBrowserContext" => {
+            let mut hub = hub.lock().await;
+            let context = new_id().to_uppercase();
+            hub.contexts.insert(context.clone());
+            Ok(Out::from_frames(vec![ok(
+                id,
+                session,
+                json!({ "browserContextId": context }),
+            )]))
+        }
+        "Target.disposeBrowserContext" => {
+            let context = string(params, "browserContextId")?;
+            let mut hub = hub.lock().await;
+            if !hub.contexts.remove(context) {
+                // Chrome 158 (`bctx-probe.cjs`): the wording differs from
+                // createTarget's — no "browser" in it.
+                return Err(Failure::from(format!(
+                    "Failed to find context with id {context}"
+                )));
+            }
+            Ok(Out::from_frames(vec![ok(id, session, json!({}))]))
+        }
         "Target.attachToTarget" => attach_target(hub.clone(), client, id, session, params).await,
         "Target.attachToBrowserTarget" => attach_browser(hub.clone(), client, id, session).await,
         "Target.detachFromTarget" => detach(hub.clone(), client, id, session, params).await,
@@ -297,11 +332,16 @@ async fn create_target(
             ("forTab", Kind::Bool),
         ],
     )?;
-    if let Some(context) = optional_string(params, "browserContextId")? {
-        // There is no browser context here for an id to name.
-        return Err(Failure::from(format!(
-            "Failed to find browser context with id {context}"
-        )));
+    let context = optional_string(params, "browserContextId")?.unwrap_or(CONTEXT_ID);
+    {
+        let hub = hub.lock().await;
+        if context != CONTEXT_ID && !hub.contexts.contains(context) {
+            // Chrome 158 (`bctx2-probe.cjs`): the refusal is a plain
+            // protocol error, spelt exactly so.
+            return Err(Failure::from(format!(
+                "Failed to find browser context with id {context}"
+            )));
+        }
     }
     let url = if url.is_empty() { "about:blank" } else { url };
     let engine = {
@@ -336,6 +376,7 @@ async fn create_target(
         owner: client,
         target_id: new_id(),
         engine_session: engine,
+        context: context.to_string(),
         url,
         title,
         loader: 1,
@@ -618,9 +659,14 @@ async fn load(hub: SharedHub, session: &str, url: &str) -> Result<(Out, Value), 
         if let Ok(resp) = &nav {
             page.url = resp.url.clone();
             page.title = resp.title.clone().unwrap_or_default();
+            // A navigation that did not commit keeps the old document —
+            // its state, its realm and so its execution contexts, which a
+            // renewal here orphaned while the realm lived on (measured:
+            // `evaluate` with a context id died "Cannot find context"
+            // after any failed navigation).
+            renew_worlds(page);
         }
         super::remember_doc_rows(page, &rows);
-        renew_worlds(page);
     }
     let page = page_of(&hub, session)?;
     let mut out = Out::default();
@@ -713,9 +759,14 @@ pub(super) async fn navigate_to_entry(
         if let Ok(resp) = &nav {
             page.url = resp.url.clone();
             page.title = resp.title.clone().unwrap_or_default();
+            // A navigation that did not commit keeps the old document —
+            // its state, its realm and so its execution contexts, which a
+            // renewal here orphaned while the realm lived on (measured:
+            // `evaluate` with a context id died "Cannot find context"
+            // after any failed navigation).
+            renew_worlds(page);
         }
         super::remember_doc_rows(page, &rows);
-        renew_worlds(page);
     }
     let page = page_of(&hub, session)?;
     let mut out = Out::default();
@@ -824,6 +875,19 @@ pub(super) fn nav_events(hub: &Hub, page: &PageSlot, local: u64, out: &mut Out) 
         runtime_on,
         "Runtime.executionContextsCleared",
         || json!({}),
+    );
+    // Chrome 158 sends `init` between the two clears, and it is the one
+    // lifecycle event a client cannot do without: Puppeteer takes the
+    // frame's loader id from it, and without the new loader no navigation
+    // of its ever finishes.
+    to_sessions(
+        hub,
+        out,
+        local,
+        frame_id,
+        lifecycle_on,
+        "Page.lifecycleEvent",
+        || lifecycle_of("init"),
     );
     to_sessions(
         hub,

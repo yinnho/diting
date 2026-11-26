@@ -1651,7 +1651,6 @@ const NOT_ANSWERED: &[(&str, Level)] = &[
     ("Emulation.setDefaultBackgroundColorOverride", Level::Page),
     ("Inspector.enable", Level::Page),
     ("Browser.getWindowBounds", Level::Browser),
-    ("Target.getBrowserContexts", Level::Browser),
 ];
 
 #[tokio::test]

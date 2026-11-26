@@ -651,6 +651,57 @@ async fn a_navigation_that_fails_answers_with_a_net_error() {
 }
 
 #[tokio::test]
+async fn a_navigation_that_fails_keeps_the_documents_contexts() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (router, _site) = site();
+    let (mut client, addr) = connect(router).await;
+    let session = page_at(&mut client, 1, &format!("http://{addr}/echo")).await;
+    let on = Some(session.as_str());
+    // The document's own context, as the navigation announced it.
+    let context = client
+        .events
+        .iter()
+        .rfind(|event| {
+            event["method"] == "Runtime.executionContextCreated"
+                && event["params"]["context"]["auxData"]["isDefault"] == true
+        })
+        .map(|event| event["params"]["context"]["id"].as_i64().unwrap())
+        .expect("the navigation announced a default context");
+    let before = client
+        .run(
+            "Runtime.evaluate",
+            json!({ "expression": "1+1", "contextId": context, "returnByValue": true }),
+            on,
+        )
+        .await;
+    assert_eq!(before["result"]["value"], 2, "{before}");
+    let dead = {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.local_addr().unwrap().port()
+    };
+    let reply = client
+        .run(
+            "Page.navigate",
+            json!({ "url": format!("http://127.0.0.1:{dead}/") }),
+            on,
+        )
+        .await;
+    assert_eq!(reply["errorText"], "net::ERR_CONNECTION_REFUSED");
+    // The navigation never committed: the document — and so its execution
+    // contexts — is the one that was there. Chrome 158 answers `evaluate`
+    // in it; a renewal here orphaned the ids while the realm lived on.
+    let after = client
+        .run(
+            "Runtime.evaluate",
+            json!({ "expression": "1+1", "contextId": context, "returnByValue": true }),
+            on,
+        )
+        .await;
+    assert_eq!(after["result"]["value"], 2, "{after}");
+}
+
+#[tokio::test]
 async fn a_cors_refusal_by_a_wrong_header_names_the_origin_it_allowed() {
     let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();

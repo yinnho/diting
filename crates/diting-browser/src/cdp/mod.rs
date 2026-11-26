@@ -87,6 +87,12 @@ struct Hub {
     next_client: u64,
     clients: HashMap<u64, ClientSlot>,
     pages: HashMap<String, PageSlot>,
+    /// Browser contexts made with `Target.createBrowserContext`. The
+    /// default context is not one: it is [`CONTEXT_ID`], never listed,
+    /// as in Chrome. A context here is a label a page carries — the
+    /// engine isolates every page's storage already, so the label is
+    /// all the isolation there is to name.
+    contexts: std::collections::HashSet<String>,
     /// CDP session id → session. Ids are minted here and mean nothing on
     /// another socket.
     sessions: HashMap<String, SessionSlot>,
@@ -108,6 +114,9 @@ struct PageSlot {
     target_id: String,
     /// The engine session that holds the page.
     engine_session: String,
+    /// The browser context the page was made in: [`CONTEXT_ID`] when
+    /// `createTarget` named none or the default.
+    context: String,
     url: String,
     title: String,
     loader: u64,
@@ -884,6 +893,10 @@ const PAGE_CHANNEL: &[&str] = &[
 /// Answered with an empty ok: the engine has no state for them to flip —
 /// no reporting domain to turn on, no lifecycle gating, no window order.
 const STATELESS: &[&str] = &[
+    "Audits.enable",
+    "Audits.disable",
+    "Performance.enable",
+    "Performance.disable",
     "Page.bringToFront",
     "Log.enable",
     "Log.disable",
@@ -1278,7 +1291,7 @@ fn info_of(hub: &Hub, page: &PageSlot) -> Value {
         "url": page.url,
         "attached": attached,
         "canAccessOpener": false,
-        "browserContextId": CONTEXT_ID,
+        "browserContextId": page.context,
     })
 }
 
