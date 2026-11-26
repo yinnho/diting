@@ -948,3 +948,96 @@ async fn a_link_the_page_follows_by_itself_is_a_navigation_the_socket_sees() {
         "two"
     );
 }
+
+#[tokio::test]
+async fn a_move_inside_the_document_is_told_as_one() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (router, _site) = site();
+    let router = router.route(
+        "/spa",
+        axum::routing::get(|| async { axum::response::Html("<html><body id=one>x</body></html>") }),
+    );
+    let (mut client, addr) = connect(router).await;
+    let origin = format!("http://{addr}");
+    let session = page_at(&mut client, 1, &format!("{origin}/spa")).await;
+    let on = Some(session.as_str());
+    client.run("Page.enable", json!({}), on).await;
+    // Chrome 158 (`spa-probe.cjs`): loading starts, the frame says where it
+    // is and how it got there, loading stops; no new document.
+    for (expression, path, kind) in [
+        (
+            "history.pushState({a: 1}, '', '/pushed'); 1",
+            "/pushed",
+            "historyApi",
+        ),
+        (
+            "history.replaceState({a: 2}, '', '/replaced'); 1",
+            "/replaced",
+            "historyApi",
+        ),
+        ("location.hash = '#frag'; 1", "/replaced#frag", "fragment"),
+    ] {
+        client.events.clear();
+        client
+            .run("Runtime.evaluate", json!({ "expression": expression }), on)
+            .await;
+        let seen = client
+            .events_until("Page.navigatedWithinDocument", Duration::from_secs(5))
+            .await;
+        let moved = event_params(&seen, "Page.navigatedWithinDocument")
+            .unwrap_or_else(|| panic!("{expression}: not told in {seen:?}"));
+        assert_eq!(moved["url"], format!("{origin}{path}"), "{expression}");
+        assert_eq!(moved["navigationType"], kind, "{expression}");
+        assert_eq!(
+            moved["frameId"], seen[0]["params"]["frameId"],
+            "{expression}"
+        );
+        assert_eq!(
+            seen[0]["method"], "Page.frameStartedLoading",
+            "{expression}"
+        );
+        // The document is the same one: its body is still the first's.
+        assert_eq!(
+            client.eval("document.body.id", &session).await,
+            "one",
+            "{expression}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_session_without_page_is_told_no_moves() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (router, _site) = site();
+    let router = router.route(
+        "/spa",
+        axum::routing::get(|| async { axum::response::Html("<html><body id=one>x</body></html>") }),
+    );
+    let (mut client, addr) = connect(router).await;
+    let origin = format!("http://{addr}");
+    let session = page_at(&mut client, 1, &format!("{origin}/spa")).await;
+    let on = Some(session.as_str());
+    client.events.clear();
+    client
+        .run(
+            "Runtime.evaluate",
+            json!({ "expression": "history.pushState({}, '', '/quiet'); 1" }),
+            on,
+        )
+        .await;
+    // Let the idle pump see it, then look: nothing was said.
+    let _ = client
+        .events_until("Page.navigatedWithinDocument", Duration::from_secs(2))
+        .await;
+    let heard: Vec<String> = client
+        .events
+        .iter()
+        .map(|event| event["method"].as_str().unwrap_or("").to_string())
+        .collect();
+    assert!(
+        heard.iter().all(|method| !method.starts_with("Page.")),
+        "Page events without Page.enable: {heard:?}"
+    );
+}

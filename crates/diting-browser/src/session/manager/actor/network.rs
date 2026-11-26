@@ -7,7 +7,7 @@ use serde_json::json;
 use tokio::sync::{mpsc, oneshot};
 
 use super::super::super::commands::{
-    NavigateCdpReply, PageNavigation, SessionCommand, SessionEvent,
+    NavigateCdpReply, PageNavigation, SameDocumentKind, SessionCommand, SessionEvent,
 };
 use super::super::super::interact::{merge_dom_candidates, DOM_MEDIA_SCRIPT};
 use super::SessionActor;
@@ -30,6 +30,11 @@ fn in_flight_row(f: &diting::diting_net::InFlightScripted, now_ms: u64) -> serde
         "age_ms": age_ms,
         "hung": age_ms >= HUNG_INFLIGHT_AFTER_MS,
     })
+}
+
+/// `url` without its `#fragment`.
+fn without_fragment(url: &str) -> &str {
+    url.split('#').next().unwrap_or(url)
 }
 
 impl SessionActor {
@@ -73,7 +78,11 @@ impl SessionActor {
     /// drains these for the faces that wait on it; a session that is
     /// followed has nobody waiting, so the idle pump does it.
     pub(super) async fn follow_page_navigation(&mut self) {
-        if self.console_subs.is_empty() || !self.page.inner.has_pending_navigation() {
+        if self.console_subs.is_empty() {
+            return;
+        }
+        if !self.page.inner.has_pending_navigation() {
+            self.follow_same_document_move();
             return;
         }
         let ran = self.page.process_pending_navigation().await;
@@ -89,6 +98,25 @@ impl SessionActor {
             }
         };
         let event = SessionEvent::Navigated(Box::new(PageNavigation { landed, rows }));
+        self.console_subs
+            .retain(|sub| sub.send(event.clone()).is_ok());
+    }
+
+    /// A move the page made inside its document — `history.pushState`, a
+    /// fragment, history stepped within it — adopted as the page's URL and
+    /// told to the subscribers, as what it is: no new document.
+    fn follow_same_document_move(&mut self) {
+        let before = self.page.url();
+        if !self.page.inner.sync_virtual_url() {
+            return;
+        }
+        let url = self.page.url();
+        let kind = if without_fragment(&before) == without_fragment(&url) {
+            SameDocumentKind::Fragment
+        } else {
+            SameDocumentKind::History
+        };
+        let event = SessionEvent::SameDocument { url, kind };
         self.console_subs
             .retain(|sub| sub.send(event.clone()).is_ok());
     }

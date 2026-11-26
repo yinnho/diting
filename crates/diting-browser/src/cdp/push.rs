@@ -53,6 +53,18 @@ pub(super) async fn follow(hub: SharedHub, target: String, engine: &str) {
                             target::nav_events(&hub, page, 0, &mut out);
                         }
                     }
+                    SessionEvent::SameDocument { url, kind } => {
+                        if let Some(page) = hub.pages.get_mut(&target) {
+                            page.url = url.clone();
+                        }
+                        target::same_document_events(
+                            &hub,
+                            &hub.pages[&target],
+                            &url,
+                            kind,
+                            &mut out,
+                        );
+                    }
                     SessionEvent::Console { level, text, url } => {
                         let Some(kind) = runtime::console_type(&level) else {
                             continue;

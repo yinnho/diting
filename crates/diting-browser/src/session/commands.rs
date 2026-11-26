@@ -89,6 +89,18 @@ pub enum SessionEvent {
     /// The page followed a navigation it asked for itself (a link clicked,
     /// `location` assigned), outside any command.
     Navigated(Box<PageNavigation>),
+    /// The page moved to another URL without loading a document: a route
+    /// pushed or replaced, a fragment set, history stepped inside it.
+    SameDocument { url: String, kind: SameDocumentKind },
+}
+
+/// What moved the page within its document.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SameDocumentKind {
+    /// Only the `#fragment` differs from where the page was.
+    Fragment,
+    /// The path or query changed: a route the page set through `history`.
+    History,
 }
 
 /// How a navigation the page started went, with the request rows it filed

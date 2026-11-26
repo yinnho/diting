@@ -639,6 +639,51 @@ async fn load(hub: SharedHub, session: &str, url: &str) -> Result<(Out, Value), 
     Ok((out, reply))
 }
 
+/// A move inside the document, as Chrome 158 tells it (`spa-probe.cjs`):
+/// loading starts, the frame says where it now is and how, loading stops.
+/// There is no new document, so no new loader and no new contexts.
+pub(super) fn same_document_events(
+    hub: &Hub,
+    page: &PageSlot,
+    url: &str,
+    kind: crate::session::SameDocumentKind,
+    out: &mut Out,
+) {
+    let frame_id = page.target_id.as_str();
+    let page_on = |slot: &SessionSlot| slot.page_on;
+    let navigation_type = match kind {
+        crate::session::SameDocumentKind::Fragment => "fragment",
+        crate::session::SameDocumentKind::History => "historyApi",
+    };
+    to_sessions(
+        hub,
+        out,
+        0,
+        frame_id,
+        page_on,
+        "Page.frameStartedLoading",
+        || json!({ "frameId": frame_id }),
+    );
+    to_sessions(
+        hub,
+        out,
+        0,
+        frame_id,
+        page_on,
+        "Page.navigatedWithinDocument",
+        || json!({ "frameId": frame_id, "url": url, "navigationType": navigation_type }),
+    );
+    to_sessions(
+        hub,
+        out,
+        0,
+        frame_id,
+        page_on,
+        "Page.frameStoppedLoading",
+        || json!({ "frameId": frame_id }),
+    );
+}
+
 /// One navigation as Chrome reports it, each event to the sessions of the
 /// page that run its domain. `Page.frameNavigated` comes before the
 /// lifecycle events of the new document: Playwright clears them there.
