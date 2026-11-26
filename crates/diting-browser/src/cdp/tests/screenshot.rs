@@ -54,7 +54,6 @@ fn rect(x: f64, y: f64, width: f64, height: f64, scale: f64) -> Value {
 #[cfg(feature = "screenshot")]
 #[tokio::test]
 async fn a_clip_is_cut_out_of_the_capture_and_padded_white() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut client, _) = connect(axum::Router::new()).await;
     let (_, session) = open_owned_page(&mut client, 1).await;
     let measured = client

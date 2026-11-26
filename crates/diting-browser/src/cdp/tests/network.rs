@@ -135,7 +135,6 @@ async fn await_hits(site: &Site, path: &str, count: usize) -> bool {
 
 #[tokio::test]
 async fn blocked_urls_never_reach_the_wire_and_extra_headers_do() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, site) = site();
     let (mut client, addr) = connect(router).await;
@@ -264,7 +263,6 @@ fn position_of(events: &[Value], method: &str) -> Option<usize> {
 
 #[tokio::test]
 async fn a_navigation_is_told_as_its_requests_before_frame_navigated() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, _site) = site();
     let (mut client, addr) = connect(router).await;
@@ -318,7 +316,6 @@ async fn a_navigation_is_told_as_its_requests_before_frame_navigated() {
 
 #[tokio::test]
 async fn a_request_the_page_makes_between_commands_is_pushed() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, site) = site();
     let (mut client, addr) = connect(router).await;
@@ -355,7 +352,6 @@ async fn a_request_the_page_makes_between_commands_is_pushed() {
 
 #[tokio::test]
 async fn a_session_without_network_is_told_nothing() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, _site) = site();
     let (mut client, addr) = connect(router).await;
@@ -398,7 +394,6 @@ fn request_id_of(events: &[Value], suffix: &str) -> String {
 
 #[tokio::test]
 async fn a_response_body_is_what_the_page_kept_worded_as_chrome_words_it() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, _site) = site();
     let (mut client, addr) = connect(router).await;
@@ -478,7 +473,6 @@ async fn a_response_body_is_what_the_page_kept_worded_as_chrome_words_it() {
 
 #[tokio::test]
 async fn a_response_body_nobody_kept_is_chromes_refusal() {
-    let _guard = CDP_LOCK.lock().await;
     let (mut client, _) = connect(axum::Router::new()).await;
     let (_, session) = open_owned_page(&mut client, 1).await;
     let on = Some(session.as_str());
@@ -507,7 +501,6 @@ async fn a_response_body_nobody_kept_is_chromes_refusal() {
 
 #[tokio::test]
 async fn requests_carry_the_fields_chrome_sends_with_them() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, _site) = site();
     let (mut client, addr) = connect(router).await;
@@ -573,7 +566,6 @@ fn failed_params<'a>(events: &'a [Value], suffix: &str) -> &'a Value {
 
 #[tokio::test]
 async fn a_request_that_fails_is_told_in_chromes_words() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, _site) = site();
     let (mut client, addr) = connect(router).await;
@@ -631,7 +623,6 @@ async fn a_request_that_fails_is_told_in_chromes_words() {
 
 #[tokio::test]
 async fn a_navigation_that_fails_answers_with_a_net_error() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (mut client, _) = connect(axum::Router::new()).await;
     let (_, session) = open_owned_page(&mut client, 1).await;
@@ -652,7 +643,6 @@ async fn a_navigation_that_fails_answers_with_a_net_error() {
 
 #[tokio::test]
 async fn a_navigation_that_fails_keeps_the_documents_contexts() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, _site) = site();
     let (mut client, addr) = connect(router).await;
@@ -703,7 +693,6 @@ async fn a_navigation_that_fails_keeps_the_documents_contexts() {
 
 #[tokio::test]
 async fn a_cors_refusal_by_a_wrong_header_names_the_origin_it_allowed() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, _site) = site();
     let (mut client, addr) = connect(router).await;
@@ -734,7 +723,6 @@ async fn a_cors_refusal_by_a_wrong_header_names_the_origin_it_allowed() {
 
 #[tokio::test]
 async fn a_request_to_a_port_a_browser_refuses_never_leaves() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, _site) = site();
     let (mut client, addr) = connect(router).await;
@@ -763,7 +751,6 @@ async fn a_request_to_a_port_a_browser_refuses_never_leaves() {
 
 #[tokio::test]
 async fn a_navigation_to_a_port_a_browser_refuses_answers_with_unsafe_port() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (mut client, _) = connect(axum::Router::new()).await;
     let (_, session) = open_owned_page(&mut client, 1).await;
@@ -846,7 +833,6 @@ async fn misbehaving_site() -> u16 {
 
 #[tokio::test]
 async fn a_connection_that_goes_wrong_is_told_as_chrome_tells_it() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let origin = format!("http://127.0.0.1:{}", misbehaving_site().await);
     let (mut client, _) = connect(axum::Router::new()).await;
@@ -879,7 +865,6 @@ async fn a_connection_that_goes_wrong_is_told_as_chrome_tells_it() {
 
 #[tokio::test]
 async fn a_navigation_to_a_server_that_hangs_up_answers_as_chrome_does() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let origin = format!("http://127.0.0.1:{}", misbehaving_site().await);
     let (mut client, _) = connect(axum::Router::new()).await;
@@ -902,7 +887,6 @@ async fn a_navigation_to_a_server_that_hangs_up_answers_as_chrome_does() {
 
 #[tokio::test]
 async fn a_navigation_that_fails_is_told_as_a_document_request_that_failed() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (mut client, _) = connect(axum::Router::new()).await;
     let (_, session) = open_owned_page(&mut client, 1).await;
@@ -940,7 +924,6 @@ async fn a_navigation_that_fails_is_told_as_a_document_request_that_failed() {
 
 #[tokio::test]
 async fn a_link_the_page_follows_by_itself_is_a_navigation_the_socket_sees() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, _site) = site();
     let router = router
@@ -1009,7 +992,6 @@ async fn a_link_the_page_follows_by_itself_is_a_navigation_the_socket_sees() {
 
 #[tokio::test]
 async fn a_move_inside_the_document_is_told_as_one() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, _site) = site();
     let router = router.route(
@@ -1066,7 +1048,6 @@ async fn a_move_inside_the_document_is_told_as_one() {
 
 #[tokio::test]
 async fn a_session_without_page_is_told_no_moves() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, _site) = site();
     let router = router.route(
@@ -1102,7 +1083,6 @@ async fn a_session_without_page_is_told_no_moves() {
 
 #[tokio::test]
 async fn stepping_back_and_forward_across_documents_really_does_and_is_told() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, _site) = site();
     let router = router
@@ -1167,7 +1147,6 @@ async fn stepping_back_and_forward_across_documents_really_does_and_is_told() {
 
 #[tokio::test]
 async fn a_document_write_in_a_timer_rewrites_the_document_and_is_told() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, _site) = site();
     let router = router.route(
@@ -1218,7 +1197,6 @@ async fn a_document_write_in_a_timer_rewrites_the_document_and_is_told() {
 
 #[tokio::test]
 async fn a_redirected_navigation_is_told_hop_by_hop() {
-    let _guard = CDP_LOCK.lock().await;
     let _net = crate::server::test_util::net_env_guard();
     let (router, _site) = site();
     let router = router
