@@ -9,7 +9,7 @@ use diting::diting_js::runtime::{
 use serde_json::Value;
 use tokio::sync::oneshot;
 
-use super::super::super::commands::{HandleParts, RemoteReply};
+use super::super::super::commands::{CallOnRequest, HandleParts, RemoteReply};
 use super::SessionActor;
 
 impl SessionActor {
@@ -21,17 +21,7 @@ impl SessionActor {
         await_promise: bool,
         return_by_value: bool,
         timeout_ms: Option<u64>,
-        reply: oneshot::Sender<
-            Result<
-                (
-                    EvalOutcome,
-                    Option<RemoteObjectInfo>,
-                    Vec<(String, String, String)>,
-                    bool,
-                ),
-                String,
-            >,
-        >,
+        reply: RemoteReply,
     ) {
         let Self {
             page,
@@ -96,19 +86,18 @@ impl SessionActor {
     /// each wire id into [`HandleParts`]), the unserializableValue probe,
     /// the call itself, then the same by-value settle `on_eval_remote`
     /// does.
-    pub(super) async fn on_call_on(
-        &mut self,
-        declaration: String,
-        object_id: Option<String>,
-        arguments: Vec<Value>,
-        by_value: bool,
-        await_promise: bool,
-        return_by_value: bool,
-        timeout_ms: Option<u64>,
-        receiver: Option<HandleParts>,
-        arg_ids: Vec<Option<HandleParts>>,
-        reply: RemoteReply,
-    ) {
+    pub(super) async fn on_call_on(&mut self, args: CallOnRequest, reply: RemoteReply) {
+        let CallOnRequest {
+            declaration,
+            object_id,
+            arguments,
+            by_value,
+            await_promise,
+            return_by_value,
+            timeout_ms,
+            receiver,
+            arg_ids,
+        } = args;
         let Self { page, .. } = self;
         let outcome = if !page.inner.has_js() {
             Err("page has no JS runtime".to_string())

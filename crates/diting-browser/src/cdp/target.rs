@@ -557,7 +557,7 @@ pub(super) async fn navigate(
     if url::Url::parse(url.trim()).is_err() {
         return Err(Failure::from("Cannot navigate to invalid URL"));
     }
-    let (mut out, reply) = load(hub, session, &url).await?;
+    let (mut out, reply) = load(hub, session, url).await?;
     out.frames.push(ok(id, Some(session), reply));
     Ok(out)
 }

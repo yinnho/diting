@@ -99,6 +99,26 @@ pub enum HandleParts {
 /// GetViewport's read-back: the pinned (width, height, mobile), or None.
 type ViewportOverrideReply = oneshot::Sender<Result<Option<(f32, f32, bool)>, String>>;
 
+/// Everything `Runtime.callFunctionOn`/`DOM.*` needs to run one remote
+/// call — the declaration, the receiver and arguments as the wire spelled
+/// them (the engine's own handle keys — the face canonicalizes nothing),
+/// plus each id's [`HandleParts`] so the session thread can run Chrome's
+/// dead-handle order without seeing a wire spelling.
+pub struct CallOnRequest {
+    pub declaration: String,
+    pub object_id: Option<String>,
+    pub arguments: Vec<Value>,
+    /// The engine call's own by-value flag — DOM commands want the
+    /// result serialized directly; `Runtime.callFunctionOn` leaves it
+    /// false and settles by value afterwards instead.
+    pub by_value: bool,
+    pub await_promise: bool,
+    pub return_by_value: bool,
+    pub timeout_ms: Option<u64>,
+    pub receiver: Option<HandleParts>,
+    pub arg_ids: Vec<Option<HandleParts>>,
+}
+
 pub enum SessionCommand {
     Navigate {
         url: String,
@@ -366,18 +386,7 @@ pub enum SessionCommand {
     /// [`HandleParts`] so the session thread can run Chrome's dead-handle
     /// order without seeing a wire spelling.
     CallOn {
-        declaration: String,
-        object_id: Option<String>,
-        arguments: Vec<Value>,
-        /// The engine call's own by-value flag — DOM commands want the
-        /// result serialized directly; `Runtime.callFunctionOn` leaves it
-        /// false and settles by value afterwards instead.
-        by_value: bool,
-        await_promise: bool,
-        return_by_value: bool,
-        timeout_ms: Option<u64>,
-        receiver: Option<HandleParts>,
-        arg_ids: Vec<Option<HandleParts>>,
+        args: CallOnRequest,
         reply: RemoteReply,
     },
     /// `Runtime.releaseObject`: let a held handle go. The id crosses as

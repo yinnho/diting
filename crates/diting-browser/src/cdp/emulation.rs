@@ -81,10 +81,6 @@ const METRICS: &str = "Emulation.setDeviceMetricsOverride";
 /// Chrome's bound on the pixel sizes `setDeviceMetricsOverride` takes.
 const MAX_METRIC: i64 = 10_000_000;
 
-/// Read from the open document: `Page.getLayoutMetrics` answers with what
-/// the page sees, not with what the bridge was last told. Playwright builds
-/// every screenshot's clip from these numbers.
-
 /// `Emulation.setEmulatedMedia`: every call replaces the whole set, as in
 /// Chrome — a `media` left out is back to `screen`, `features` left out is
 /// none. An unknown media type or feature name is taken and changes
@@ -535,7 +531,7 @@ fn device_metrics_op(params: &Value) -> Result<EmulateOp, Failure> {
     object(params, "viewport")?;
     object(params, "displayFeature")?;
 
-    let too_big = |size: i64| size < 0 || size > MAX_METRIC;
+    let too_big = |size: i64| !(0..=MAX_METRIC).contains(&size);
     if too_big(width) || too_big(height) {
         return Err(invalid(
             "Width and height values must be positive, not greater than 10000000",
@@ -610,8 +606,6 @@ fn device_metrics_op(params: &Value) -> Result<EmulateOp, Failure> {
         orientation,
     })
 }
-
-/// `Network.setExtraHTTPHeaders`: the whole set replaces the one before.
 
 /// A header value is a string, whatever its name — and is read first.
 fn header_value(value: &Value) -> Result<String, Failure> {

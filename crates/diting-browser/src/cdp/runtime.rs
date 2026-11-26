@@ -84,7 +84,7 @@ use super::session_msg;
 use super::Failure;
 use crate::session::{
     mouse_button_code, mouse_button_mask, mouse_down_js, mouse_move_js, mouse_up_js, send_command,
-    HandleParts, SessionCommand, INPUT_HELPERS,
+    CallOnRequest, HandleParts, SessionCommand, INPUT_HELPERS,
 };
 
 use super::params::{
@@ -225,7 +225,7 @@ pub(super) fn call_params(params: &Value) -> Result<CallArgs, Failure> {
     live_context(params, context, unique)?;
     // Every id the call names, read once here — the session thread asks
     // the engine about the parts, never the spelling.
-    let receiver = object_id.as_deref().map(objects::handle_parts);
+    let receiver = object_id.map(objects::handle_parts);
     let arg_ids = arguments
         .iter()
         .map(|argument| {
@@ -370,10 +370,6 @@ fn context_is_live(params: &Value, context: i64) -> bool {
         .iter()
         .any(|id| id.as_i64() == Some(context))
 }
-
-/// What Chrome says of an `objectId` that names nothing it will run
-
-/// The same for an `objectId` among the arguments, where Chrome words an
 
 /// `arguments`: each one an object, carrying an `objectId` that is a string
 /// and an `unserializableValue` that is a string.
@@ -755,8 +751,6 @@ fn words(refusal: Refusal) -> Failure {
     }
 }
 
-/// Run `body` on the node a `DOM.*` command names. `guards` is 0 for none,
-
 /// What a by-value script returned.
 fn value_of(outcome: &EvalOutcome) -> Result<Value, Refusal> {
     if let Some(exception) = &outcome.exception {
@@ -785,8 +779,6 @@ fn resolve_words(refusal: Refusal, numbered: bool) -> Failure {
 /// one outright. The node has to be of the document of the context it is
 /// asked for.
 const UNNAMED: &str = "Either nodeId or backendNodeId must be specified.";
-
-/// `nearest` is a no-op when the box already intersects the viewport, so
 
 /// One `DOM.*` node call through the `CallOn` IR command — what `on_node`
 /// was, with the param reads and wire wrapping kept here and the engine
@@ -853,15 +845,17 @@ async fn dom_call(
     ];
     let receiver = handle.as_deref().map(objects::handle_parts);
     let (outcome, _pre, calls, write_nav) = send_command(engine, |reply| SessionCommand::CallOn {
-        declaration,
-        object_id: handle.clone(),
-        arguments,
-        by_value: !as_handle,
-        await_promise: false,
-        return_by_value: false,
-        timeout_ms: None,
-        receiver,
-        arg_ids: vec![None, None, None],
+        args: CallOnRequest {
+            declaration,
+            object_id: handle.clone(),
+            arguments,
+            by_value: !as_handle,
+            await_promise: false,
+            return_by_value: false,
+            timeout_ms: None,
+            receiver,
+            arg_ids: vec![None, None, None],
+        },
         reply,
     })
     .await

@@ -13,8 +13,6 @@ fn chrome_oid(realm: i64, number: i64) -> String {
     format!("{{\"injectedScriptId\":{realm},\"id\":{number}}}")
 }
 
-/// Which of the four an id is ([`ObjectIdState`]), read the way Chrome
-
 /// The two parts of an id and whether it was the strict spelling.
 /// `Err(())` when the id is no id at all. A part reads `None` when it
 /// was left empty — `"id":""` — which is a different thing from no part.
