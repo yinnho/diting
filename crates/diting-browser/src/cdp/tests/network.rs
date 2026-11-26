@@ -1106,3 +1106,54 @@ async fn stepping_back_and_forward_across_documents_really_does_and_is_told() {
         );
     }
 }
+
+#[tokio::test]
+async fn a_document_write_in_a_timer_rewrites_the_document_and_is_told() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (router, _site) = site();
+    let router = router.route(
+        "/wpage",
+        axum::routing::get(|| async { axum::response::Html("<html><body>orig</body></html>") }),
+    );
+    let (mut client, addr) = connect(router).await;
+    let origin = format!("http://{addr}");
+    let session = page_at(&mut client, 1, &format!("{origin}/wpage")).await;
+    let on = Some(session.as_str());
+    client.run("Page.enable", json!({}), on).await;
+    client
+        .run(
+            "Page.setLifecycleEventsEnabled",
+            json!({ "enabled": true }),
+            on,
+        )
+        .await;
+    client.events.clear();
+    client
+        .run(
+            "Runtime.evaluate",
+            json!({ "expression": "setTimeout(() => { document.write('<div id=rw>rw</div>'); document.close(); }, 50); 1" }),
+            on,
+        )
+        .await;
+    // Nothing is sent from here: the timer's write is a document rewrite,
+    // whose DOMContentLoaded and load fire again, as a browser's do.
+    let seen = client
+        .events_until("Page.loadEventFired", Duration::from_secs(6))
+        .await;
+    assert!(
+        event_params(&seen, "Page.domContentEventFired").is_some(),
+        "the rewrite's DOMContentLoaded was not told: {seen:?}"
+    );
+    assert!(
+        seen.iter()
+            .any(|event| event["method"] == "Page.lifecycleEvent"
+                && event["params"]["name"] == "load"),
+        "the rewrite's load lifecycle was not told: {seen:?}"
+    );
+    // And the document really is the written one — the old content is gone.
+    assert_eq!(
+        client.eval("document.body.innerHTML", &session).await,
+        "<div id=\"rw\">rw</div>"
+    );
+}

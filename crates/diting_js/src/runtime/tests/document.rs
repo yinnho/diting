@@ -264,20 +264,49 @@ fn test_inner_html_with_nested() {
     assert_eq!(text, serde_json::json!("A"));
 }
 
+// A write outside the parser erases the document first — the implicit
+// open of the spec's dynamic markup insertion. `setup_runtime` runs no
+// parser, so a top-level write is a write to a closed document.
 #[test]
-fn test_document_write_appends_to_body() {
+fn test_document_write_replaces_a_closed_document() {
     let mut rt = setup_runtime("<html><body><p>Existing</p></body></html>");
     rt.evaluate("document.write('<div>Added</div>')").unwrap();
     let html = rt.evaluate("document.body.innerHTML").unwrap();
     let body = html.as_str().unwrap();
     assert!(
-        body.contains("Existing"),
-        "existing content should remain, got: {}",
+        !body.contains("Existing"),
+        "the closed document is erased first, got: {}",
         body
     );
     assert!(
         body.contains("Added"),
         "written content should appear, got: {}",
+        body
+    );
+}
+
+// The open document takes further writes without erasing again, until
+// close() — one write session per open, as the input stream carries.
+#[test]
+fn test_document_write_session_stays_open_until_close() {
+    let mut rt = setup_runtime("<html><body><p>Existing</p></body></html>");
+    rt.evaluate("document.write('<div>one</div>'); document.write('<div>two</div>')")
+        .unwrap();
+    let html = rt.evaluate("document.body.innerHTML").unwrap();
+    let body = html.as_str().unwrap();
+    assert!(!body.contains("Existing"), "got: {}", body);
+    assert!(
+        body.contains("one") && body.contains("two"),
+        "got: {}",
+        body
+    );
+    rt.evaluate("document.close(); document.write('<div>three</div>')")
+        .unwrap();
+    let html = rt.evaluate("document.body.innerHTML").unwrap();
+    let body = html.as_str().unwrap();
+    assert!(
+        !body.contains("one") && body.contains("three"),
+        "close() re-arms the implicit open, got: {}",
         body
     );
 }

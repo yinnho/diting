@@ -20,7 +20,7 @@ use serde_json::{json, Value};
 use tokio::sync::{mpsc, oneshot};
 
 use super::super::commands::{
-    ScrollDirection, SessionClickResponse, SessionCommand, SessionNavResponse,
+    ScrollDirection, SessionClickResponse, SessionCommand, SessionEvent, SessionNavResponse,
 };
 use super::super::interact::{
     click_by_index, click_xy, drag_xy, extract_indexed_state, input_by_index, set_files_by_selector,
@@ -327,6 +327,12 @@ pub(super) fn session_thread(
                         },
                         _ = actor.page.pump_event_loop_slice(if drain_budget > 0 { 1500 } else { 200 }) => {
                             actor.follow_page_navigation().await;
+                            // A document.write outside any command — a
+                            // timer's, a promise's — is owed its events the
+                            // same way; nobody's reply will carry them.
+                            if !actor.console_subs.is_empty() && actor.page.inner.take_pending_write_nav() {
+                                actor.console_subs.retain(|sub| sub.send(SessionEvent::WriteNav).is_ok());
+                            }
                             drain_console_publish(&mut actor.page, &mut actor.console_ring, &mut actor.console_subs);
                             publish_network(&mut actor.page, &mut actor.net_seen, &mut actor.console_subs);
                             drain_budget = 0;
