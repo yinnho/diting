@@ -59,7 +59,9 @@ impl SessionActor {
             self.net_seen = last.seq;
         }
         let failure = self.last_nav_failure.take().unwrap_or(NetFailure::Other);
-        let _ = reply.send(Ok((nav, rows, failure)));
+        let calls =
+            super::super::super::state::drain_console(&mut self.page, &mut self.console_ring);
+        let _ = reply.send(Ok((nav, rows, failure, calls)));
     }
 
     /// `SessionCommand::NavigateHistoryCdp`: jump the cursor and navigate,
@@ -84,7 +86,9 @@ impl SessionActor {
             self.net_seen = last.seq;
         }
         let failure = self.last_nav_failure.take().unwrap_or(NetFailure::Other);
-        let _ = reply.send(Ok((nav, rows, failure)));
+        let calls =
+            super::super::super::state::drain_console(&mut self.page, &mut self.console_ring);
+        let _ = reply.send(Ok((nav, rows, failure, calls)));
     }
 
     /// `SessionCommand::NavigationHistory`: the URLs and where the cursor is.

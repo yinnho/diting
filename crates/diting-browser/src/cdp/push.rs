@@ -10,7 +10,7 @@ use tokio::sync::mpsc;
 use crate::session::{send_command, SessionCommand, SessionEvent};
 
 use super::network_events::network_frames;
-use super::{page_side_frames, runtime, target, Out, SharedHub};
+use super::{page_side, runtime, target, Out, SharedHub};
 
 /// Follow `engine`'s events and write them as CDP events for the page
 /// `target`. Best effort: a session that cannot be subscribed to simply
@@ -72,7 +72,7 @@ pub(super) async fn follow(hub: SharedHub, target: String, engine: &str) {
                     }
                     SessionEvent::WriteNav => {
                         let side = json!({ "console": [], "writeNav": true });
-                        page_side_frames(&hub, 0, &hub.pages[&target], &side, &mut out);
+                        page_side::page_side_frames(&hub, 0, &hub.pages[&target], &side, &mut out);
                     }
                     SessionEvent::Console { level, text, url } => {
                         let Some(kind) = runtime::console_type(&level) else {
@@ -82,7 +82,7 @@ pub(super) async fn follow(hub: SharedHub, target: String, engine: &str) {
                             "console": [{ "type": kind, "text": text, "url": url }],
                             "writeNav": false,
                         });
-                        page_side_frames(&hub, 0, &hub.pages[&target], &side, &mut out);
+                        page_side::page_side_frames(&hub, 0, &hub.pages[&target], &side, &mut out);
                     }
                     SessionEvent::Network(row) => {
                         network_frames(&hub, 0, &hub.pages[&target], &[*row], &mut out);
