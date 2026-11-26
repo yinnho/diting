@@ -522,7 +522,6 @@ const KEY_UNREAD: &[(&str, Kind)] = &[
     ("unmodifiedText", Kind::Text),
     ("keyIdentifier", Kind::Text),
     ("code", Kind::Text),
-    ("windowsVirtualKeyCode", Kind::Integer),
     ("nativeVirtualKeyCode", Kind::Integer),
     ("autoRepeat", Kind::Bool),
     ("isKeypad", Kind::Bool),
@@ -537,6 +536,7 @@ fn key_event_script(params: &Value) -> Result<Option<String>, Failure> {
     let code = optional_string(params, "code")?;
     let text = optional_string(params, "text")?;
     let modifiers = optional_integer(params, "modifiers")?;
+    let virtual_key = optional_integer(params, "windowsVirtualKeyCode")?;
     kinds(params, KEY_UNREAD)?;
     if !matches!(kind, "keyDown" | "keyUp" | "rawKeyDown" | "char") {
         return Err(invalid(&format!("Unexpected event type '{kind}'")));
@@ -549,19 +549,33 @@ fn key_event_script(params: &Value) -> Result<Option<String>, Failure> {
     // keypress, then the insertion and its input; `rawKeyDown` is only the
     // keydown; `char` is keypress plus the insertion, no keydown at all;
     // `keyUp` is the keyup. The modifiers bits are CDP's: 1 alt, 2 ctrl,
-    // 4 meta, 8 shift.
+    // 4 meta, 8 shift. The legacy trio follows the probe: keydown/keyup
+    // carry the windows virtual key as keyCode and which with charCode 0;
+    // a keypress carries the char's code point in all three.
     let key_lit = serde_json::to_string(key).map_err(|err| err.to_string())?;
     let code_lit = serde_json::to_string(code).map_err(|err| err.to_string())?;
+    let vk = virtual_key.unwrap_or(0);
+    let press_code = text.chars().next().map_or(0, |c| c as u32) as i64;
     let dispatch = |event: &str| {
+        let (key_code, char_code) = if event == "keypress" {
+            (press_code, press_code)
+        } else {
+            (vk, 0)
+        };
+        let which = if event == "keypress" {
+            press_code
+        } else {
+            key_code
+        };
         format!(
-            "var ev = new KeyboardEvent('{event}', {{                key: {key_lit}, code: {code_lit}, bubbles: true, cancelable: true,                altKey: {}, ctrlKey: {}, metaKey: {}, shiftKey: {}            }});            (document.activeElement || document.body).dispatchEvent(ev);            ",
+            "var ev = new KeyboardEvent('{event}', {{key: {key_lit}, code: {code_lit}, bubbles: true, cancelable: true, altKey: {}, ctrlKey: {}, metaKey: {}, shiftKey: {}, keyCode: {key_code}, charCode: {char_code}, which: {which}}});(document.activeElement || document.body).dispatchEvent(ev);",
             modifiers & 1 != 0,
             modifiers & 2 != 0,
             modifiers & 4 != 0,
             modifiers & 8 != 0,
         )
     };
-    let select_all = "(function() {            var el = document.activeElement;            if (!el) return;            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {                try { el.setSelectionRange(0, el.value.length); } catch (e) {}            } else if (el.isContentEditable) {                var range = document.createRange();                range.selectNodeContents(el);                var sel = window.getSelection();                if (sel) { sel.removeAllRanges(); sel.addRange(range); }            }        })()"
+    let select_all = "(function() {var el = document.activeElement;if (!el) return;if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {try { el.setSelectionRange(0, el.value.length); } catch (e) {}} else if (el.isContentEditable) {var range = document.createRange();range.selectNodeContents(el);var sel = window.getSelection();if (sel) { sel.removeAllRanges(); sel.addRange(range); }}})()"
         .to_string();
     let text_literal = serde_json::to_string(text).map_err(|err| err.to_string())?;
     let insert = |out: &mut String| {
