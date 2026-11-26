@@ -6,7 +6,6 @@
 //! page: the engine's own spelling of an id never crosses this boundary.
 
 use crate::session::HandleParts;
-use diting::diting_js::runtime::{JsRuntime, ObjectIdState};
 
 /// What Chrome's canonical spelling of a handle is — the strict path
 /// accepts a parsed id only when it was spelled exactly this way.
@@ -15,33 +14,6 @@ fn chrome_oid(realm: i64, number: i64) -> String {
 }
 
 /// Which of the four an id is ([`ObjectIdState`]), read the way Chrome
-/// reads one: the exact spelling first, the lenient number reader for
-/// what is no JSON at all, then the engine's own answer for the pair.
-pub(super) fn state(js: &mut JsRuntime, object_id: &str) -> ObjectIdState {
-    // Chrome's number reader steps over the blanks before an id and stops
-    // at the first one after it.
-    let spelled = object_id.trim_start();
-    let (realm, number, strict) = match parts(spelled) {
-        Ok(parts) => parts,
-        Err(()) => return ObjectIdState::Unparseable,
-    };
-    // A realm of this runtime's is read before its number, as Chrome
-    // reads one: an id of a realm that is gone is `Gone` whatever its
-    // number says.
-    let Some(realm) = realm else {
-        return ObjectIdState::Gone;
-    };
-    if realm != js.realm_id() {
-        return ObjectIdState::Gone;
-    }
-    let Some(number) = number else {
-        return ObjectIdState::Released;
-    };
-    if strict && spelled != chrome_oid(realm, number) {
-        return ObjectIdState::Unparseable;
-    }
-    js.object_state_of(realm, number)
-}
 
 /// The two parts of an id and whether it was the strict spelling.
 /// `Err(())` when the id is no id at all. A part reads `None` when it

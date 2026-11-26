@@ -18,11 +18,12 @@ use super::params::{boolean, invalid, kinds, optional_boolean, optional_string, 
 use super::{
     browser_id, cdp_user_agent, context_of, deliver, event, frame_of, info_of, lifecycle,
     loader_of, local_of, new_id, now_secs, ok, page_of, page_of_mut, product, session_msg,
-    to_sessions, Attached, Failure, Hub, Out, PageSlot, SessionSlot, World, HUB,
+    to_sessions, Attached, Failure, Hub, Out, PageSlot, SessionSlot, SharedHub, World,
 };
 use crate::session::{send_command, SessionCommand, SESSIONS};
 
 pub(super) async fn browser_method(
+    hub: SharedHub,
     client: u64,
     id: &Value,
     session: Option<&str>,
@@ -42,11 +43,11 @@ pub(super) async fn browser_method(
             }),
         )])),
         "Browser.setDownloadBehavior" => download_behavior(id, session, params),
-        "Browser.close" => close_browser(client, id, session).await,
-        "Target.setAutoAttach" => set_auto_attach(client, id, session, params).await,
-        "Target.setDiscoverTargets" => set_discover(client, id, session, params).await,
+        "Browser.close" => close_browser(hub.clone(), client, id, session).await,
+        "Target.setAutoAttach" => set_auto_attach(hub.clone(), client, id, session, params).await,
+        "Target.setDiscoverTargets" => set_discover(hub.clone(), client, id, session, params).await,
         "Target.getTargetInfo" => {
-            let hub = HUB.lock().await;
+            let hub = hub.lock().await;
             let info = target_info(&hub, client, session, params)?;
             Ok(Out::from_frames(vec![ok(
                 id,
@@ -55,7 +56,7 @@ pub(super) async fn browser_method(
             )]))
         }
         "Target.getTargets" => {
-            let hub = HUB.lock().await;
+            let hub = hub.lock().await;
             let infos = all_targets(&hub, client, session);
             Ok(Out::from_frames(vec![ok(
                 id,
@@ -63,13 +64,21 @@ pub(super) async fn browser_method(
                 json!({ "targetInfos": infos }),
             )]))
         }
-        "Target.createTarget" => create_target(client, id, session, params).await,
-        "Target.attachToTarget" => attach_target(client, id, session, params).await,
-        "Target.attachToBrowserTarget" => attach_browser(client, id, session).await,
-        "Target.detachFromTarget" => detach(client, id, session, params).await,
+        "Target.createTarget" => create_target(hub.clone(), client, id, session, params).await,
+        "Target.attachToTarget" => attach_target(hub.clone(), client, id, session, params).await,
+        "Target.attachToBrowserTarget" => attach_browser(hub.clone(), client, id, session).await,
+        "Target.detachFromTarget" => detach(hub.clone(), client, id, session, params).await,
         "Target.closeTarget" => {
             let target = string(params, "targetId")?;
-            close_target(client, id, session, target, json!({ "success": true })).await
+            close_target(
+                hub.clone(),
+                client,
+                id,
+                session,
+                target,
+                json!({ "success": true }),
+            )
+            .await
         }
         _ => Err(Failure::NotFound(method.to_string())),
     }
@@ -77,7 +86,7 @@ pub(super) async fn browser_method(
 
 /// Close engine sessions — outside the hub lock, and before the reply, so
 /// a client that has the reply finds them closed.
-pub(super) async fn close_engine(sessions: Vec<String>) {
+pub(super) async fn close_engine(_hub: SharedHub, sessions: Vec<String>) {
     if sessions.is_empty() {
         return;
     }
@@ -116,6 +125,7 @@ fn download_behavior(id: &Value, session: Option<&str>, params: &Value) -> Resul
 /// On: every page the socket owns gets a session, unless one made the same
 /// way is still live. Off: the sessions it made are taken back.
 async fn set_auto_attach(
+    hub: SharedHub,
     client: u64,
     id: &Value,
     session: Option<&str>,
@@ -128,7 +138,7 @@ async fn set_auto_attach(
             "Only flatten protocol is supported with browser level auto-attach",
         ));
     }
-    let mut hub = HUB.lock().await;
+    let mut hub = hub.lock().await;
     if let Some(slot) = hub.clients.get_mut(&client) {
         slot.auto_attach = auto_attach;
         slot.wait_debugger = waiting;
@@ -178,13 +188,14 @@ pub(super) fn page_auto_attach(id: &Value, session: &str, params: &Value) -> Res
 /// `Target.setDiscoverTargets`: on, the socket hears `Target.targetCreated`
 /// for the pages it owns — the ones there are, then each new one.
 async fn set_discover(
+    hub: SharedHub,
     client: u64,
     id: &Value,
     session: Option<&str>,
     params: &Value,
 ) -> Result<Out, Failure> {
     let discover = boolean(params, "discover")?;
-    let mut hub = HUB.lock().await;
+    let mut hub = hub.lock().await;
     if let Some(slot) = hub.clients.get_mut(&client) {
         slot.discover = discover;
     }
@@ -263,6 +274,7 @@ fn all_targets(hub: &Hub, client: u64, session: Option<&str>) -> Vec<Value> {
 /// `Target.createTarget`: an engine session with the page loaded, before
 /// the reply — the client's first command on the new target finds a page.
 async fn create_target(
+    hub: SharedHub,
     client: u64,
     id: &Value,
     session: Option<&str>,
@@ -331,7 +343,7 @@ async fn create_target(
         worlds: vec![World { id: 1, name: None }],
     };
     let mut out = Out::default();
-    let mut hub = HUB.lock().await;
+    let mut hub = hub.lock().await;
     let (discover, auto_attach, waiting) = hub.flags(client);
     if discover {
         out.frames.push(event(
@@ -353,6 +365,7 @@ async fn create_target(
 /// `Target.attachToTarget`: a new session every time, announced on the
 /// level it was asked from, before the reply.
 async fn attach_target(
+    hub: SharedHub,
     client: u64,
     id: &Value,
     session: Option<&str>,
@@ -365,7 +378,7 @@ async fn attach_target(
         // on the calling session. Nothing here speaks that.
         return Err(format!("{METHOD}: only the flatten protocol is supported").into());
     }
-    let mut hub = HUB.lock().await;
+    let mut hub = hub.lock().await;
     let mut out = Out::default();
     let new = hub.attach_page(target, client, session, false, false, &mut out)?;
     out.frames
@@ -376,8 +389,13 @@ async fn attach_target(
 /// `Target.attachToBrowserTarget`: a session on the browser, for browser
 /// domains from under a session. Chrome gives each one a target id of its
 /// own.
-async fn attach_browser(client: u64, id: &Value, session: Option<&str>) -> Result<Out, Failure> {
-    let mut hub = HUB.lock().await;
+async fn attach_browser(
+    hub: SharedHub,
+    client: u64,
+    id: &Value,
+    session: Option<&str>,
+) -> Result<Out, Failure> {
+    let mut hub = hub.lock().await;
     let level = hub.level(session);
     let slot = SessionSlot::new(client, Attached::Browser(new_id()), session, false, false);
     let mut out = Out::default();
@@ -402,13 +420,14 @@ async fn attach_browser(client: u64, id: &Value, session: Option<&str>) -> Resul
 /// session's own under it. A session cannot take itself, and a page
 /// websocket's root level is never taken.
 async fn detach(
+    hub: SharedHub,
     client: u64,
     id: &Value,
     session: Option<&str>,
     params: &Value,
 ) -> Result<Out, Failure> {
     const METHOD: &str = "Target.detachFromTarget";
-    let mut hub = HUB.lock().await;
+    let mut hub = hub.lock().await;
     let level = hub.level(session);
     // This socket's sessions, attached on the asking level, on `target`.
     let on_table = |target: Option<&str>| {
@@ -450,6 +469,7 @@ async fn detach(
 /// `Target.closeTarget`, and `Page.close` for the session's own page. The
 /// page goes, every session on it with it.
 async fn close_target(
+    hub: SharedHub,
     client: u64,
     id: &Value,
     session: Option<&str>,
@@ -458,7 +478,7 @@ async fn close_target(
 ) -> Result<Out, Failure> {
     let mut out = Out::default();
     let engine = {
-        let mut hub = HUB.lock().await;
+        let mut hub = hub.lock().await;
         if !hub.owns(client, session, target) {
             return Err(invalid("No target with given id found"));
         }
@@ -470,34 +490,39 @@ async fn close_target(
         });
         hub.close_pages(&[target.to_string()], client, &mut out)
     };
-    close_engine(engine).await;
+    close_engine(hub, engine).await;
     out.frames.push(ok(id, session, reply));
     Ok(out)
 }
 
 /// `Page.close`: the page the session is on.
-pub(super) async fn close_page(id: &Value, session: &str) -> Result<Out, Failure> {
+pub(super) async fn close_page(hub: SharedHub, id: &Value, session: &str) -> Result<Out, Failure> {
     let (client, target) = {
-        let hub = HUB.lock().await;
+        let hub = hub.lock().await;
         let slot = hub
             .sessions
             .get(session)
             .ok_or_else(|| no_session(session))?;
         (slot.client, slot.attached.id().to_string())
     };
-    close_target(client, id, Some(session), &target, json!({})).await
+    close_target(hub.clone(), client, id, Some(session), &target, json!({})).await
 }
 
 /// `Browser.close`: this socket's pages, then the socket. Chrome would
 /// close the whole browser; the pages of other sockets are theirs to close.
-async fn close_browser(client: u64, id: &Value, session: Option<&str>) -> Result<Out, Failure> {
+async fn close_browser(
+    hub: SharedHub,
+    client: u64,
+    id: &Value,
+    session: Option<&str>,
+) -> Result<Out, Failure> {
     let mut out = Out::default();
     let engine = {
-        let mut hub = HUB.lock().await;
+        let mut hub = hub.lock().await;
         let owned = hub.owned(client);
         hub.close_pages(&owned, client, &mut out)
     };
-    close_engine(engine).await;
+    close_engine(hub, engine).await;
     out.frames.push(ok(id, session, json!({})));
     out.close_socket = true;
     Ok(out)
@@ -513,7 +538,12 @@ pub(super) fn frame_tree(hub: &Hub, session: &str) -> Result<Value, String> {
 /// sessions that asked for `Page` events hear the whole round first. A URL
 /// that does not stand on its own is a protocol error before the page is
 /// touched: Chrome resolves nothing against the page's URL either.
-pub(super) async fn navigate(id: &Value, session: &str, params: &Value) -> Result<Out, Failure> {
+pub(super) async fn navigate(
+    hub: SharedHub,
+    id: &Value,
+    session: &str,
+    params: &Value,
+) -> Result<Out, Failure> {
     // Every field is read before the page is asked to go anywhere.
     let url = string(params, "url")?;
     kinds(
@@ -527,20 +557,25 @@ pub(super) async fn navigate(id: &Value, session: &str, params: &Value) -> Resul
     if url::Url::parse(url.trim()).is_err() {
         return Err(Failure::from("Cannot navigate to invalid URL"));
     }
-    let (mut out, reply) = load(session, &url).await?;
+    let (mut out, reply) = load(hub, session, &url).await?;
     out.frames.push(ok(id, Some(session), reply));
     Ok(out)
 }
 
 /// `Page.reload`. Chrome's reply is empty, whatever came of the reload; the
 /// events and the page are the reload's own.
-pub(super) async fn reload(id: &Value, session: &str, params: &Value) -> Result<Out, Failure> {
+pub(super) async fn reload(
+    hub: SharedHub,
+    id: &Value,
+    session: &str,
+    params: &Value,
+) -> Result<Out, Failure> {
     kinds(params, &[("ignoreCache", Kind::Bool)])?;
     let url = {
-        let hub = HUB.lock().await;
+        let hub = hub.lock().await;
         page_of(&hub, session)?.url.clone()
     };
-    let (mut out, _) = load(session, &url).await?;
+    let (mut out, _) = load(hub, session, &url).await?;
     out.frames.push(ok(id, Some(session), json!({})));
     Ok(out)
 }
@@ -550,9 +585,9 @@ pub(super) async fn reload(id: &Value, session: &str, params: &Value) -> Result<
 /// `errorText` when it is not. Chrome's `errorText` is a `net::` error code;
 /// the engine's navigation failures are spelled out and not sorted into
 /// kinds, so the reply says what the engine said.
-async fn load(session: &str, url: &str) -> Result<(Out, Value), Failure> {
+async fn load(hub: SharedHub, session: &str, url: &str) -> Result<(Out, Value), Failure> {
     let engine = {
-        let hub = HUB.lock().await;
+        let hub = hub.lock().await;
         page_of(&hub, session)?.engine_session.clone()
     };
     let nav = send_command(&engine, |reply| SessionCommand::Navigate {
@@ -560,7 +595,7 @@ async fn load(session: &str, url: &str) -> Result<(Out, Value), Failure> {
         reply,
     })
     .await;
-    let mut hub = HUB.lock().await;
+    let mut hub = hub.lock().await;
     let local = local_of(&hub, session);
     {
         let page = page_of_mut(&mut hub, session)?;
@@ -732,6 +767,7 @@ fn nav_events(hub: &Hub, page: &PageSlot, local: u64, out: &mut Out) {
 /// `Page.enable`, `Page.disable` and `Page.setLifecycleEventsEnabled`: a
 /// switch on this session alone.
 pub(super) async fn page_switch(
+    hub: SharedHub,
     id: &Value,
     session: &str,
     method: &str,
@@ -741,7 +777,7 @@ pub(super) async fn page_switch(
     let lifecycle = (method == "Page.setLifecycleEventsEnabled")
         .then(|| boolean(params, "enabled"))
         .transpose()?;
-    let mut hub = HUB.lock().await;
+    let mut hub = hub.lock().await;
     {
         let slot = hub
             .sessions
@@ -758,8 +794,12 @@ pub(super) async fn page_switch(
 
 /// `Runtime.enable`: the page's worlds are announced to this session —
 /// each time it is enabled after a disable, never on a repeat.
-pub(super) async fn runtime_enable(id: &Value, session: &str) -> Result<Out, Failure> {
-    let mut hub = HUB.lock().await;
+pub(super) async fn runtime_enable(
+    hub: SharedHub,
+    id: &Value,
+    session: &str,
+) -> Result<Out, Failure> {
+    let mut hub = hub.lock().await;
     let slot = hub
         .sessions
         .get_mut(session)
@@ -788,8 +828,12 @@ pub(super) async fn runtime_enable(id: &Value, session: &str) -> Result<Out, Fai
     Ok(out)
 }
 
-pub(super) async fn runtime_disable(id: &Value, session: &str) -> Result<Out, Failure> {
-    let mut hub = HUB.lock().await;
+pub(super) async fn runtime_disable(
+    hub: SharedHub,
+    id: &Value,
+    session: &str,
+) -> Result<Out, Failure> {
+    let mut hub = hub.lock().await;
     hub.sessions
         .get_mut(session)
         .ok_or_else(|| no_session(session))?
@@ -800,6 +844,7 @@ pub(super) async fn runtime_disable(id: &Value, session: &str) -> Result<Out, Fa
 /// `Page.createIsolatedWorld`. The engine runs one realm: the world is a
 /// name and a context id, which is what Playwright needs of it.
 pub(super) async fn create_world(
+    hub: SharedHub,
     id: &Value,
     session: &str,
     params: &Value,
@@ -810,7 +855,7 @@ pub(super) async fn create_world(
         .unwrap_or("")
         .to_string();
     kinds(params, &[("grantUniveralAccess", Kind::Bool)])?;
-    let mut hub = HUB.lock().await;
+    let mut hub = hub.lock().await;
     let local = local_of(&hub, session);
     let ctx = {
         let page = page_of_mut(&mut hub, session)?;
