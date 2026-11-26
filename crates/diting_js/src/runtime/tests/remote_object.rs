@@ -901,7 +901,7 @@ async fn an_id_is_held_released_gone_or_no_id_at_all() {
     assert!(held(&mut rt, &id));
     // This realm's spelling, and nothing behind it: a number it never
     // minted — or none at all, 0 or below — and one it let go of.
-    for number in [number as i64 + 1_000_000, 0, -1] {
+    for number in [number + 1_000_000, 0, -1] {
         let never = format!("{{\"injectedScriptId\":{serial},\"id\":{number}}}");
         assert_eq!(state(&mut rt, &never), ObjectIdState::Released);
     }

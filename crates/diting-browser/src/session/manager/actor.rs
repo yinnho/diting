@@ -400,7 +400,7 @@ pub(super) fn session_thread(
                         SessionCommand::Viewport { width, height, mobile, reply } => actor.on_viewport(width, height, mobile, reply).await,
                         SessionCommand::Eval { script, timeout_ms, reply } => actor.on_eval(script, timeout_ms, reply).await,
                         SessionCommand::EvalRemote { script, await_promise, return_by_value, timeout_ms, reply } => actor.on_eval_remote(script, await_promise, return_by_value, timeout_ms, reply).await,
-                        SessionCommand::CallOn { declaration, object_id, arguments, by_value, await_promise, return_by_value, timeout_ms, receiver, arg_ids, reply } => actor.on_call_on(declaration, object_id, arguments, by_value, await_promise, return_by_value, timeout_ms, receiver, arg_ids, reply).await,
+                        SessionCommand::CallOn { args, reply } => actor.on_call_on(args, reply).await,
                         SessionCommand::ReleaseObject { object_id, parts, reply } => actor.on_release_object(object_id, parts, reply).await,
                         SessionCommand::Emulate { op, reply } => actor.on_emulate(op, reply).await,
                         SessionCommand::Page { op, reply } => actor.on_page_op(op, reply).await,

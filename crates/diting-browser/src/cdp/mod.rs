@@ -54,7 +54,7 @@ use axum::{Json, Router};
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
-use crate::session::{send_command, SessionCommand};
+use crate::session::{send_command, CallOnRequest, SessionCommand};
 
 use params::{boolean, invalid, kinds, optional_string, Kind};
 
@@ -974,15 +974,17 @@ async fn forward(
         let args = runtime::call_params(&params)?;
         let (outcome, pre_info, calls, write_nav) =
             send_command(&engine, |reply| SessionCommand::CallOn {
-                declaration: args.declaration,
-                object_id: args.object_id,
-                arguments: args.arguments,
-                by_value: false,
-                await_promise: args.await_promise,
-                return_by_value: args.return_by_value,
-                timeout_ms: None,
-                receiver: args.receiver,
-                arg_ids: args.arg_ids,
+                args: CallOnRequest {
+                    declaration: args.declaration,
+                    object_id: args.object_id,
+                    arguments: args.arguments,
+                    by_value: false,
+                    await_promise: args.await_promise,
+                    return_by_value: args.return_by_value,
+                    timeout_ms: None,
+                    receiver: args.receiver,
+                    arg_ids: args.arg_ids,
+                },
                 reply,
             })
             .await
