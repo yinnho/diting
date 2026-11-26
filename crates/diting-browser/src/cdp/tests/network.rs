@@ -879,3 +879,72 @@ async fn a_navigation_that_fails_is_told_as_a_document_request_that_failed() {
     // No response came, so none is told.
     assert!(position_of(&events, "Network.responseReceived").is_none());
 }
+
+#[tokio::test]
+async fn a_link_the_page_follows_by_itself_is_a_navigation_the_socket_sees() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (router, _site) = site();
+    let router = router
+        .route(
+            "/linkpage",
+            axum::routing::get(|| async {
+                axum::response::Html("<html><body id=one><a id=l href='/two'>go</a></body></html>")
+            }),
+        )
+        .route(
+            "/two",
+            axum::routing::get(|| async {
+                axum::response::Html("<html><body id=two>two</body></html>")
+            }),
+        );
+    let (mut client, addr) = connect(router).await;
+    let origin = format!("http://{addr}");
+    let session = page_at(&mut client, 1, &format!("{origin}/linkpage")).await;
+    let on = Some(session.as_str());
+    client.run("Page.enable", json!({}), on).await;
+    client.run("Network.enable", json!({}), on).await;
+    client.events.clear();
+    client
+        .run(
+            "Runtime.evaluate",
+            json!({ "expression": "document.getElementById('l').click(); 1" }),
+            on,
+        )
+        .await;
+    // Nothing is sent from here: the click queued a navigation, and the
+    // session follows it. Chrome 158 (`clicknav-probe.cjs`): the document's
+    // request, then the frame's navigation, both of the new loader.
+    let seen = client
+        .events_until("Page.frameNavigated", Duration::from_secs(8))
+        .await;
+    let sent = seen
+        .iter()
+        .find(|event| {
+            event["method"] == "Network.requestWillBeSent"
+                && event["params"]["type"] == "Document"
+                && event["params"]["request"]["url"]
+                    .as_str()
+                    .is_some_and(|url| url.ends_with("/two"))
+        })
+        .unwrap_or_else(|| panic!("the followed link was not told: {seen:?}"));
+    let navigated = seen
+        .iter()
+        .find(|event| event["method"] == "Page.frameNavigated")
+        .expect("the navigation was told");
+    assert_eq!(navigated["params"]["frame"]["url"], format!("{origin}/two"));
+    assert_eq!(
+        sent["params"]["loaderId"],
+        navigated["params"]["frame"]["loaderId"]
+    );
+    assert!(
+        position_of(&seen, "Network.requestWillBeSent") < position_of(&seen, "Page.frameNavigated")
+    );
+    // And the document really is the new one — not just `location`.
+    assert_eq!(
+        client
+            .eval("document.body && document.body.id", &session)
+            .await,
+        "two"
+    );
+}

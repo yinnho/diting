@@ -6,7 +6,9 @@ use diting::diting_net::NetFailure;
 use serde_json::json;
 use tokio::sync::{mpsc, oneshot};
 
-use super::super::super::commands::{NavigateCdpReply, SessionCommand, SessionEvent};
+use super::super::super::commands::{
+    NavigateCdpReply, PageNavigation, SessionCommand, SessionEvent,
+};
 use super::super::super::interact::{merge_dom_candidates, DOM_MEDIA_SCRIPT};
 use super::SessionActor;
 
@@ -63,6 +65,32 @@ impl SessionActor {
         >,
     ) {
         let _ = reply.send(Ok(self.page.inner.get_response_body(&request_id)));
+    }
+
+    /// Follow a navigation the page queued for itself — a link clicked, a
+    /// `location` assigned by a script — and tell the subscribers how it
+    /// went, with the request rows it filed. A command's own handler
+    /// drains these for the faces that wait on it; a session that is
+    /// followed has nobody waiting, so the idle pump does it.
+    pub(super) async fn follow_page_navigation(&mut self) {
+        if self.console_subs.is_empty() || !self.page.inner.has_pending_navigation() {
+            return;
+        }
+        let ran = self.page.process_pending_navigation().await;
+        let rows = self.page.inner.network_events_since(self.net_seen);
+        if let Some(last) = rows.last() {
+            self.net_seen = last.seq;
+        }
+        let landed = match ran {
+            Ok(_) => Some((self.page.url(), self.page.inner.title())),
+            Err(error) => {
+                tracing::debug!("page-started navigation failed: {error}");
+                None
+            }
+        };
+        let event = SessionEvent::Navigated(Box::new(PageNavigation { landed, rows }));
+        self.console_subs
+            .retain(|sub| sub.send(event.clone()).is_ok());
     }
 
     /// Push this session's page events to `sink` from now on.

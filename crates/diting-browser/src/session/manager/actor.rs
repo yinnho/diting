@@ -326,6 +326,7 @@ pub(super) fn session_thread(
                             None => break,
                         },
                         _ = actor.page.pump_event_loop_slice(if drain_budget > 0 { 1500 } else { 200 }) => {
+                            actor.follow_page_navigation().await;
                             drain_console_publish(&mut actor.page, &mut actor.console_ring, &mut actor.console_subs);
                             publish_network(&mut actor.page, &mut actor.net_seen, &mut actor.console_subs);
                             drain_budget = 0;

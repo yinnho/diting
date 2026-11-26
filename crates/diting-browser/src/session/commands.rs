@@ -86,6 +86,18 @@ pub enum SessionEvent {
     /// A request the page filed: one finished row, which the faces tell
     /// as the request, its response and its end.
     Network(Box<diting::diting_browser::page::NetworkEvent>),
+    /// The page followed a navigation it asked for itself (a link clicked,
+    /// `location` assigned), outside any command.
+    Navigated(Box<PageNavigation>),
+}
+
+/// How a navigation the page started went, with the request rows it filed
+/// — claimed with it, so a face can tell them before the navigation.
+#[derive(Clone, Debug)]
+pub struct PageNavigation {
+    /// Where the page is now; `None` when the navigation failed.
+    pub landed: Option<(String, String)>,
+    pub rows: Vec<diting::diting_browser::page::NetworkEvent>,
 }
 
 /// A `Page.*`/`Network.*` page-level op — fields already read and

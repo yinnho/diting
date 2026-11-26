@@ -646,7 +646,7 @@ async fn load(hub: SharedHub, session: &str, url: &str) -> Result<(Out, Value), 
 /// navigation starts, once before the new document is announced — and
 /// clients take the event as "none are left", so twice says no more than
 /// once.
-fn nav_events(hub: &Hub, page: &PageSlot, local: u64, out: &mut Out) {
+pub(super) fn nav_events(hub: &Hub, page: &PageSlot, local: u64, out: &mut Out) {
     let frame_id = page.target_id.as_str();
     let loader = loader_of(page);
     let now = now_secs();
@@ -906,7 +906,7 @@ pub(super) async fn create_world(
 
 /// New context ids for the worlds after a navigation, as Chrome mints them.
 /// The names stay.
-fn renew_worlds(page: &mut PageSlot) {
+pub(super) fn renew_worlds(page: &mut PageSlot) {
     for world in &mut page.worlds {
         world.id = page.next_ctx;
         page.next_ctx += 1;
