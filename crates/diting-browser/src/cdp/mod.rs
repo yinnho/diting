@@ -110,6 +110,11 @@ struct PageSlot {
     url: String,
     title: String,
     loader: u64,
+    /// The document row each loader id was told as, for
+    /// `Network.getResponseBody`: a document's wire id is its loader id
+    /// (as in Chrome, where `requestId == loaderId` is what makes the
+    /// request the navigation's), and this names the engine row behind it.
+    doc_rows: HashMap<String, String>,
     next_ctx: i64,
     /// The next number `DOM.describeNode` hands a node that has none.
     /// Counting goes on through a navigation: a number of a document gone
@@ -747,6 +752,13 @@ async fn page_method(
             Ok(Out::from_frames(vec![ok(id, on, tree)]))
         }
         "Page.navigate" => target::navigate(hub.clone(), id, session, params).await,
+        "Page.getNavigationHistory" => {
+            let history = target::navigation_history(hub.clone(), session).await?;
+            Ok(Out::from_frames(vec![ok(id, on, history)]))
+        }
+        "Page.navigateToHistoryEntry" => {
+            target::navigate_to_entry(hub.clone(), id, session, params).await
+        }
         "Page.reload" => target::reload(hub.clone(), id, session, params).await,
         "Page.close" => target::close_page(hub.clone(), id, session).await,
         "Page.captureScreenshot" => capture_screenshot(hub, id, session, params).await,
@@ -1306,6 +1318,28 @@ fn page_of_mut<'a>(hub: &'a mut Hub, session: &str) -> Result<&'a mut PageSlot, 
 
 fn loader_of(page: &PageSlot) -> String {
     format!("ldr{}", page.loader)
+}
+
+/// Remember which engine row the current loader's document is told as, so
+/// `Network.getResponseBody` can translate the wire id back. Rows of one
+/// navigation share the loader, and only document rows are told under it.
+/// The table keeps the recent few: a client that asks for a body does it
+/// soon after the response, and the map must not grow with every visit.
+fn remember_doc_rows(page: &mut PageSlot, rows: &[diting::diting_browser::page::NetworkEvent]) {
+    let loader = loader_of(page);
+    for row in rows {
+        if row.resource_type == "Document" {
+            page.doc_rows.insert(loader.clone(), row.request_id.clone());
+        }
+    }
+    if page.doc_rows.len() > 16 {
+        let keep_from = page.loader.saturating_sub(16);
+        page.doc_rows.retain(|wire, _| {
+            wire.strip_prefix("ldr")
+                .and_then(|n| n.parse::<u64>().ok())
+                .is_some_and(|n| n >= keep_from)
+        });
+    }
 }
 
 /// The frame a page is: the main frame, with the target's id.

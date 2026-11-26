@@ -14,7 +14,10 @@
 
 use serde_json::{json, Value};
 
-use super::params::{boolean, invalid, kinds, optional_boolean, optional_string, string, Kind};
+use super::params::{
+    boolean, integer, invalid, kinds, optional_boolean, optional_string, string, Kind,
+};
+use super::runtime::engine_failure;
 use super::{
     browser_id, cdp_user_agent, context_of, deliver, event, frame_of, info_of, lifecycle,
     loader_of, local_of, new_id, now_secs, ok, page_of, page_of_mut, product, session_msg,
@@ -336,6 +339,7 @@ async fn create_target(
         url,
         title,
         loader: 1,
+        doc_rows: std::collections::HashMap::new(),
         // The main world is there from the start, as in Chrome: a context
         // id names it before any session turns `Runtime` on.
         next_ctx: 2,
@@ -613,6 +617,7 @@ async fn load(hub: SharedHub, session: &str, url: &str) -> Result<(Out, Value), 
             page.url = resp.url.clone();
             page.title = resp.title.clone().unwrap_or_default();
         }
+        super::remember_doc_rows(page, &rows);
         renew_worlds(page);
     }
     let page = page_of(&hub, session)?;
@@ -637,6 +642,86 @@ async fn load(hub: SharedHub, session: &str, url: &str) -> Result<(Out, Value), 
         }),
     };
     Ok((out, reply))
+}
+
+/// `Page.getNavigationHistory`: the entries in visit order and where the
+/// cursor is. Chrome numbers the entries with opaque ids; ours are the
+/// positions, which is all a client needs to come back.
+pub(super) async fn navigation_history(hub: SharedHub, session: &str) -> Result<Value, Failure> {
+    let engine = {
+        let hub = hub.lock().await;
+        page_of(&hub, session)?.engine_session.clone()
+    };
+    let (entries, index) =
+        send_command(&engine, |reply| SessionCommand::NavigationHistory { reply })
+            .await
+            .map_err(|err| engine_failure(session_msg(err)))?;
+    let entries: Vec<Value> = entries
+        .iter()
+        .enumerate()
+        .map(|(position, url)| {
+            json!({
+                "id": position,
+                "url": url,
+                "userTypedURL": url,
+                "title": "",
+                "transitionType": "link",
+            })
+        })
+        .collect();
+    Ok(json!({ "currentIndex": index, "entries": entries }))
+}
+
+/// `Page.navigateToHistoryEntry`. Chrome answers empty, whatever came of
+/// the jump; the events and the page are the jump's own.
+pub(super) async fn navigate_to_entry(
+    hub: SharedHub,
+    id: &Value,
+    session: &str,
+    params: &Value,
+) -> Result<Out, Failure> {
+    let entry = integer(params, "entryId")?;
+    if entry < 0 {
+        return Err(invalid("No entry with passed id"));
+    }
+    let engine = {
+        let hub = hub.lock().await;
+        page_of(&hub, session)?.engine_session.clone()
+    };
+    let index = entry as usize;
+    let (nav, rows, failure) = match send_command(&engine, |reply| {
+        SessionCommand::NavigateHistoryCdp { index, reply }
+    })
+    .await
+    {
+        Ok(answer) => answer,
+        Err(err) => (
+            Err(session_msg(err)),
+            Vec::new(),
+            diting::diting_net::NetFailure::Other,
+        ),
+    };
+    let mut hub = hub.lock().await;
+    let local = local_of(&hub, session);
+    {
+        let page = page_of_mut(&mut hub, session)?;
+        page.loader += 1;
+        if let Ok(resp) = &nav {
+            page.url = resp.url.clone();
+            page.title = resp.title.clone().unwrap_or_default();
+        }
+        super::remember_doc_rows(page, &rows);
+        renew_worlds(page);
+    }
+    let page = page_of(&hub, session)?;
+    let mut out = Out::default();
+    super::network_events::network_frames(&hub, local, page, &rows, &mut out);
+    if nav.is_ok() {
+        nav_events(&hub, page, local, &mut out);
+    }
+    let _ = failure;
+    out.frames.push(ok(id, Some(session), json!({})));
+    Ok(out)
 }
 
 /// A move inside the document, as Chrome 158 tells it (`spa-probe.cjs`):

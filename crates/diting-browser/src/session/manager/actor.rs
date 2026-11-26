@@ -380,6 +380,8 @@ pub(super) fn session_thread(
                     match cmd {
                         SessionCommand::Navigate { url, reply } => actor.on_navigate(url, reply, &mut cmd_rx).await,
                         SessionCommand::NavigateCdp { url, reply } => actor.on_navigate_cdp(url, reply, &mut cmd_rx).await,
+                        SessionCommand::NavigateHistoryCdp { index, reply } => actor.on_navigate_history_cdp(index, reply).await,
+                        SessionCommand::NavigationHistory { reply } => actor.on_navigation_history(reply),
                         SessionCommand::SetPreload { scripts, reply } => actor.on_set_preload(scripts, reply).await,
                         SessionCommand::SetContent { html, reply } => actor.on_set_content(html, reply).await,
                         SessionCommand::State { reply } => actor.on_state(reply).await,

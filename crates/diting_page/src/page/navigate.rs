@@ -865,32 +865,6 @@ impl Page {
         }
     }
 
-    /// Append the current URL to the history stack, truncating any forward
-    /// entries past the cursor (matches real Chrome: navigating after a
-    /// goBack clobbers the forward history).
-    pub fn push_history(&mut self, url: String) {
-        if url.is_empty() {
-            return;
-        }
-        // Don't dupe consecutive entries (Page.reload would otherwise pile up).
-        if self.history.get(self.history_index) == Some(&url) {
-            return;
-        }
-        if !self.history.is_empty() && self.history_index < self.history.len() - 1 {
-            self.history.truncate(self.history_index + 1);
-        }
-        self.history.push(url);
-        self.history_index = self.history.len() - 1;
-    }
-
-    /// Move the history cursor without re-navigating; used by
-    /// Page.navigateToHistoryEntry which then drives the actual fetch.
-    pub fn set_history_index(&mut self, idx: usize) {
-        if idx < self.history.len() {
-            self.history_index = idx;
-        }
-    }
-
     async fn navigate_with_wait_post_inner(
         &mut self,
         url_str: &str,

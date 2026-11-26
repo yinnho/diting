@@ -140,6 +140,16 @@ pub(super) fn network_frames(
     let loader = loader_of(page);
     for row in rows {
         let kind = resource_type(row);
+        // A document's wire id is the loader's: `requestId == loaderId` is
+        // how Chrome marks the request the navigation carries, and what
+        // Playwright's `page.goto` looks for. Other rows keep the engine's
+        // own id. The row behind a loader id is remembered by the caller
+        // (`remember_doc_rows`) for `Network.getResponseBody`.
+        let wire_id = if kind == "Document" {
+            loader.as_str()
+        } else {
+            row.request_id.as_str()
+        };
         let started = row.started.unwrap_or(row.timestamp);
         let mut send = |method: &str, params: Value| {
             to_sessions(
@@ -185,7 +195,7 @@ pub(super) fn network_frames(
         };
         for (hop_url, redirect_response) in hops {
             let mut frame = json!({
-                "requestId": row.request_id,
+                "requestId": wire_id,
                 "loaderId": loader,
                 "documentURL": page.url,
                 "request": {
@@ -212,7 +222,7 @@ pub(super) fn network_frames(
         if row.error.is_some() || row.status == 0 {
             let why = failed(row.failure.as_ref().unwrap_or(&NetFailure::Other));
             let mut params = json!({
-                "requestId": row.request_id,
+                "requestId": wire_id,
                 "timestamp": row.timestamp,
                 "type": kind,
                 "errorText": why.error_text,
@@ -249,7 +259,7 @@ pub(super) fn network_frames(
         send(
             "Network.responseReceived",
             json!({
-                "requestId": row.request_id,
+                "requestId": wire_id,
                 "loaderId": loader,
                 "timestamp": row.timestamp,
                 "type": kind,
@@ -275,7 +285,7 @@ pub(super) fn network_frames(
         send(
             "Network.loadingFinished",
             json!({
-                "requestId": row.request_id,
+                "requestId": wire_id,
                 "timestamp": row.timestamp,
                 "encodedDataLength": row.body_size,
                 "encodedBodyLength": row.body_size,
@@ -296,8 +306,16 @@ pub(super) async fn response_body(
     let request_id = string(params, "requestId")?.to_string();
     let engine = {
         let hub = hub.lock().await;
-        page_of(&hub, session)?.engine_session.clone()
+        let page = page_of(&hub, session)?;
+        // A document was told under its loader id; the engine knows the row.
+        let request_id = page
+            .doc_rows
+            .get(&request_id)
+            .cloned()
+            .unwrap_or(request_id);
+        (page.engine_session.clone(), request_id)
     };
+    let (engine, request_id) = engine;
     let kept = send_command(&engine, |reply| SessionCommand::ResponseBody {
         request_id,
         reply,

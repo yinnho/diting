@@ -274,7 +274,7 @@ async fn a_navigation_is_told_as_its_requests_before_frame_navigated() {
     client.run("Page.enable", json!({}), on).await;
     client.run("Network.enable", json!({}), on).await;
     client.events.clear();
-    client
+    let reply = client
         .run(
             "Page.navigate",
             json!({ "url": format!("{origin}/echo") }),
@@ -287,6 +287,10 @@ async fn a_navigation_is_told_as_its_requests_before_frame_navigated() {
     assert_eq!(sent["type"], "Document");
     assert_eq!(sent["request"]["url"], format!("{origin}/echo"));
     assert_eq!(sent["request"]["method"], "GET");
+    // Chrome's invariant, and what Playwright's `page.goto` matches the
+    // navigation's document by: the document request's id is the loader id.
+    assert_eq!(sent["requestId"], reply["loaderId"]);
+    assert_eq!(sent["requestId"], sent["loaderId"]);
     let received = event_params(&events, "Network.responseReceived").expect("responseReceived");
     assert_eq!(received["response"]["status"], 200);
     assert_eq!(received["response"]["mimeType"], "text/html");
@@ -307,6 +311,9 @@ async fn a_navigation_is_told_as_its_requests_before_frame_navigated() {
         );
     }
     assert_eq!(sent["loaderId"], received["loaderId"]);
+    let navigated_params =
+        event_params(&events, "Page.frameNavigated").expect("frameNavigated params");
+    assert_eq!(navigated_params["frame"]["loaderId"], sent["requestId"]);
 }
 
 #[tokio::test]
