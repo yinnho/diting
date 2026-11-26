@@ -84,6 +84,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::oneshot;
 
 use super::objects;
+use super::session_msg;
 use super::Failure;
 use crate::page::{Page, INTERACTION_EVAL_TIMEOUT};
 use crate::session::{
@@ -706,7 +707,7 @@ fn release(page: &mut Page, params: &Value) -> Result<Value, Failure> {
 /// does not read either).
 const MOUSE_UNREAD: &[(&str, Kind)] = &[("timestamp", Kind::Number), ("pointerType", Kind::Text)];
 
-fn mouse_event(page: &mut Page, params: &Value) -> Result<Value, Failure> {
+fn mouse_event_script(params: &Value) -> Result<Option<String>, Failure> {
     let kind = string(params, "type")?;
     let x = number(params, "x")?;
     let y = number(params, "y")?;
@@ -800,13 +801,27 @@ fn mouse_event(page: &mut Page, params: &Value) -> Result<Value, Failure> {
             dy = dy,
         ),
     };
-    dispatch_input(page, &script)
+    Ok(Some(script))
+}
+
+fn mouse_event(page: &mut Page, params: &Value) -> Result<Value, Failure> {
+    match mouse_event_script(params)? {
+        Some(script) => dispatch_input(page, &script),
+        None => Ok(json!({})),
+    }
+}
+
+fn insert_text_script(params: &Value) -> Result<Option<String>, Failure> {
+    let text = string(params, "text")?;
+    let literal = serde_json::to_string(text).map_err(|err| err.to_string())?;
+    Ok(Some(insert_text_js(&literal)))
 }
 
 fn insert_text(page: &mut Page, params: &Value) -> Result<Value, Failure> {
-    let text = string(params, "text")?;
-    let literal = serde_json::to_string(text).map_err(|err| err.to_string())?;
-    dispatch_input(page, &insert_text_js(&literal))
+    match insert_text_script(params)? {
+        Some(script) => dispatch_input(page, &script),
+        None => Ok(json!({})),
+    }
 }
 
 /// The key fields the bridge declares and does not read: a key event here
@@ -825,7 +840,7 @@ const KEY_UNREAD: &[(&str, Kind)] = &[
     ("commands", Kind::Texts),
 ];
 
-fn key_event(page: &mut Page, params: &Value) -> Result<Value, Failure> {
+fn key_event_script(params: &Value) -> Result<Option<String>, Failure> {
     let kind = string(params, "type")?;
     let key = optional_string(params, "key")?;
     let text = optional_string(params, "text")?;
@@ -837,13 +852,12 @@ fn key_event(page: &mut Page, params: &Value) -> Result<Value, Failure> {
     let (key, text) = (key.unwrap_or(""), text.unwrap_or(""));
     let modifiers = modifiers.unwrap_or(0) as u64;
     if kind == "keyUp" {
-        return Ok(json!({}));
+        return Ok(None);
     }
     // Ctrl or Meta + A selects the field. Playwright's fill selects in the
     // page before insertText; keyboard.press("Control+A") comes through here.
     if modifiers & 0b110 != 0 && key.eq_ignore_ascii_case("a") {
-        return dispatch_input(
-            page,
+        return Ok(Some(
             "(function() {\
                 var el = document.activeElement;\
                 if (!el) return;\
@@ -855,14 +869,22 @@ fn key_event(page: &mut Page, params: &Value) -> Result<Value, Failure> {
                     var sel = window.getSelection();\
                     if (sel) { sel.removeAllRanges(); sel.addRange(range); }\
                 }\
-            })()",
-        );
+            })()"
+                .to_string(),
+        ));
     }
     if text.is_empty() {
-        return Ok(json!({}));
+        return Ok(None);
     }
     let literal = serde_json::to_string(text).map_err(|err| err.to_string())?;
-    dispatch_input(page, &insert_text_js(&literal))
+    Ok(Some(insert_text_js(&literal)))
+}
+
+fn key_event(page: &mut Page, params: &Value) -> Result<Value, Failure> {
+    match key_event_script(params)? {
+        Some(script) => dispatch_input(page, &script),
+        None => Ok(json!({})),
+    }
 }
 
 fn insert_text_js(literal: &str) -> String {
@@ -1600,6 +1622,51 @@ pub(super) async fn dom_run(
         }))
     };
     Ok((result, side))
+}
+
+/// An `Input.*` script on the IR: `INPUT_HELPERS` and the event script
+/// as one `EvalRemote` — the helpers are a const prefix, so one Script
+/// eval is the same two evaluations `dispatch_input` made. The reply's
+/// outcome is not read (input answers `{}`); the side drain still goes
+/// out, as `dispatch`'s `page_side` did for these commands.
+pub(super) async fn input_run(
+    engine: &str,
+    script: &str,
+) -> Result<(Value, Option<Value>), Failure> {
+    let (_outcome, _pre, calls, write_nav) =
+        send_command(engine, |reply| SessionCommand::EvalRemote {
+            script: format!("{INPUT_HELPERS}\n{script}"),
+            await_promise: false,
+            return_by_value: false,
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .map_err(|err| engine_failure(session_msg(err)))?;
+    let console: Vec<Value> = calls
+        .into_iter()
+        .filter_map(|(level, text, url)| {
+            let kind = console_type(&level)?;
+            Some(json!({ "type": kind, "text": text, "url": url }))
+        })
+        .collect();
+    let side = if console.is_empty() && !write_nav {
+        None
+    } else {
+        Some(json!({ "console": console, "writeNav": write_nav }))
+    };
+    Ok((json!({}), side))
+}
+
+/// The `Input.*` params as the script they run — `None` when the command
+/// is a no-op in Chrome's shape (keyUp, a key with no text).
+pub(super) fn input_script(method: &str, params: &Value) -> Result<Option<String>, Failure> {
+    match method {
+        "Input.dispatchMouseEvent" => mouse_event_script(params),
+        "Input.insertText" => insert_text_script(params),
+        "Input.dispatchKeyEvent" => key_event_script(params),
+        _ => Err(Failure::from("not an input command")),
+    }
 }
 
 fn dispatch_input(page: &mut Page, script: &str) -> Result<Value, Failure> {

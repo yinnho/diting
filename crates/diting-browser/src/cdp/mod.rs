@@ -1017,6 +1017,20 @@ async fn forward(
         }
         return Ok(value);
     }
+    // The three `Input.*` commands — params become a script here, the
+    // script runs as an `EvalRemote` on the session thread.
+    if method.starts_with("Input.") {
+        let script = runtime::input_script(method, &params)?;
+        if let Some(script) = script {
+            let (value, side) = runtime::input_run(&engine, &script).await?;
+            if let Some(side) = side {
+                let hub = HUB.lock().await;
+                side_frames(&hub, local, session, &side, out);
+            }
+            return Ok(value);
+        }
+        return Ok(json!({}));
+    }
     let mut result = send_command(&engine, |reply| SessionCommand::Cdp {
         method: method.to_string(),
         params,
