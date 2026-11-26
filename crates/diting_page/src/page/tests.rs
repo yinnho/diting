@@ -268,6 +268,83 @@ async fn busy_frozen_cools_without_realm_rebuild() {
     );
 }
 
+/// 11f wall-clock burst rate limit: churned slices (a polling client's
+/// commands preempt every park) must not turn the frozen throttle into a
+/// burst-only loop. Eight 100ms slices are 800ms of wall — rate-limited
+/// bursts fire at most at 0/200/400/600ms (~4×50ms of V8), while the
+/// unlimited shape fed a burst per slice (8×50ms).
+#[tokio::test(flavor = "current_thread")]
+async fn busy_frozen_burst_rate_is_wall_clocked_under_slice_churn() {
+    let mut p = test_page();
+    p.navigate("about:blank").await.unwrap();
+    p.evaluate("setInterval(() => { const s = Date.now(); while (Date.now() - s < 30) {} }, 10);");
+    p.busy_frozen = true;
+    let active = p.js.as_ref().unwrap().v8_active_ns();
+    for _ in 0..8 {
+        p.pump_event_loop_slice(100).await;
+    }
+    let gained = p.js.as_ref().unwrap().v8_active_ns() - active;
+    assert!(
+        gained < 300_000_000,
+        "burst duty must stay wall-clocked under churn, gained {}ms of v8 in 800ms of wall",
+        gained / 1_000_000
+    );
+    assert!(
+        gained > 80_000_000,
+        "the freeze still feeds the page — bursts must fire, gained {}ms",
+        gained / 1_000_000
+    );
+}
+
+/// 11f probe token bucket: the command probe used to lift the freeze until
+/// the trailing window re-tripped — 30s+ of full speed per command, so a
+/// polling client held a burner at 98% indefinitely. Now the lift spends
+/// wall time 1:1 from a budget that re-accrues at a quarter of wall: an
+/// empty budget denies the grant outright, a granted slice spends down
+/// into denial.
+#[tokio::test(flavor = "current_thread")]
+async fn busy_probe_spends_budget_and_denies_when_drained() {
+    let mut p = test_page();
+    p.navigate("about:blank").await.unwrap();
+    // A burner keeps the freeze armed across the slices — a quiet page's
+    // first throttled burst trips the #240 cool-burst clear, which is the
+    // correct behavior for cooled realms but orthogonal to the bucket.
+    p.evaluate("setInterval(() => { const s = Date.now(); while (Date.now() - s < 30) {} }, 10);");
+    p.busy_frozen = true;
+
+    // Empty budget: the probe stays armed but no slice grants it.
+    p.probe_budget_ns = 0;
+    p.probe_tick = None;
+    p.note_command_arrived();
+    p.pump_event_loop_slice(150).await;
+    assert!(
+        p.busy_probe_pending,
+        "an empty budget must deny the probe — polling must not lift the freeze for free"
+    );
+
+    // Seed exactly the minimum grant: one full-speed slice spends ~its
+    // wall time, dropping the budget under the minimum — the very next
+    // command is denied again.
+    p.probe_budget_ns = 250_000_000;
+    p.probe_tick = Some(tokio::time::Instant::now());
+    p.pump_event_loop_slice(150).await;
+    assert!(
+        !p.busy_probe_pending,
+        "a funded probe must be granted and consumed"
+    );
+    assert!(
+        p.probe_budget_ns < 250_000_000,
+        "the granted slice must spend wall time out of the budget, got {}ns left",
+        p.probe_budget_ns
+    );
+    p.note_command_arrived();
+    p.pump_event_loop_slice(150).await;
+    assert!(
+        p.busy_probe_pending,
+        "a drained budget must deny the next probe — the aggregate lift caps at a quarter of wall"
+    );
+}
+
 /// #230: a boot that queues tens of thousands of delay-0 timers must
 /// drain at pass speed, not at one timer-wheel tick per trampoline
 /// batch plus an O(n) shift per item. Before the fix tokio's 1ms wheel
@@ -4600,32 +4677,31 @@ async fn busy_frozen_command_probe_lifts_then_hot_realm_refreezes() {
     }
     assert!(p.js_busy_frozen(), "burner must trip the busy freeze first");
 
-    // A command arrives: the probe lifts the freeze and the slice runs
-    // at full speed — more V8 time than the 50ms-burst throttle could
-    // ever grant in a 300ms slice.
+    // 11f token-bucket contract: the probe no longer LIFTS the freeze —
+    // the realm stays frozen throughout and the command buys one
+    // full-speed slice priced out of the budget. Seed the budget the way
+    // frozen-slice accrual would have: a parked realm reaches the cap
+    // long before any interactive command arrives.
+    p.probe_budget_ns = 4_000_000_000;
     p.note_command_arrived();
     let active = p.js.as_ref().unwrap().v8_active_ns();
     p.pump_event_loop_slice(300).await;
     let gained = p.js.as_ref().unwrap().v8_active_ns() - active;
     assert!(
-        !p.js_busy_frozen(),
-        "a command must lift the freeze for the probe slice"
+        p.js_busy_frozen(),
+        "the freeze must stay ENGAGED through the probe — lifting it is what let polling clients defeat containment"
     );
     assert!(
         gained > 150_000_000,
         "probe slice must run full speed (>150ms of a 300ms slice), gained {}ms",
         gained / 1_000_000
     );
-
-    // No further commands: the fresh duty window re-freezes the
-    // still-hot realm — containment of an undriven burner is intact.
-    let t1 = std::time::Instant::now();
-    while !p.js_busy_frozen() && t1.elapsed() < std::time::Duration::from_secs(6) {
-        p.pump_event_loop_slice(200).await;
-    }
+    // Upfront, cancellation-safe pricing: the slice's own length left the
+    // budget before the pump started.
     assert!(
-        p.js_busy_frozen(),
-        "a still-hot realm must re-freeze one window after the last command"
+        p.probe_budget_ns <= 4_000_000_000 - 300_000_000,
+        "the probe must pay the slice price upfront, budget {}ms left",
+        p.probe_budget_ns / 1_000_000
     );
 }
 

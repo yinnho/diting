@@ -377,6 +377,7 @@ pub(super) fn session_thread(
                         actor.page.set_timer_background(0);
                         timer_background = 0;
                     }
+                    let duty_before = actor.page.inner.v8_active_ns();
                     match cmd {
                         SessionCommand::Navigate { url, reply } => actor.on_navigate(url, reply, &mut cmd_rx).await,
                         SessionCommand::NavigateCdp { url, reply } => actor.on_navigate_cdp(url, reply, &mut cmd_rx).await,
@@ -440,6 +441,24 @@ pub(super) fn session_thread(
                     }
                     drain_budget = 1500;
                     idle_slices = 0;
+                    // 11f duty enforcement on the command path. v8_active_ns
+                    // is fed by every poll_event_loop — idle slices AND the
+                    // pumping a command's eval/navigation afterlife does —
+                    // but the window sampling used to live only in the idle
+                    // pump, where a polling client's constantly-preempted
+                    // slices starved it: the freeze never tripped and the
+                    // burner ran at ~75% indefinitely (the hours-long spin
+                    // incident, reproduced). Sample here too — a command
+                    // always completes — and once frozen, park three times
+                    // what the command consumed: command-driven duty caps
+                    // at 25%, so polling can no longer pump the burner for
+                    // free. The park comes after the reply, so it costs the
+                    // client throughput, never latency on a healthy realm.
+                    let duty_spent = actor.page.inner.v8_active_ns().saturating_sub(duty_before);
+                    actor.page.inner.track_busy_window();
+                    if duty_spent > 0 && actor.page.inner.js_busy_frozen() {
+                        tokio::time::sleep(std::time::Duration::from_nanos(duty_spent.saturating_mul(3))).await;
+                    }
                 }
             })
             .await;
