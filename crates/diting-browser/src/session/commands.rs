@@ -312,6 +312,10 @@ pub enum SessionCommand {
         declaration: String,
         object_id: Option<String>,
         arguments: Vec<Value>,
+        /// The engine call's own by-value flag — DOM commands want the
+        /// result serialized directly; `Runtime.callFunctionOn` leaves it
+        /// false and settles by value afterwards instead.
+        by_value: bool,
         await_promise: bool,
         return_by_value: bool,
         timeout_ms: Option<u64>,

@@ -953,6 +953,7 @@ async fn forward(
                 declaration: args.declaration,
                 object_id: args.object_id,
                 arguments: args.arguments,
+                by_value: false,
                 await_promise: args.await_promise,
                 return_by_value: args.return_by_value,
                 timeout_ms: None,
@@ -998,6 +999,23 @@ async fn forward(
         .await
         .map_err(|err| runtime::engine_failure(session_msg(err)))?;
         return Ok(json!({}));
+    }
+    // The five `DOM.*` node commands — IR `CallOn`s orchestrated in
+    // `dom_run`: params read here, engine work on the session thread.
+    if matches!(
+        method,
+        "DOM.describeNode"
+            | "DOM.resolveNode"
+            | "DOM.getBoxModel"
+            | "DOM.getContentQuads"
+            | "DOM.scrollIntoViewIfNeeded"
+    ) {
+        let (value, side) = runtime::dom_run(&engine, method, &params).await?;
+        if let Some(side) = side {
+            let hub = HUB.lock().await;
+            side_frames(&hub, local, session, &side, out);
+        }
+        return Ok(value);
     }
     let mut result = send_command(&engine, |reply| SessionCommand::Cdp {
         method: method.to_string(),
@@ -1321,7 +1339,7 @@ fn event(session: Option<&str>, method: &str, params: Value) -> String {
     body.to_string()
 }
 
-fn session_msg(err: crate::session::SessionError) -> String {
+pub(super) fn session_msg(err: crate::session::SessionError) -> String {
     match err {
         crate::session::SessionError::NotFound(msg)
         | crate::session::SessionError::Expired(msg)
