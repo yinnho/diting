@@ -1,8 +1,8 @@
 //! Navigation, load events and Input.
 //!
 //! Every row was read off Chrome 158 first. What is not pinned on purpose:
-//! the words of a failed navigation's `errorText` — Chrome writes
-//! `net::ERR_*`, this bridge its own — and anything `Input` does to the
+//! the exact `net::ERR_*` a failed navigation gets beyond the refused
+//! connection (`tests/network.rs` pins that one) — and anything `Input` does to the
 //! page: the key and pointer events are the next batch's, so only what the
 //! commands answer is held here.
 
@@ -34,8 +34,9 @@ async fn navigate_answers_with_its_receipt() {
         assert_eq!(reply["isDownload"], json!(false), "{url}");
     }
 
-    // A navigation that fails still answers — with `errorText`, whose words
-    // are the bridge's own. `foo://bar` fails offline.
+    // A navigation that fails still answers — with a `net::ERR_*` as
+    // `errorText`. `foo://bar` fails offline; which name Chrome gives it
+    // (`ERR_UNKNOWN_URL_SCHEME`) is not read here, so it is the catch-all.
     let reply = client
         .run("Page.navigate", json!({ "url": "foo://bar" }), on)
         .await;
@@ -46,7 +47,7 @@ async fn navigate_answers_with_its_receipt() {
     assert!(
         reply["errorText"]
             .as_str()
-            .is_some_and(|text| !text.is_empty()),
+            .is_some_and(|text| text.starts_with("net::ERR_")),
         "{reply}"
     );
 }

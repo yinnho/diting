@@ -627,7 +627,7 @@ async fn load(hub: SharedHub, session: &str, url: &str) -> Result<(Out, Value), 
         }
         Err(err) => json!({
             "frameId": page.target_id,
-            "errorText": err,
+            "errorText": super::network_events::navigation_error(err),
             "isDownload": false,
             "loaderId": loader_of(page),
         }),
