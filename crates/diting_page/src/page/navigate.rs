@@ -214,6 +214,14 @@ impl Page {
     /// Session-history jump queued by page JS (`history.back()` past this
     /// document's first entry, `forward()` into seeded forward entries) —
     /// an absolute index into `self.history`.
+    /// Whether the page asked to step through session history across
+    /// documents (`history.back()` past this document's own entries).
+    pub fn has_pending_history_jump(&self) -> bool {
+        self.js
+            .as_ref()
+            .is_some_and(|js| js.has_pending_history_jump())
+    }
+
     pub fn take_pending_history_jump(&self) -> Option<i32> {
         if let Some(js) = &self.js {
             js.take_pending_history_jump()

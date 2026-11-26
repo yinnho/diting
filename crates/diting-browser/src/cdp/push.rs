@@ -48,7 +48,11 @@ pub(super) async fn follow(hub: SharedHub, target: String, engine: &str) {
                             target::renew_worlds(page);
                         }
                         let page = &hub.pages[&target];
-                        network_frames(&hub, 0, page, &nav.rows, &mut out);
+                        // A history step is served from where the browser kept
+                        // the document (`histjump-probe.cjs`): nothing is requested.
+                        if !nav.history {
+                            network_frames(&hub, 0, page, &nav.rows, &mut out);
+                        }
                         if nav.landed.is_some() {
                             target::nav_events(&hub, page, 0, &mut out);
                         }

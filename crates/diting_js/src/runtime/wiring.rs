@@ -105,6 +105,11 @@ impl JsRuntime {
 
     /// Take the session-history jump page JS queued (history.back/forward/
     /// go crossing a document boundary) — an absolute entry index.
+    /// Non-consuming peek at [`Self::take_pending_history_jump`].
+    pub fn has_pending_history_jump(&self) -> bool {
+        self.state.borrow().pending_history_jump.is_some()
+    }
+
     pub fn take_pending_history_jump(&self) -> Option<i32> {
         self.state.borrow_mut().pending_history_jump.take()
     }

@@ -1041,3 +1041,68 @@ async fn a_session_without_page_is_told_no_moves() {
         "Page events without Page.enable: {heard:?}"
     );
 }
+
+#[tokio::test]
+async fn stepping_back_and_forward_across_documents_really_does_and_is_told() {
+    let _guard = CDP_LOCK.lock().await;
+    let _net = crate::server::test_util::net_env_guard();
+    let (router, _site) = site();
+    let router = router
+        .route(
+            "/one",
+            axum::routing::get(|| async {
+                axum::response::Html("<html><body id=one>1</body></html>")
+            }),
+        )
+        .route(
+            "/two",
+            axum::routing::get(|| async {
+                axum::response::Html("<html><body id=two>2</body></html>")
+            }),
+        );
+    let (mut client, addr) = connect(router).await;
+    let origin = format!("http://{addr}");
+    let session = page_at(&mut client, 1, &format!("{origin}/one")).await;
+    let on = Some(session.as_str());
+    client.run("Page.enable", json!({}), on).await;
+    client.run("Network.enable", json!({}), on).await;
+    client
+        .run(
+            "Page.navigate",
+            json!({ "url": format!("{origin}/two") }),
+            on,
+        )
+        .await;
+    // Chrome 158 (`histjump-probe.cjs`): the step is served from where the
+    // browser kept the document, so the frame navigates and nothing is
+    // requested.
+    for (expression, path, body) in [
+        ("history.back(); 1", "/one", "one"),
+        ("history.forward(); 1", "/two", "two"),
+    ] {
+        client.events.clear();
+        client
+            .run("Runtime.evaluate", json!({ "expression": expression }), on)
+            .await;
+        let seen = client
+            .events_until("Page.frameNavigated", Duration::from_secs(8))
+            .await;
+        let navigated = event_params(&seen, "Page.frameNavigated")
+            .unwrap_or_else(|| panic!("{expression}: not told in {seen:?}"));
+        assert_eq!(
+            navigated["frame"]["url"],
+            format!("{origin}{path}"),
+            "{expression}"
+        );
+        assert!(
+            position_of(&seen, "Network.requestWillBeSent").is_none(),
+            "{expression}: a history step requests nothing: {seen:?}"
+        );
+        // The document really is the one stepped to — not just `location`.
+        assert_eq!(
+            client.eval("document.body.id", &session).await,
+            body,
+            "{expression}"
+        );
+    }
+}

@@ -109,6 +109,9 @@ pub enum SameDocumentKind {
 pub struct PageNavigation {
     /// Where the page is now; `None` when the navigation failed.
     pub landed: Option<(String, String)>,
+    /// The page stepped through its session history, so a browser serves
+    /// the document from where it was kept and requests nothing.
+    pub history: bool,
     pub rows: Vec<diting::diting_browser::page::NetworkEvent>,
 }
 
