@@ -36,6 +36,7 @@ pub(crate) mod emulation;
 mod envelope;
 mod objects;
 mod params;
+mod push;
 pub(crate) mod runtime;
 #[cfg(feature = "screenshot")]
 mod screenshot;
@@ -1088,6 +1089,14 @@ async fn forward(
 /// lifecycle when the debug tag arrives and then waits for `load`. A load
 /// that lands first is wiped by that clear.
 fn side_frames(hub: &Hub, local: u64, session: &str, side: &Value, out: &mut Out) {
+    if let Ok(page) = page_of(hub, session) {
+        page_side_frames(hub, local, page, side, out);
+    }
+}
+
+/// [`side_frames`] for a page already in hand — what the push task has,
+/// there being no session whose command it answers.
+fn page_side_frames(hub: &Hub, local: u64, page: &PageSlot, side: &Value, out: &mut Out) {
     let console = side
         .get("console")
         .and_then(|v| v.as_array())
@@ -1100,9 +1109,6 @@ fn side_frames(hub: &Hub, local: u64, session: &str, side: &Value, out: &mut Out
     if console.is_empty() && !write_nav {
         return;
     }
-    let Ok(page) = page_of(hub, session) else {
-        return;
-    };
     let asked = side
         .get("contextId")
         .and_then(|v| v.as_i64())

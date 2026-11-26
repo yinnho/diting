@@ -1799,3 +1799,32 @@ async fn serialization_options_say_whether_the_value_is_asked_for() {
         );
     }
 }
+
+/// A console call the page makes on its own, between commands, reaches a
+/// socket that has `Runtime` on: pushed as the session drains it, with no
+/// command in flight to carry it.
+#[tokio::test]
+async fn a_console_call_between_commands_is_pushed() {
+    let (_guard, mut client, session) = bridge("about:blank").await;
+    let on = Some(session.as_str());
+    client.run("Runtime.enable", json!({}), on).await;
+    client
+        .run(
+            "Runtime.evaluate",
+            json!({ "expression": "setTimeout(function () { console.warn('later'); }, 300); 1" }),
+            on,
+        )
+        .await;
+    client.events.clear();
+    // Nothing is sent from here: the timer fires on the idle page.
+    let seen = client
+        .events_until("Runtime.consoleAPICalled", Duration::from_secs(5))
+        .await;
+    let call = seen
+        .iter()
+        .find(|event| event["method"] == "Runtime.consoleAPICalled")
+        .expect("the page's own console call was pushed");
+    assert_eq!(call["params"]["type"], "warning");
+    assert_eq!(call["params"]["args"][0]["value"], "later");
+    assert_eq!(call["sessionId"], session);
+}

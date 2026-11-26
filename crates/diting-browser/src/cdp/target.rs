@@ -342,6 +342,7 @@ async fn create_target(
         dom_next: 1,
         worlds: vec![World { id: 1, name: None }],
     };
+    super::push::follow(hub.clone(), page.target_id.clone(), &page.engine_session).await;
     let mut out = Out::default();
     let mut hub = hub.lock().await;
     let (discover, auto_attach, waiting) = hub.flags(client);

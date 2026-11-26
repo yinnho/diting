@@ -13,7 +13,7 @@ use tokio::sync::mpsc;
 
 use crate::page::Page;
 
-use super::commands::SessionCommand;
+use super::commands::{SessionCommand, SessionEvent};
 
 /// Monotonic counter for unique session IDs within a process.
 pub(super) static SESSION_COUNTER: AtomicU64 = AtomicU64::new(1);
@@ -151,6 +151,32 @@ pub(crate) fn drain_console(
         ring.pop_front();
     }
     calls
+}
+
+/// [`drain_console`], and the new entries go out to every subscriber —
+/// the drain for everything that is not a command reply. A reply carries
+/// its own console calls (the face needs them before its answer), so it
+/// drains quietly; here nothing waits on the entries, they are pushed.
+/// A subscriber whose receiver is gone is dropped.
+pub(crate) fn drain_console_publish(
+    page: &mut Page,
+    ring: &mut std::collections::VecDeque<Value>,
+    subs: &mut Vec<mpsc::UnboundedSender<SessionEvent>>,
+) {
+    let calls = drain_console(page, ring);
+    if calls.is_empty() || subs.is_empty() {
+        return;
+    }
+    subs.retain(|sub| {
+        calls.iter().all(|(level, text, url)| {
+            sub.send(SessionEvent::Console {
+                level: level.clone(),
+                text: text.clone(),
+                url: url.clone(),
+            })
+            .is_ok()
+        })
+    });
 }
 
 /// Optional narrowing for a Console read (session tool + HTTP query share

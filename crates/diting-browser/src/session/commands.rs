@@ -5,7 +5,7 @@
 use diting::diting_js::runtime::{EvalOutcome, RemoteObjectInfo};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 
 use super::state::{ConsoleFilter, SessionError};
 
@@ -57,6 +57,19 @@ pub enum EmulateOp {
     },
     /// `Emulation.clearDeviceMetricsOverride`.
     ClearDeviceMetrics,
+}
+
+/// Something the page did on its own, pushed to whoever subscribed — not
+/// the answer to a command. The faces project it in their own words.
+#[derive(Clone, Debug)]
+pub enum SessionEvent {
+    /// A console call: its level (`log`, `warn`, `error`, ...), text and
+    /// the URL of the script that made it.
+    Console {
+        level: String,
+        text: String,
+        url: String,
+    },
 }
 
 /// A `Page.*`/`Network.*` page-level op — fields already read and
@@ -400,6 +413,13 @@ pub enum SessionCommand {
     /// An `Emulation.*` page-state pin — see [`EmulateOp`].
     Emulate {
         op: EmulateOp,
+        reply: oneshot::Sender<Result<(), String>>,
+    },
+    /// Push this session's page events to `sink` from now on, whether or
+    /// not a command is in flight. The subscription ends when the
+    /// receiver is dropped.
+    Subscribe {
+        sink: mpsc::UnboundedSender<SessionEvent>,
         reply: oneshot::Sender<Result<(), String>>,
     },
     /// A `Page.*`/`Network.*` page-level op — see [`PageOp`].
