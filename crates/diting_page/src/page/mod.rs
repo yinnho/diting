@@ -17,6 +17,7 @@ use self::viewport::{EmulatedMedia, ScreenOverride};
 // paths consumers use are unchanged — everything below still hangs off
 // this module.
 mod eval;
+mod history;
 mod load;
 mod navigate;
 mod net;

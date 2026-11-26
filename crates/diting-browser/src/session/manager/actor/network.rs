@@ -8,6 +8,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use super::super::super::commands::{
     NavigateCdpReply, PageNavigation, SameDocumentKind, SessionCommand, SessionEvent,
+    SessionNavResponse,
 };
 use super::super::super::interact::{merge_dom_candidates, DOM_MEDIA_SCRIPT};
 use super::SessionActor;
@@ -59,6 +60,40 @@ impl SessionActor {
         }
         let failure = self.last_nav_failure.take().unwrap_or(NetFailure::Other);
         let _ = reply.send(Ok((nav, rows, failure)));
+    }
+
+    /// `SessionCommand::NavigateHistoryCdp`: jump the cursor and navigate,
+    /// the rows claimed exactly as a fresh navigation's are.
+    pub(super) async fn on_navigate_history_cdp(&mut self, index: usize, reply: NavigateCdpReply) {
+        self.last_nav_failure = None;
+        let nav = match self.page.inner.jump_history_to(index).await {
+            Ok(_) => Ok(SessionNavResponse {
+                url: self.page.url(),
+                title: Some(self.page.inner.title()),
+                challenge: None,
+                redirected_from: self.page.inner.navigation_record().redirect_chain.clone(),
+                preloads: Vec::new(),
+            }),
+            Err(e) => {
+                self.last_nav_failure = Some(e.failure());
+                Err(format!("navigation failed: {e}"))
+            }
+        };
+        let rows = self.page.inner.network_events_since(self.net_seen);
+        if let Some(last) = rows.last() {
+            self.net_seen = last.seq;
+        }
+        let failure = self.last_nav_failure.take().unwrap_or(NetFailure::Other);
+        let _ = reply.send(Ok((nav, rows, failure)));
+    }
+
+    /// `SessionCommand::NavigationHistory`: the URLs and where the cursor is.
+    pub(super) fn on_navigation_history(
+        &mut self,
+        reply: oneshot::Sender<Result<(Vec<String>, usize), String>>,
+    ) {
+        let inner = &self.page.inner;
+        let _ = reply.send(Ok((inner.history.clone(), inner.history_index)));
     }
 
     /// The stored response body of `request_id`, if the page kept one.

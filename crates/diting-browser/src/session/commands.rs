@@ -191,6 +191,18 @@ pub enum SessionCommand {
         url: String,
         reply: NavigateCdpReply,
     },
+    /// [`SessionCommand::NavigateCdp`] for a step inside the session
+    /// history (`Page.navigateToHistoryEntry`): the entry at `index` is
+    /// navigated to, the cursor moves with it.
+    NavigateHistoryCdp {
+        index: usize,
+        reply: NavigateCdpReply,
+    },
+    /// The session history as `Page.getNavigationHistory` reports it:
+    /// the entry URLs in visit order and the cursor's position.
+    NavigationHistory {
+        reply: oneshot::Sender<Result<(Vec<String>, usize), String>>,
+    },
     /// Load literal HTML as the page's content (local, free — no network,
     /// no page budget, no rate gate). Same load path as a navigation so
     /// DOM/JS state machinery treats it as a real page.

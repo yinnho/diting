@@ -1635,7 +1635,6 @@ const NOT_ANSWERED: &[(&str, Level)] = &[
     ("Page.setInterceptFileChooserDialog", Level::Page),
     ("Page.setFontFamilies", Level::Page),
     ("Page.addScriptToEvaluateOnLoad", Level::Page),
-    ("Page.getNavigationHistory", Level::Page),
     ("Runtime.getProperties", Level::Page),
     ("Runtime.releaseObjectGroup", Level::Page),
     ("Runtime.runScript", Level::Page),

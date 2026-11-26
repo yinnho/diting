@@ -45,6 +45,7 @@ pub(super) async fn follow(hub: SharedHub, target: String, engine: &str) {
                                 page.url = url.clone();
                                 page.title = title.clone();
                             }
+                            super::remember_doc_rows(page, &nav.rows);
                             target::renew_worlds(page);
                         }
                         let page = &hub.pages[&target];
