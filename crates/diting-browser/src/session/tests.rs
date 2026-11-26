@@ -5494,3 +5494,58 @@ async fn test_await_reply_gives_up_on_zombie_thread() {
     release_tx.send(()).unwrap();
     stuck.join().unwrap();
 }
+
+/// A console call made through the CDP-shaped commands (`EvalRemote`,
+/// `CallOn`) reaches the CDP reply *and* the HTTP console ring. The
+/// engine queue is emptied once, by `drain_console`, and both consumers
+/// are fed from that one drain — neither takes it from the other.
+#[tokio::test]
+async fn cdp_commands_share_console_with_the_http_ring() {
+    let mut mgr = SessionManager::new();
+    let sid = mgr.create(
+        Some("about:blank"),
+        false,
+        vec![],
+        None,
+        None,
+        None,
+        false,
+        false,
+        None,
+    );
+
+    let (_, _, calls, _) = mgr
+        .send(&sid, |reply| SessionCommand::EvalRemote {
+            script: "console.error('via evaluate'); 1".to_string(),
+            await_promise: false,
+            return_by_value: true,
+            timeout_ms: None,
+            reply,
+        })
+        .await
+        .unwrap();
+    assert!(
+        calls.iter().any(|(_, text, _)| text == "via evaluate"),
+        "CDP reply carries the call, got {calls:?}"
+    );
+
+    let out = mgr
+        .send(&sid, |reply| SessionCommand::Console {
+            filter: ConsoleFilter::default(),
+            reply,
+        })
+        .await
+        .unwrap();
+    let v: Value = serde_json::from_str(&out).expect("console JSON");
+    let texts: Vec<&str> = v["messages"]
+        .as_array()
+        .expect("messages array")
+        .iter()
+        .filter_map(|m| m["text"].as_str())
+        .collect();
+    assert!(
+        texts.contains(&"via evaluate"),
+        "HTTP ring sees what CDP drove, got {texts:?}"
+    );
+    assert!(mgr.close_and_wait(&sid).await);
+}

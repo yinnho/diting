@@ -130,16 +130,19 @@ impl Serialize for SessionError {
 /// Called after every command so the queue drains regularly (a long
 /// non-CDP session would otherwise grow it unboundedly) and by the Console
 /// command itself.
-pub(crate) fn drain_console(page: &mut Page, ring: &mut std::collections::VecDeque<Value>) {
+pub(crate) fn drain_console(
+    page: &mut Page,
+    ring: &mut std::collections::VecDeque<Value>,
+) -> Vec<(String, String, String)> {
     let calls = page.inner.take_pending_console_calls();
     if calls.is_empty() {
-        return;
+        return calls;
     }
     let ts_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0);
-    for (level, msg, log_url) in calls {
+    for (level, msg, log_url) in &calls {
         ring.push_back(serde_json::json!({
             "ts_ms": ts_ms, "level": level, "text": msg, "url": log_url,
         }));
@@ -147,6 +150,7 @@ pub(crate) fn drain_console(page: &mut Page, ring: &mut std::collections::VecDeq
     while ring.len() > CONSOLE_RING_CAP {
         ring.pop_front();
     }
+    calls
 }
 
 /// Optional narrowing for a Console read (session tool + HTTP query share
