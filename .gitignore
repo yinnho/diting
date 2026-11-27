@@ -65,6 +65,7 @@ __pycache__/
 # 已跟踪的根下文件不受影响——ignore 只管未跟踪的东西。
 # 新增顶层目录时在这里补一行 !/名字/，否则 git 看不见它。
 /*
+!.gitattributes
 !/.cargo/
 !/.config/
 !/.github/

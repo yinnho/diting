@@ -1,0 +1,42 @@
+# GitHub Linguist classification mirrors the repository ownership boundaries.
+# These attributes describe what the files are; they are not a substitute for
+# the asset ledger or the structural dependency boundaries enforced in CI.
+
+# Vendored third-party crates documented in crates/VENDORED.md. They are
+# maintained here, but they are not first-party source for language statistics.
+crates/diting_wire/** linguist-vendored
+crates/diting_wire_proto/** linguist-vendored
+crates/diting_wire_rt/** linguist-vendored
+crates/diting_wire_h2/** linguist-vendored
+crates/diting_profiles/** linguist-vendored
+crates/diting_socks/** linguist-vendored
+crates/diting_png/** linguist-vendored
+crates/diting_html5ever/** linguist-vendored
+crates/diting_markup5ever/** linguist-vendored
+crates/diting_cssparser/** linguist-vendored
+crates/diting_selectors/** linguist-vendored
+crates/diting_swash/** linguist-vendored
+crates/diting_taffy/** linguist-vendored
+
+# Partial upstream intake embedded in a first-party crate.
+crates/diting_layout/src/image/jpeg_encode.rs linguist-vendored
+
+# Checked-in generated JavaScript/runtime artifacts. Their sources of truth are
+# the generators, specs, and pinned truth inputs under tools/webplatform/.
+crates/diting_js/js/platform/gen/*.gen.js linguist-generated
+crates/diting_js/js/platform_bundle.js linguist-generated
+crates/diting_js/js/global_surface.js linguist-generated
+crates/diting_js/js/canvas_face.js linguist-generated
+crates/diting_js/js/window_order.js linguist-generated
+crates/diting_js/js/stub_members.js linguist-generated
+crates/diting_js/js/font_metrics.js linguist-generated
+crates/diting_js/js/font_metrics_index.json linguist-generated
+crates/diting_js/js/font_metrics_data.zst linguist-generated
+crates/diting_js/js/webgl_ext.js linguist-generated
+crates/diting_js/js/sym_fix.js linguist-generated
+crates/diting_js/js/svg_filters.js linguist-generated
+crates/diting_js/js/shape_fix.js linguist-generated
+crates/diting_js/js/method_ladders.js linguist-generated
+crates/diting_js/js/lift_own.js linguist-generated
+crates/diting_js/js/internal_names.js linguist-generated
+crates/diting_js/js/hide_priv.js linguist-generated

@@ -276,6 +276,17 @@ patches, ours included — `diting_wire` degrades the sigalg lead then
 MIT-licensed part of this stack: its `LICENSE` is kept and `NOTICE` carries the attribution. It is wired in under
 the dependency alias `http2` (`package = "diting_wire_h2"`) so the vendored sources keep their `http2::` paths.
 
+## Repository classification
+
+`.gitattributes` mirrors the ownership boundary documented here: the vendored
+crates above carry `linguist-vendored`, and checked-in generator outputs carry
+`linguist-generated`. This is an honest classification layer for GitHub's
+byte-based language statistics, not a substitute for the asset ledger or the
+structural boundary itself. New third-party source intakes must update both
+this document and `.gitattributes`; new generated runtime artifacts must be
+classified there and registered in `tools/asset-ledger.json` when they cross
+the asset-gate threshold.
+
 ## Security
 We own the HTTP/TLS client layer now. Watch: the upstream `0x676e67/wreq*` release notes and advisories,
 `cargo audit` for `http2`/`btls`, and upstream `btls-sys` releases — bundle a newer BoringSSL snapshot
