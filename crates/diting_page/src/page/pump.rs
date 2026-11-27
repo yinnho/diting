@@ -103,8 +103,9 @@ impl Page {
             }
             if burst_due {
                 if let Some(js) = &mut self.js {
-                    // Throttled variant (#224): symmetric headroom, else the 50ms
-                    // burst pins the thread for 5s inside the long SPA patience.
+                    // Throttled variant (#224): the 50ms host budget ends at
+                    // the next task boundary; only one never-ending task hits
+                    // the pump family's spin fence.
                     let before = js.v8_active_ns();
                     let _ = js.run_event_loop_bounded_throttled(work_ms).await;
                     let gained = js.v8_active_ns().saturating_sub(before);

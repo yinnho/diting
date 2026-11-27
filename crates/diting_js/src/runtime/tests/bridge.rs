@@ -554,6 +554,97 @@ async fn eval_wait_never_beheads_a_page_wall() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn pump_never_beheads_a_slow_page_wall() {
+    // The pump family's first wall used to be budget+5s. A legitimate 6.5s
+    // commerce-SPA commit-shaped task was therefore beheaded on its first
+    // boot, stranding the no-finally flag at 1 before any patience escalation
+    // could help — the live Tmall #327/app.pageState failure. One task now
+    // gets minute-scale patience, so the task finishes intact.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate(
+        "globalThis.S = { ctx: 0, wallDone: 0, after: 0 };
+         setTimeout(() => { S.ctx = 1; const t = Date.now(); while (Date.now() - t < 6500) {} S.ctx = 0; S.wallDone++; }, 0);
+         setTimeout(() => { S.after++; }, 0);",
+    )
+    .unwrap();
+    let _ = rt.run_event_loop_bounded(100).await;
+    let _ = rt.run_event_loop_bounded(200).await;
+    assert_eq!(
+        rt.evaluate("[S.ctx, S.wallDone, S.after]").unwrap(),
+        serde_json::json!([0, 1, 1]),
+        "the slow task and its successor must both run to completion"
+    );
+    assert_eq!(
+        rt.watchdog_fired_total(),
+        0,
+        "a slow legitimate task is not a spin"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn pump_watchdog_rearms_at_task_boundaries() {
+    // Three 300ms tasks in a chain are 900ms of continuous initialization,
+    // past the 500ms whole-window wall this test arms. They are still legal:
+    // the pump watchdog measures one synchronous task and is pushed at each
+    // task boundary. Before the heartbeat, the fire landed inside task two.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate(
+        "globalThis.S = { done: 0, poisoned: 0 };
+         globalThis.wall = (n) => {
+           if (n >= 3) return;
+           setTimeout(() => {
+             S.poisoned = 1;
+             const t = Date.now(); while (Date.now() - t < 300) {}
+             S.poisoned = 0; S.done++; wall(n + 1);
+           }, 0);
+         };
+         wall(0);",
+    )
+    .unwrap();
+    for _ in 0..8 {
+        let _ = rt
+            .run_event_loop_bounded_with_task_watchdog(100, std::time::Duration::from_millis(500))
+            .await;
+        if rt.evaluate("S.done").unwrap().as_f64().unwrap_or(0.0) >= 3.0 {
+            break;
+        }
+    }
+    assert_eq!(
+        rt.evaluate("[S.poisoned, S.done]").unwrap(),
+        serde_json::json!([0, 3]),
+        "every task in the chain must finish intact"
+    );
+    assert_eq!(
+        rt.watchdog_fired_total(),
+        0,
+        "a chain of legal tasks is not one overrun"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn pump_watchdog_still_cuts_one_true_spin() {
+    // The task-boundary heartbeat is not a license to spin: one synchronous
+    // task that never reaches the next boundary still meets the watchdog.
+    // The test-only 150ms wall keeps the regression fast; production uses
+    // PUMP_TASK_WATCHDOG_MS.
+    let mut rt = setup_runtime("<html><body></body></html>");
+    rt.evaluate("setTimeout(() => { while (true) {} }, 0);")
+        .unwrap();
+    let began = std::time::Instant::now();
+    let _ = rt
+        .run_event_loop_bounded_with_task_watchdog(50, std::time::Duration::from_millis(150))
+        .await;
+    assert!(
+        began.elapsed() < std::time::Duration::from_secs(5),
+        "the spin must be bounded, not parked behind the task chain"
+    );
+    assert!(
+        rt.watchdog_fired_total() >= 1,
+        "a single never-ending task must still fire the watchdog"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn eval_result_is_seen_at_the_next_task_boundary() {
     // A page that chains 600ms synchronous walls back to back. An eval's
     // 100ms promise settles in the task after the current wall; the host

@@ -5,7 +5,6 @@
 //! page helpers a navigation calls.
 
 use diting_dom::{parse_html, DomTree};
-use diting_js::runtime::JsRuntime;
 use diting_net::{NetError, Response};
 use url::Url;
 
@@ -302,8 +301,8 @@ impl Page {
     /// timers tick. A page with nothing pending leaves on the 500ms fast
     /// path (upstream a6bb741). `DITING_DYNAMIC_SCRIPT_SETTLE_MS`
     /// (default 3s) still caps a dynamic script or stylesheet fetch. A
-    /// live ES `import()` keeps the loop turning until that graph
-    /// finishes; the same number is only its sync-spin watchdog budget.
+    /// live ES `import()` keeps the loop turning until that graph finishes;
+    /// synchronous work inside the pump is bounded separately per task.
     pub(super) async fn settle_pending_work(&mut self) {
         let Some(js) = self.js.as_mut() else { return };
         let dynamic_settle_ms = std::env::var("DITING_DYNAMIC_SCRIPT_SETTLE_MS")
@@ -311,21 +310,11 @@ impl Page {
             .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(3_000)
             .max(500);
-        // Watchdog follows the 批187 standard (budget + WATCHDOG_HEADROOM_MS):
-        // a legitimate SPA commit synchronously mounting editors blocks the
-        // loop for seconds past the settle budget (#100/#111 family), and the
-        // old +250ms razor terminated it mid-commit, poisoning React's
-        // executionContext. A true spin still trips at +5s; the #66
-        // duty-cycle freeze remains the sustained-burn backstop. Pump-family
-        // arm (#224): a realm already beheaded N times gets its settle
-        // budget scaled ×2^min(N,7) — doudian's boot fired this wall 15
-        // times against minute-scale legal schema/form JS and severed the
-        // prefill chain on every fire.
-        let settle_wd = js.arm_watchdog_pump(std::time::Duration::from_millis(
-            dynamic_settle_ms + JsRuntime::WATCHDOG_HEADROOM_MS,
-        ));
-        let spin_wall =
-            std::time::Duration::from_millis(dynamic_settle_ms + JsRuntime::WATCHDOG_HEADROOM_MS);
+        // Synchronous work inside each pump is bounded by the pump family's
+        // per-task watchdog (#224/#100): legitimate commerce-SPA commits may
+        // chain for minutes at task boundaries, while one never-ending task
+        // is still cut. `dynamic_settle_ms` remains an ASYNC module/script
+        // patience below; it is no longer also miscast as a sync wall.
         let started = tokio::time::Instant::now();
         let deadline = started + tokio::time::Duration::from_millis(500);
         let dynamic_deadline = started + tokio::time::Duration::from_millis(dynamic_settle_ms);
@@ -336,13 +325,6 @@ impl Page {
             // bumps the dynamic-script counter; treating that as "keep
             // pumping" held navigation until the 30s deadline (#203).
             let import_pending = js.has_pending_dynamic_imports();
-            if import_pending {
-                // The armed wall is for a poll that never returns (a sync
-                // spin). Each yield slides it forward, so a route import()
-                // that keeps the loop turning is not killed at 3s+5s while
-                // its graph is still evaluating.
-                settle_wd.push_deadline(spin_wall);
-            }
             // 500ms fast path when nothing is in flight. A dynamic script
             // fetch still stops at `dynamic_settle_ms`. A live import() does
             // not: Angular's component route downloads the sidenav graph,
@@ -354,42 +336,34 @@ impl Page {
             {
                 break;
             }
-            let result =
-                tokio::time::timeout(tokio::time::Duration::from_millis(10), js.run_event_loop())
-                    .await;
-
-            match result {
-                Ok(Ok(())) => {
-                    if self.http_client.active_requests() == 0 && !js.has_pending_module_load() {
-                        idle_count += 1;
-                        if idle_count >= 2 {
-                            break;
-                        }
-                        tokio::task::yield_now().await;
-                    } else {
-                        idle_count = 0;
-                        tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+            let idle = js.run_event_loop_until_idle(10).await;
+            if idle {
+                if self.http_client.active_requests() == 0 && !js.has_pending_module_load() {
+                    idle_count += 1;
+                    if idle_count >= 2 {
+                        break;
                     }
-                }
-                Ok(Err(_)) => break,
-                Err(_) => {
+                    tokio::task::yield_now().await;
+                } else {
                     idle_count = 0;
-                    // The loop is parked on a far-off timer, not on work:
-                    // when nothing is in flight and nothing fires inside
-                    // the rest of the fast-path window, waiting it out
-                    // only adds latency.
-                    if self.http_client.active_requests() == 0 && !js.has_pending_module_load() {
-                        let left = deadline
-                            .saturating_duration_since(tokio::time::Instant::now())
-                            .as_millis() as u64;
-                        if js.settle_quiet(left) {
-                            break;
-                        }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+                }
+            } else {
+                idle_count = 0;
+                // The loop is parked on a far-off timer, not on work:
+                // when nothing is in flight and nothing fires inside
+                // the rest of the fast-path window, waiting it out
+                // only adds latency.
+                if self.http_client.active_requests() == 0 && !js.has_pending_module_load() {
+                    let left = deadline
+                        .saturating_duration_since(tokio::time::Instant::now())
+                        .as_millis() as u64;
+                    if js.settle_quiet(left) {
+                        break;
                     }
                 }
             }
         }
-        js.disarm_watchdog(settle_wd);
         js.trim_heap();
     }
 
@@ -1167,18 +1141,10 @@ impl Page {
                 _ => 0,
             };
 
-            // Same hazard as the post-script settle, same 批187 standard: a
-            // synchronous commit can pin the thread past the 5s network-idle
-            // deadline, so the watchdog arms WATCHDOG_HEADROOM_MS past it
-            // instead of the old +500ms razor that killed real commits
-            // mid-flight (#100/#111 family). Pump-family arm (#224): budget
-            // escalates with the realm's fire history, same as the settle
-            // wall above.
-            let netidle_wd = self.js.as_mut().map(|js| {
-                js.arm_watchdog_pump(std::time::Duration::from_millis(
-                    5_000 + JsRuntime::WATCHDOG_HEADROOM_MS,
-                ))
-            });
+            // Same hazard as the post-script settle: a synchronous commit can
+            // pin the thread past the 5s network-idle deadline. Each pump is
+            // bounded per task rather than against the whole idle window, so a
+            // slow legitimate commit finishes while one true spin remains cut.
             let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);
             let mut idle_since: Option<tokio::time::Instant> = None;
 
@@ -1208,21 +1174,12 @@ impl Page {
                 }
 
                 if let Some(js) = &mut self.js {
-                    let _ = tokio::time::timeout(
-                        tokio::time::Duration::from_millis(50),
-                        js.run_event_loop(),
-                    )
-                    .await;
+                    let _ = js.run_event_loop_until_idle(50).await;
                 } else {
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                 }
             }
 
-            if let Some(token) = netidle_wd {
-                if let Some(js) = self.js.as_mut() {
-                    js.disarm_watchdog(token);
-                }
-            }
             self.lifecycle = LifecycleState::NetworkIdle;
         }
 
