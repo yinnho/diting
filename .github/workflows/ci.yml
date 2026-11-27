@@ -68,6 +68,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Freshness gate
         run: tools/webplatform/check_fresh.sh
+      - name: Tracked asset gate
+        run: python3 scripts/check_assets.py
       - name: Clean-room provenance ratchet
         run: python3 tools/check_provenance.py
       - name: Chrome-version coherence gate

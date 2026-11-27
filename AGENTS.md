@@ -10,6 +10,7 @@ scan job, not CI; don't read it as green).
 python3 scripts/audit_layers.py   # layering R1-R3 + god-file ratchet (grandfathered files only shrink)
 python3 scripts/gate_borrow.py    # RefCell guard in an `if let` / `match` / `for` head, re-borrowed in the block
 tools/webplatform/check_fresh.sh  # generated JS must equal what the checked-in generators emit
+python3 scripts/check_assets.py   # tracked large-file ownership/size ledger; unknown or growing assets fail
 cargo test --workspace --features screenshot   # if the rusty_v8 fetch stalls, point RUSTY_V8_ARCHIVE at a local copy
 ```
 
