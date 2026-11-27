@@ -14,8 +14,9 @@ pub mod wreq_client;
 pub use diting_wire as wire;
 
 pub use client::{
-    env_allows_private_network, CallbackRegistry, HttpClient, InFlightScripted, NetError,
-    RedirectHop, RequestCallback, RequestInfo, ResourceType, Response, ResponseCallback,
+    env_allows_private_network, CallbackRegistry, HttpClient, InFlightScripted,
+    InterceptResolution, InterceptedRequest, NetError, RedirectHop, RequestCallback, RequestInfo,
+    ResourceType, Response, ResponseCallback, INTERCEPT_RESOLUTION_TIMEOUT_MS,
 };
 pub use cookies::CookieJar;
 pub use encoding::{

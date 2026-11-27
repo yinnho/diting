@@ -11,6 +11,62 @@ use url::Url;
 use super::metadata::ResourceType;
 use super::Response;
 
+/// CDP Fetch-domain resolution: what a client answers a paused request
+/// with. Produced by the CDP bridge's `Fetch.continueRequest` /
+/// `fulfillRequest` / `failRequest` handlers.
+#[derive(Debug)]
+pub enum InterceptResolution {
+    Continue {
+        url: Option<String>,
+        method: Option<String>,
+        headers: Option<HashMap<String, String>>,
+        body: Option<Vec<u8>>,
+    },
+    Fulfill {
+        status: u16,
+        headers: HashMap<String, String>,
+        body: Vec<u8>,
+    },
+    Fail {
+        reason: String,
+    },
+}
+
+/// A paused request surfaced to the interception channel (CDP
+/// `Fetch.requestPaused` shape). The resolver answers with an
+/// `InterceptResolution`. Field readers are the CDP layer, which mints its
+/// own pause ids; engine code only moves the struct through the channel.
+#[derive(Debug)]
+pub struct InterceptedRequest {
+    pub url: String,
+    pub method: String,
+    pub headers: HashMap<String, String>,
+    /// The request body as raw bytes (`postData` on the wire is base64).
+    /// `None` for requests that carry no body.
+    pub post_data: Option<Vec<u8>>,
+    pub resource_type: String,
+    /// The network-row id this request will be recorded under, minted at
+    /// the pause point when the pause point shares a scope with the row's
+    /// recording (a JS fetch inside its op, a scripted subresource at its
+    /// call site). The CDP layer pairs `Fetch.requestPaused` with the
+    /// row's `Network.requestWillBeSent` on this id; empty where the pause
+    /// sits inside the transport, below the recording scope, and pairing
+    /// is impossible. Document pauses leave it empty too: a document's
+    /// wire id is its loader's, which the CDP layer numbers itself.
+    pub request_id: String,
+    pub resolver: tokio::sync::oneshot::Sender<InterceptResolution>,
+}
+
+/// How long a paused request waits for a CDP client's resolution before
+/// falling through to the real request (Continue semantics). The CDP bridge
+/// can only answer between websocket reads, so a pause raised inside a
+/// command that itself waits on the fetch (a navigate, an evaluate of a
+/// fetch expression) is bounded: without it such a call would hang forever.
+/// Real clients resolve in milliseconds; the default only shows up on
+/// client-less pages. Tests shorten it via the atomic.
+pub static INTERCEPT_RESOLUTION_TIMEOUT_MS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(10_000);
+
 /// A request about to be sent (or just answered), as seen by an
 /// on_request / on_response observer. Headers are the fully-built set the
 /// transport sent, lowercased like `Response.headers`.
@@ -34,6 +90,17 @@ pub struct CallbackRegistry {
     on_request: RwLock<Vec<(u64, RequestCallback)>>,
     on_response: RwLock<Vec<(u64, ResponseCallback)>>,
     id_counter: std::sync::atomic::AtomicU64,
+    /// The Fetch-domain interception channel, armed by `Fetch.enable` via
+    /// `Page::set_fetch_intercept`. Held under a std mutex: readers take it
+    /// once per request hop on the async path, and a std lock's critical
+    /// section is a clone — no await can sit inside it.
+    intercept_tx: std::sync::Mutex<Option<tokio::sync::mpsc::UnboundedSender<InterceptedRequest>>>,
+    /// Mints row ids for pauses raised at subresource call sites, which sit
+    /// outside the page's own counter. `isub-{N}` shares no format with the
+    /// page rows' `{page}.{counter}` or the JS rows' `fetch-{N}`, so the id
+    /// spaces never collide within a page — and the registry itself is
+    /// page-scoped, so uniqueness across pages is never needed.
+    intercept_id_counter: std::sync::atomic::AtomicU64,
 }
 
 impl CallbackRegistry {
@@ -42,7 +109,44 @@ impl CallbackRegistry {
             on_request: RwLock::new(Vec::new()),
             on_response: RwLock::new(Vec::new()),
             id_counter: std::sync::atomic::AtomicU64::new(1),
+            intercept_tx: std::sync::Mutex::new(None),
+            intercept_id_counter: std::sync::atomic::AtomicU64::new(1),
         }
+    }
+
+    /// A fresh row id for an interception pause raised at a call site —
+    /// recorded into the pause so the row, written when the fetch lands,
+    /// can be rekeyed to it and the CDP pairing holds.
+    pub fn mint_intercept_row_id(&self) -> String {
+        format!(
+            "isub-{}",
+            self.intercept_id_counter
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        )
+    }
+
+    /// Arm / disarm request interception for every fetch this registry
+    /// sees. `Some(tx)` routes matching requests through the channel as
+    /// `InterceptedRequest`s; `None` disarms. The send side is the CDP
+    /// bridge's drainer.
+    pub fn set_intercept_tx(
+        &self,
+        tx: Option<tokio::sync::mpsc::UnboundedSender<InterceptedRequest>>,
+    ) {
+        *self
+            .intercept_tx
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = tx;
+    }
+
+    /// The armed interception channel, cloned for one pause. `None` when
+    /// interception is off — the overwhelmingly common case, so callers
+    /// check this before building a pause payload.
+    pub fn intercept_tx(&self) -> Option<tokio::sync::mpsc::UnboundedSender<InterceptedRequest>> {
+        self.intercept_tx
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 
     fn next_id(&self) -> u64 {

@@ -380,7 +380,10 @@ async fn create_target(
         url,
         title,
         loader: 1,
+        announced: std::collections::HashSet::new(),
+        announced_order: std::collections::VecDeque::new(),
         doc_rows: std::collections::HashMap::new(),
+        fetch: None,
         // The main world is there from the start, as in Chrome: a context
         // id names it before any session turns `Runtime` on.
         next_ctx: 2,
