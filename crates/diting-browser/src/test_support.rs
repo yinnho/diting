@@ -9,11 +9,6 @@
 //! lock is behaviorally identical to the engine's flag+env guard
 //! (1f7486c pattern, split-lore noted in ARCHITECTURE.md §4).
 
-/// Serializes product tests that read or mutate
-/// `DITING_ALLOW_PRIVATE_NETWORK` — process env is shared across
-/// parallel test threads.
-pub(crate) static PRIVATE_NET_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
 /// Set `DITING_ALLOW_FILE_ACCESS` for the duration of a test: the
 /// gate is off by default and the env half is read live, so the drop guard
 /// removing the var restores the closed posture even on panic (tests run
