@@ -2,15 +2,28 @@
 // lives with diting_js's build.rs, the Chrome target with diting_env's.
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    // Re-embed the commit when HEAD moves (branch switches change HEAD;
-    // same-branch commits move refs/heads/<branch>). Ask git where those
-    // live: this crate left the repo root in the #58 move, so the old
-    // `.git/HEAD` spelled from here pointed at nothing — and a watched file
-    // that never exists reads as dirty, so this crate recompiled on every
-    // cargo call. A tree without .git (the 86quan rsync) has nothing to
+    // Re-embed the commit when HEAD moves. Branch switches change HEAD;
+    // same-branch commits move the exact ref HEAD names. Watching the
+    // refs/heads directory is not enough: cargo does not treat the loose-ref
+    // rewrite as a dependable recursive directory change, so the facade can
+    // stay cached and /health reports a stale commit inside an otherwise-new
+    // binary. Packed refs have no loose file to watch, so packed-refs is the
+    // input there. A tree without .git (the 86quan rsync) has nothing to
     // watch; the commit arrives through DITING_BUILD_COMMIT below.
-    for rel in ["HEAD", "refs/heads"] {
-        if let Some(path) = git_path(rel) {
+    if let Some(path) = git_path("HEAD") {
+        println!("cargo:rerun-if-changed={}", path.display());
+    }
+    // The reflog is the robust same-branch signal: a commit updates it both
+    // when the branch is a loose ref and when the only ref text lives in
+    // packed-refs. It is absent in some minimal/foreign checkouts, so it is
+    // an additional input rather than the only one.
+    if let Some(path) = git_path("logs/HEAD") {
+        println!("cargo:rerun-if-changed={}", path.display());
+    }
+    if let Some(head_ref) = git_output(&["symbolic-ref", "-q", "HEAD"]) {
+        if let Some(path) = git_path(&head_ref) {
+            println!("cargo:rerun-if-changed={}", path.display());
+        } else if let Some(path) = git_path("packed-refs") {
             println!("cargo:rerun-if-changed={}", path.display());
         }
     }
@@ -39,20 +52,23 @@ fn main() {
     println!("cargo:rustc-env=DITING_BUILD_COMMIT={commit}");
 }
 
-/// Where git keeps `rel` (`HEAD`, `refs/heads`, …), as a path cargo can
-/// watch from this crate's directory: git answers relative to the current
-/// directory for the main checkout, and absolute for a linked worktree
-/// (its HEAD sits in the main repo's `.git/worktrees/`). `None` when this
-/// is not a git checkout, or git has no such file (a detached shallow
-/// clone carries no `refs/heads`).
-fn git_path(rel: &str) -> Option<std::path::PathBuf> {
-    let out = std::process::Command::new("git")
-        .args(["rev-parse", "--git-path", rel])
-        .output()
-        .ok()?;
+fn git_output(args: &[&str]) -> Option<String> {
+    let out = std::process::Command::new("git").args(args).output().ok()?;
     if !out.status.success() {
         return None;
     }
-    let path = std::path::PathBuf::from(String::from_utf8_lossy(&out.stdout).trim());
+    let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (!text.is_empty()).then_some(text)
+}
+
+/// Where git keeps `rel` (`HEAD`, `refs/heads/main`, …), as a path cargo can
+/// watch from this crate's directory: git answers relative to the current
+/// directory for the main checkout, and absolute for a linked worktree
+/// (its HEAD sits in the main repo's `.git/worktrees/`). `None` when this
+/// is not a git checkout, or git has no such file (a branch whose only ref
+/// lives in `packed-refs`).
+fn git_path(rel: &str) -> Option<std::path::PathBuf> {
+    let text = git_output(&["rev-parse", "--git-path", rel])?;
+    let path = std::path::PathBuf::from(text);
     path.exists().then_some(path)
 }

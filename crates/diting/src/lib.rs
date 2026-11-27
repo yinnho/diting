@@ -29,5 +29,6 @@ pub use diting_layout::diting_fonts;
 /// Lives HERE because our build script's `rustc-env` only reaches this
 /// crate's compilation — dependent crates' `option_env!` never see it
 /// (the local /health "unknown" face). The build script's watches on git's
-/// HEAD and refs/heads keep it fresh per commit.
+/// HEAD, the HEAD reflog, the exact branch ref, or packed-refs keep it fresh
+/// per commit.
 pub const BUILD_COMMIT: &str = env!("DITING_BUILD_COMMIT");
