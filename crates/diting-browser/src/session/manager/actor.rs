@@ -11,6 +11,7 @@
 
 mod emulate;
 mod eval_remote;
+mod failure;
 mod network;
 mod page_op;
 
@@ -216,8 +217,15 @@ pub(super) fn session_thread(
                             // on its error page; land on about:blank for the
                             // same guarantee (live-reproven 2026-09-15: an
                             // x.com session behind an unreachable network
-                            // returned Null for every flow script).
-                            let _ = page.goto("about:blank").await;
+                            // returned Null for every flow script). A deadline
+                            // after the document committed is different: the
+                            // live page is already usable, so resetting it to
+                            // about:blank would discard exactly the document
+                            // the caller asked for (the fetch route already
+                            // treats that shape as a readable page).
+                            if failure::should_blank_after_initial_nav_error(&e.to_string()) {
+                                let _ = page.goto("about:blank").await;
+                            }
                         }
                     }
                 } else {
