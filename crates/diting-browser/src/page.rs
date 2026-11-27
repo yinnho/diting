@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -12,6 +13,8 @@ use crate::error::Error;
 /// otherwise pin the session thread inside V8 forever — unreachable by
 /// tokio timeouts, unclosable, leaking 100% CPU.
 pub(crate) const INTERACTION_EVAL_TIMEOUT: Duration = Duration::from_secs(10);
+
+static NEXT_HANDLE_SCOPE: AtomicU64 = AtomicU64::new(1);
 
 /// Read a DOM node id from a JS `evaluate` result. the engine serializes JS numbers
 /// as f64, so `Value::as_u64` returns None for an integer-valued result; accept
@@ -28,6 +31,7 @@ fn nid_from_value(v: &Value) -> Option<u64> {
 pub struct Page {
     pub(crate) inner: InnerPage,
     pub(crate) context: Arc<BrowserContext>,
+    handle_scope: u64,
     /// #189: the last default-path band frame plus the damage signature
     /// that produced it. The HTTP /screenshot poll path (browser86's
     /// display, the hosted live view) re-rasterizes nothing when the
@@ -52,6 +56,16 @@ pub(crate) struct BandFrameCache {
 }
 
 impl Page {
+    pub(crate) fn new(inner: InnerPage, context: Arc<BrowserContext>) -> Self {
+        Self {
+            inner,
+            context,
+            handle_scope: NEXT_HANDLE_SCOPE.fetch_add(1, Ordering::Relaxed),
+            #[cfg(feature = "screenshot")]
+            band_frame_cache: None,
+        }
+    }
+
     /// #276 idle shrink (delegates to diting Page::shrink_js_heap).
     pub(crate) fn shrink_js_heap(&mut self) {
         self.inner.shrink_js_heap();
@@ -172,9 +186,11 @@ impl Page {
     /// Query a single element by CSS selector.
     ///
     /// The returned handle is intentionally opaque and lifetimeless: it is a
-    /// page-side DOM id, not a Rust pointer. A handle can go stale when the
-    /// page navigates or mutates; clicking a stale handle fails instead of
-    /// dereferencing invalid memory.
+    /// page-side DOM id plus this page instance's scope and realm epoch, not
+    /// a Rust pointer. Navigation or use on another page rejects the handle;
+    /// a same-document mutation can still invalidate the underlying node, in
+    /// which case the click script reports failure. None of those cases may
+    /// dereference invalid memory.
     pub fn query_selector(&mut self, selector: &str) -> Option<ElementHandle> {
         let escaped = selector.replace('\\', "\\\\").replace('\'', "\\'");
         let js = format!(
@@ -182,11 +198,20 @@ impl Page {
             escaped
         );
         let val = self.evaluate(&js);
-        nid_from_value(&val).map(|node_id| ElementHandle { node_id })
+        nid_from_value(&val).map(|node_id| ElementHandle {
+            node_id,
+            scope: self.handle_scope,
+            realm_epoch: self.inner.realm_epoch,
+        })
     }
 
     /// Click an element previously returned by [`Page::query_selector`].
     pub fn click_element(&mut self, element: ElementHandle) -> Result<(), Error> {
+        if element.scope != self.handle_scope || element.realm_epoch != self.inner.realm_epoch {
+            return Err(Error::ElementNotFound(
+                "element handle is stale or belongs to another page".into(),
+            ));
+        }
         let node_id = element.node_id;
         // Scroll into view
         self.evaluate_with_timeout(
@@ -286,9 +311,57 @@ impl Page {
 /// Opaque handle to an element in one page's live DOM.
 ///
 /// This is deliberately not a borrow of [`Page`]: interaction methods stay on
-/// `Page`, so Rust's ownership rules continue to govern page access. Stale or
-/// cross-page handles are runtime lookup failures, not memory-safety hazards.
+/// `Page`, so Rust's ownership rules continue to govern page access. The scope
+/// and realm epoch make cross-page and cross-navigation use explicit runtime
+/// failures rather than accidental node-slot reuse.
 #[derive(Clone, Copy, Debug)]
 pub struct ElementHandle {
     node_id: u64,
+    scope: u64,
+    realm_epoch: u64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    fn handle_test_page() -> Page {
+        let context = Arc::new(BrowserContext::with_storage_and_network(
+            "handle-test".into(),
+            None,
+            false,
+            None,
+            None,
+            true,
+            None,
+        ));
+        Page::new(
+            InnerPage::new("handle-test-page".into(), context.clone()),
+            context,
+        )
+    }
+
+    #[test]
+    fn foreign_or_cross_realm_handle_is_rejected_before_dispatch() {
+        let mut page = handle_test_page();
+        let foreign_scope = ElementHandle {
+            node_id: 1,
+            scope: page.handle_scope.wrapping_add(1),
+            realm_epoch: page.inner.realm_epoch,
+        };
+        let wrong_epoch = ElementHandle {
+            node_id: 1,
+            scope: page.handle_scope,
+            realm_epoch: page.inner.realm_epoch.wrapping_add(1),
+        };
+        for handle in [foreign_scope, wrong_epoch] {
+            match page.click_element(handle) {
+                Err(Error::ElementNotFound(message)) => {
+                    assert!(message.contains("stale or belongs to another page"));
+                }
+                other => panic!("foreign/stale handle must be rejected before dispatch: {other:?}"),
+            }
+        }
+    }
 }

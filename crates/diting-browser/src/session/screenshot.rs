@@ -204,11 +204,7 @@ mod tests {
         ));
         let mut inner = EnginePage::new("shot-page".into(), context.clone());
         inner.set_layout_policy(diting::diting_browser::LayoutPolicy::OnDemand);
-        Page {
-            inner,
-            context,
-            band_frame_cache: None,
-        }
+        Page::new(inner, context)
     }
 
     fn dims(resp: &str) -> (u64, u64) {

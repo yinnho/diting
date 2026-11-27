@@ -56,12 +56,7 @@ impl Browser {
     pub async fn new_page(&self) -> Result<Page, Error> {
         let id = NEXT_PAGE_ID.fetch_add(1, Ordering::Relaxed);
         let page = diting::diting_browser::Page::new(format!("page-{}", id), self.context.clone());
-        Ok(Page {
-            inner: page,
-            context: self.context.clone(),
-            #[cfg(feature = "screenshot")]
-            band_frame_cache: None,
-        })
+        Ok(Page::new(page, self.context.clone()))
     }
 
     /// Access the cookie store for this browser session.
