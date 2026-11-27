@@ -388,6 +388,7 @@ pub(super) fn session_thread(
                     let duty_before = actor.page.inner.v8_active_ns();
                     match cmd {
                         SessionCommand::Navigate { url, reply } => actor.on_navigate(url, reply, &mut cmd_rx).await,
+                        SessionCommand::InitialNavigation { reply } => actor.on_initial_navigation(reply).await,
                         SessionCommand::NavigateCdp { url, reply } => actor.on_navigate_cdp(url, reply, &mut cmd_rx).await,
                         SessionCommand::NavigateHistoryCdp { index, reply } => actor.on_navigate_history_cdp(index, reply).await,
                         SessionCommand::NavigationHistory { reply } => actor.on_navigation_history(reply),
@@ -518,6 +519,39 @@ struct SessionActor {
 }
 
 impl SessionActor {
+    /// Report the create-time navigation without repeating it. Session
+    /// creation is deliberately fire-and-forget for the HTTP face; CDP's
+    /// target contract is stricter and must answer only after the first
+    /// document exists. Because commands are processed after that startup
+    /// load, this probe is the synchronization point — a plain Navigate
+    /// here used to load the same URL a second time and build two V8
+    /// realms for one target.
+    async fn on_initial_navigation(
+        &mut self,
+        reply: oneshot::Sender<Result<SessionNavResponse, String>>,
+    ) {
+        if let Some(err) = self.last_nav_error.clone() {
+            let _ = reply.send(Err(err));
+            return;
+        }
+        let url = self.page.url();
+        let title = self
+            .page
+            .evaluate("document.title")
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+        let challenge = crate::har::challenge_kind(&url).map(|s| s.to_string());
+        let redirected_from = self.page.inner.navigation_record().redirect_chain.clone();
+        let _ = reply.send(Ok(SessionNavResponse {
+            url,
+            title,
+            challenge,
+            redirected_from,
+            preloads: Vec::new(),
+        }));
+    }
+
     async fn on_navigate(
         &mut self,
         url: String,

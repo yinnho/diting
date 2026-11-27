@@ -355,11 +355,7 @@ async fn create_target(
             None,
         )
     };
-    let nav = send_command(&engine, |reply| SessionCommand::Navigate {
-        url: url.to_string(),
-        reply,
-    })
-    .await;
+    let nav = send_command(&engine, |reply| SessionCommand::InitialNavigation { reply }).await;
     let (url, title) = match nav {
         Ok(resp) => (resp.url, resp.title.unwrap_or_default()),
         Err(err) => {

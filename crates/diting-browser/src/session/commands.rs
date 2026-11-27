@@ -196,6 +196,14 @@ pub enum SessionCommand {
         url: String,
         reply: oneshot::Sender<Result<SessionNavResponse, String>>,
     },
+    /// The result of the navigation the session performed while it was
+    /// created. The command itself navigates nowhere: it is ordered behind
+    /// that create-time load, so a face such as CDP can wait for the first
+    /// document and read its URL/title without issuing the same navigation
+    /// a second time.
+    InitialNavigation {
+        reply: oneshot::Sender<Result<SessionNavResponse, String>>,
+    },
     /// [`SessionCommand::Navigate`] for a face that has to tell the page's
     /// requests before it tells the navigation: the rows filed while it
     /// ran come back with the answer, claimed here so they are not pushed

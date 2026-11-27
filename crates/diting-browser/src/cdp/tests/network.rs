@@ -134,6 +134,31 @@ async fn await_hits(site: &Site, path: &str, count: usize) -> bool {
 }
 
 #[tokio::test]
+async fn create_target_loads_its_initial_url_once() {
+    let _net = crate::server::test_util::net_env_guard();
+    let (router, site) = site();
+    let (mut client, addr) = connect(router).await;
+    let origin = format!("http://{addr}");
+    let created = client
+        .run(
+            "Target.createTarget",
+            json!({ "url": format!("{origin}/page/9") }),
+            None,
+        )
+        .await;
+    let target = created["targetId"].as_str().unwrap().to_string();
+    assert_eq!(
+        site.hits("/page"),
+        1,
+        "create-time navigation repeated: {:?}",
+        site.log()
+    );
+    client
+        .run("Target.closeTarget", json!({ "targetId": target }), None)
+        .await;
+}
+
+#[tokio::test]
 async fn blocked_urls_never_reach_the_wire_and_extra_headers_do() {
     let _net = crate::server::test_util::net_env_guard();
     let (router, site) = site();
