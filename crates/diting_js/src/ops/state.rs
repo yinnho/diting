@@ -11,49 +11,9 @@ use diting_net::{CookieJar, HttpClient};
 #[cfg(feature = "screenshot")]
 use super::layout_run::LayoutRun;
 
-/// CDP Fetch-domain resolution: what a client answers a paused request with.
-/// Produced by the CDP bridge's `Fetch.continueRequest` / `fulfillRequest` /
-/// `failRequest` handlers.
-#[derive(Debug)]
-pub enum InterceptResolution {
-    Continue {
-        url: Option<String>,
-        method: Option<String>,
-        headers: Option<HashMap<String, String>>,
-        body: Option<Vec<u8>>,
-    },
-    Fulfill {
-        status: u16,
-        headers: HashMap<String, String>,
-        body: Vec<u8>,
-    },
-    Fail {
-        reason: String,
-    },
-}
-
-/// A paused request surfaced to the interception channel (CDP
-/// `Fetch.requestPaused` shape). The resolver answers with an
-/// `InterceptResolution`. Field readers are the CDP layer, which mints its
-/// own pause ids; ops code only moves the struct through the channel.
-pub struct InterceptedRequest {
-    pub url: String,
-    pub method: String,
-    pub headers: HashMap<String, String>,
-    pub resource_type: String,
-    pub resolver: tokio::sync::oneshot::Sender<InterceptResolution>,
-}
-
-/// How long a paused fetch()/XHR waits for a CDP client's resolution before
-/// falling through to the real request (Continue semantics). The CDP bridge
-/// can only drain pauses between commands — a pause created inside a
-/// dispatch that itself waits on the fetch (Runtime.evaluate of a fetch
-/// expression) is undeliverable until that dispatch ends, so without a
-/// bound such a call would hang forever. Real clients resolve in
-/// milliseconds; the default only shows up on client-less pages. Tests
-/// shorten it via the atomic.
-pub static INTERCEPT_RESOLUTION_TIMEOUT_MS: std::sync::atomic::AtomicU64 =
-    std::sync::atomic::AtomicU64::new(10_000);
+// The interception types live in diting_net (the transport layer owns the
+// pause/resume contract); re-exported here so `ops::` paths keep working.
+pub use diting_net::{InterceptResolution, InterceptedRequest, INTERCEPT_RESOLUTION_TIMEOUT_MS};
 
 /// (epoch, subtree root, viewport w bits, viewport h bits, run) — the
 /// iframe sub-run memo key, see `JsState::iframe_layout_cache`.

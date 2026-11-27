@@ -1640,8 +1640,6 @@ const NOT_ANSWERED: &[(&str, Level)] = &[
     ("Runtime.setAsyncCallStackDepth", Level::Page),
     ("Runtime.terminateExecution", Level::Page),
     ("Runtime.getIsolateId", Level::Page),
-    ("Network.setCacheDisabled", Level::Page),
-    ("Fetch.enable", Level::Page),
     ("Storage.getCookies", Level::Page),
     ("Emulation.setScriptExecutionDisabled", Level::Page),
     ("Emulation.setDefaultBackgroundColorOverride", Level::Page),

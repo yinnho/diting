@@ -455,12 +455,43 @@ impl Page {
                             redirect_hops: Vec::new(),
                             request_headers: std::collections::HashMap::new(),
                         };
-                        return Some((idx, url, resp, None));
+                        return Some((idx, url, resp, None, None));
                     }
                     // #126: monotonic anchor for the live-fetch duration below.
                     let rt_t0 = std::time::Instant::now();
+                    // The pause's row id, minted only on the stealth arm —
+                    // the plain arm pauses inside the transport, where no
+                    // row id can be pre-minted.
+                    let mut intercept_row_id: Option<String> = None;
                     let fetched = if let Some(stealth) = stealth.as_ref() {
-                        stealth.fetch_script(&parsed, doc_referrer.as_deref()).await
+                        // The stealth client fetches below the HttpClient
+                        // hooks, so the Fetch-domain pause lives here: it
+                        // is armed (or not) on the same callback registry
+                        // the plain path reads inside the transport.
+                        // Minted before the pause so the pause can carry it:
+                        // the row written when this body is recorded rekeys
+                        // to it, and the CDP pause pairing holds.
+                        let minted = script_callbacks.mint_intercept_row_id();
+                        let pause = super::net::intercept_pause(
+                            script_callbacks.as_ref(),
+                            &parsed,
+                            "GET",
+                            "Script",
+                            minted.clone(),
+                        )
+                        .await;
+                        intercept_row_id = Some(minted);
+                        match super::net::intercept_outcome(
+                            pause,
+                            &parsed,
+                            client.allow_private_network,
+                        ) {
+                            super::net::InterceptOutcome::Fulfilled(resp) => Ok(resp),
+                            super::net::InterceptOutcome::Failed(err) => Err(err),
+                            super::net::InterceptOutcome::Fetch(target) => {
+                                stealth.fetch_script(&target, doc_referrer.as_deref()).await
+                            }
+                        }
                     } else {
                         client
                             .fetch_with_callbacks(
@@ -498,7 +529,13 @@ impl Page {
                                 .map(|d| d.as_secs_f64() * 1000.0)
                                 .unwrap_or(0.0);
                             let dur_ms = rt_t0.elapsed().as_secs_f64() * 1000.0;
-                            Some((idx, url, resp, Some((rt_start_ms, dur_ms))))
+                            Some((
+                                idx,
+                                url,
+                                resp,
+                                Some((rt_start_ms, dur_ms)),
+                                intercept_row_id,
+                            ))
                         }
                         Err(e) => {
                             tracing::warn!("Failed to fetch script {}: {}", url, e);
@@ -615,8 +652,13 @@ impl Page {
 
         let mut fetched: std::collections::HashMap<usize, (String, String, diting_net::Response)> =
             std::collections::HashMap::new();
+        let mut intercept_ids: std::collections::HashMap<usize, String> =
+            std::collections::HashMap::new();
         let mut script_timings: Vec<diting_js::ops::ResourceTimingRecord> = Vec::new();
-        for (idx, url, resp, rt) in fetch_results.into_iter().flatten() {
+        for (idx, url, resp, rt, intercept_id) in fetch_results.into_iter().flatten() {
+            if let Some(intercept_id) = intercept_id {
+                intercept_ids.insert(idx, intercept_id);
+            }
             // Script bodies: only the HTTP Content-Type charset matters
             // (no in-band meta-charset for JS).
             let code = diting_net::decode_non_html(&resp.body, resp.content_type());
@@ -774,7 +816,7 @@ impl Page {
             if script.src.is_some() {
                 if let Some((url, code, resp)) = fetched.remove(&i) {
                     tracing::info!("Executing script ({} bytes): {}", code.len(), url);
-                    self.record_network_event_with_body(
+                    let row_id = self.record_network_event_with_body(
                         &url,
                         "GET",
                         "Script",
@@ -783,6 +825,9 @@ impl Page {
                         &resp.request_headers,
                         &resp.body,
                     );
+                    if let Some(pre) = intercept_ids.get(&i) {
+                        self.rekey_network_row(&row_id, pre);
+                    }
                     if let Some(js) = &mut self.js {
                         // #120: classic sync scripts run at their parser
                         // position — later parser scripts are invisible.

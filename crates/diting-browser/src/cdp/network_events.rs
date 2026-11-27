@@ -193,7 +193,16 @@ pub(super) fn network_frames(
             }
             hops
         };
+        // A row the Fetch drainer already announced beside its pause must
+        // not be told as a request twice — the pairing frame went out when
+        // the request was still in flight, this one would only duplicate it.
+        // The response frames below still go out: they carry what the pause
+        // could not know.
+        let already_announced = page.announced.contains(wire_id);
         for (hop_url, redirect_response) in hops {
+            if already_announced {
+                break;
+            }
             let mut frame = json!({
                 "requestId": wire_id,
                 "loaderId": loader,

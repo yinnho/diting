@@ -18,7 +18,10 @@ mod ssrf;
 
 pub use metadata::ResourceType;
 use metadata::{metadata_for, FetchMetadata};
-pub use observer::{CallbackRegistry, RequestCallback, RequestInfo, ResponseCallback};
+pub use observer::{
+    CallbackRegistry, InterceptResolution, InterceptedRequest, RequestCallback, RequestInfo,
+    ResponseCallback, INTERCEPT_RESOLUTION_TIMEOUT_MS,
+};
 
 use policy::custom_cert_store_requested;
 pub use policy::{
@@ -666,8 +669,94 @@ impl HttpClient {
         resource_type: ResourceType,
         referrer: Option<&str>,
     ) -> Result<Response, NetError> {
+        let mut method = method;
+        let mut current_url = url.clone();
+        let mut body_override: Option<Vec<u8>> = None;
+        let mut header_override: Option<HashMap<String, String>> = None;
+        // Fetch-domain interception, stealth arm: same contract as the
+        // plain-path hook inside `fetch_with_method_traced_inner`, with
+        // two documented deviations — the pause is once per logical
+        // request (redirects walk inside the stealth transport, out of
+        // sight), and the paused header view is empty because the stealth
+        // stack builds its Chrome headers below this point. Fulfill/fail/
+        // rewrite decisions themselves apply fully.
+        if resource_type != ResourceType::Document {
+            if let Some(tx) = callbacks.and_then(|cbs| cbs.intercept_tx()) {
+                let (resolver, rx) = tokio::sync::oneshot::channel();
+                let request = InterceptedRequest {
+                    url: current_url.to_string(),
+                    method: method.as_str().to_string(),
+                    headers: HashMap::new(),
+                    post_data: body.map(|b| b.to_vec()),
+                    resource_type: resource_type.as_str().to_string(),
+                    // Transport-level pauses sit below the row-recording
+                    // scope, so no row id can be pre-minted here: the pause
+                    // pairs with no network row and clients auto-continue it.
+                    request_id: String::new(),
+                    resolver,
+                };
+                if tx.send(request).is_ok() {
+                    let timeout_ms =
+                        INTERCEPT_RESOLUTION_TIMEOUT_MS.load(std::sync::atomic::Ordering::Relaxed);
+                    match tokio::time::timeout(Duration::from_millis(timeout_ms), rx).await {
+                        Ok(Ok(InterceptResolution::Fulfill {
+                            status,
+                            headers: h,
+                            body: b,
+                        })) => {
+                            return Ok(Response {
+                                url: current_url,
+                                status,
+                                headers: h,
+                                body: b,
+                                redirected_from: Vec::new(),
+                                redirect_hops: Vec::new(),
+                                request_headers: HashMap::new(),
+                            });
+                        }
+                        Ok(Ok(InterceptResolution::Fail { reason })) => {
+                            return Err(NetError::Network(format!(
+                                "request blocked by client, reason: {reason}"
+                            )));
+                        }
+                        Ok(Ok(InterceptResolution::Continue {
+                            url: new_url,
+                            method: new_method,
+                            headers: new_headers,
+                            body: new_body,
+                        })) => {
+                            if let Some(m) = new_method {
+                                method = m.parse().unwrap_or(Method::GET);
+                            }
+                            if let Some(h) = new_headers {
+                                header_override = Some(h);
+                            }
+                            if let Some(b) = new_body {
+                                body_override = Some(b);
+                            }
+                            if let Some(u) = new_url {
+                                // A rewrite is a new request target: the
+                                // SSRF gate applies to it exactly like the
+                                // original URL did.
+                                let parsed = Url::parse(&u).map_err(|e| {
+                                    NetError::Network(format!(
+                                        "Intercept rewrite to unparseable URL: {e}"
+                                    ))
+                                })?;
+                                crate::client::validate_url(&parsed, self.allow_private_network)?;
+                                current_url = parsed;
+                            }
+                        }
+                        // Client answered nothing in time (or dropped the
+                        // resolver): fall through — Continue semantics.
+                        Ok(Err(_)) | Err(_) => {}
+                    }
+                }
+            }
+        }
+        let eff_body: Option<&[u8]> = body_override.as_deref().or(body);
         // Mirror the plain path's default for a POST with a body.
-        let content_type = (body.is_some() && method == Method::POST)
+        let content_type = (eff_body.is_some() && method == Method::POST)
             .then_some("application/x-www-form-urlencoded");
         let stealth = self.synced_stealth_transport().await;
         self.in_flight
@@ -675,12 +764,12 @@ impl HttpClient {
         let in_flight = InFlightDecrement(Some(self.in_flight.clone()));
         let resp = stealth
             .fetch_inner(
-                url,
+                &current_url,
                 referrer,
                 method.clone(),
-                body,
+                eff_body,
                 content_type,
-                None,
+                header_override.as_ref(),
                 true,
                 resource_type,
             )
@@ -857,6 +946,9 @@ impl HttpClient {
         // flap for whole seconds; one re-request after a 1s pause converts a
         // "proxy unreachable" blip into a pass instead of a 502.
         let mut connect_retried = false;
+        // A `Fetch.continueRequest` body override, owned because the wire
+        // body itself is a borrow of the caller's buffer.
+        let mut body_override: Option<Vec<u8>> = None;
         for _redirect_count in 0..max_redirects {
             // Route picked up front: the via-proxy flag also drives the
             // route-following Accept-Language below.
@@ -1046,7 +1138,7 @@ impl HttpClient {
             // `Response.headers`. Computed unconditionally: the response
             // carries it to the network-event faces even when no passive
             // on_request observer listens.
-            let wire_headers: HashMap<String, String> = headers
+            let mut wire_headers: HashMap<String, String> = headers
                 .iter()
                 .map(|(k, v)| {
                     (
@@ -1063,11 +1155,113 @@ impl HttpClient {
                 _ => None,
             };
 
+            // Fetch-domain interception (CDP `Fetch.enable`): an armed
+            // page pauses this hop until the client answers
+            // continue/fulfill/fail. Non-Document classes only — document
+            // navigations pause in `Page::fetch_document`, and JS
+            // fetch()/XHR pause in the ops layer; both own their own
+            // resolution handling. Checked per hop so redirect hops pause
+            // the way Chrome's do. The stealth arm (`fetch_via_stealth`)
+            // is not hooked: its transport builds headers internally, so a
+            // pause there could not report the wire set honestly.
+            if resource_type != ResourceType::Document {
+                if let Some(tx) = callbacks.and_then(|cbs| cbs.intercept_tx()) {
+                    let (resolver, rx) = tokio::sync::oneshot::channel();
+                    let request = InterceptedRequest {
+                        url: current_url.to_string(),
+                        method: method.as_str().to_string(),
+                        headers: wire_headers.clone(),
+                        post_data: body.map(|b| b.to_vec()),
+                        resource_type: resource_type.as_str().to_string(),
+                        // See the plain-arm hook above: no row id here.
+                        request_id: String::new(),
+                        resolver,
+                    };
+                    if tx.send(request).is_ok() {
+                        let timeout_ms = INTERCEPT_RESOLUTION_TIMEOUT_MS
+                            .load(std::sync::atomic::Ordering::Relaxed);
+                        match tokio::time::timeout(Duration::from_millis(timeout_ms), rx).await {
+                            Ok(Ok(InterceptResolution::Fulfill {
+                                status,
+                                headers: h,
+                                body: b,
+                            })) => {
+                                return Ok(Response {
+                                    url: current_url,
+                                    status,
+                                    headers: h,
+                                    body: b,
+                                    redirected_from: redirects,
+                                    redirect_hops,
+                                    request_headers: wire_headers,
+                                });
+                            }
+                            Ok(Ok(InterceptResolution::Fail { reason })) => {
+                                return Err(NetError::Network(format!(
+                                    "request blocked by client, reason: {reason}"
+                                )));
+                            }
+                            Ok(Ok(InterceptResolution::Continue {
+                                url: new_url,
+                                method: new_method,
+                                headers: new_headers,
+                                body: new_body,
+                            })) => {
+                                if let Some(h) = new_headers {
+                                    headers = HeaderMap::new();
+                                    for (k, v) in h {
+                                        if let (Ok(name), Ok(val)) = (
+                                            HeaderName::from_bytes(k.as_bytes()),
+                                            HeaderValue::from_str(&v),
+                                        ) {
+                                            headers.insert(name, val);
+                                        }
+                                    }
+                                    wire_headers = headers
+                                        .iter()
+                                        .map(|(k, v)| {
+                                            (
+                                                k.as_str().to_lowercase(),
+                                                v.to_str().unwrap_or("").to_string(),
+                                            )
+                                        })
+                                        .collect();
+                                }
+                                if let Some(m) = new_method {
+                                    method = m.parse().unwrap_or(Method::GET);
+                                }
+                                if let Some(b) = new_body {
+                                    body_override = Some(b);
+                                }
+                                if let Some(u) = new_url {
+                                    // A rewrite is a new request target:
+                                    // the SSRF gate applies to it exactly
+                                    // like the original URL did.
+                                    let parsed = Url::parse(&u).map_err(|e| {
+                                        NetError::Network(format!(
+                                            "Intercept rewrite to unparseable URL: {e}"
+                                        ))
+                                    })?;
+                                    validate_url(&parsed, self.allow_private_network)?;
+                                    current_url = parsed;
+                                    continue;
+                                }
+                            }
+                            // Client answered nothing in time (or dropped
+                            // the resolver): fall through to the real
+                            // request — Continue semantics.
+                            Ok(Err(_)) | Err(_) => {}
+                        }
+                    }
+                }
+            }
+
+            let send_body = body_override.as_deref().or(body);
             let mut req_builder = route_client
                 .request(method.clone(), current_url.as_str())
                 .headers(headers);
 
-            if let Some(b) = body {
+            if let Some(b) = send_body {
                 req_builder = req_builder.body(b.to_vec());
             }
 
@@ -1162,6 +1356,7 @@ impl HttpClient {
                     {
                         method = Method::GET;
                         body = None;
+                        body_override = None;
                     }
                     continue;
                 }

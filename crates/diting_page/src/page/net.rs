@@ -133,6 +133,11 @@ impl Page {
         tx: Option<tokio::sync::mpsc::UnboundedSender<diting_js::ops::InterceptedRequest>>,
     ) {
         self.intercept_tx = tx.clone();
+        // The same channel arms the transport-level hook: script-loaded
+        // subresources (stylesheets, images, module scripts) pause inside
+        // `fetch_with_method_traced_inner` through the page's callback
+        // registry, which every page-driven fetch carries.
+        self.callbacks.set_intercept_tx(tx.clone());
         if let Some(js) = &self.js {
             match tx {
                 Some(tx) => {
@@ -246,6 +251,32 @@ impl Page {
             redirects: Vec::new(),
             started: None,
         });
+    }
+
+    /// Renames a just-recorded row (and its retained body) to the id an
+    /// interception pause minted for the request. The CDP layer pairs
+    /// `Fetch.requestPaused` with the row's `Network.requestWillBeSent` on
+    /// that id; recording minted a fresh one because rows are written when
+    /// the fetch lands, after the pause already went out.
+    pub(super) fn rekey_network_row(&mut self, old_id: &str, new_id: &str) {
+        if old_id == new_id {
+            return;
+        }
+        if let Some(row) = self
+            .network_events
+            .iter_mut()
+            .find(|row| row.request_id == old_id)
+        {
+            row.request_id = new_id.to_string();
+        }
+        if let Some(stored) = self.response_bodies.remove(old_id) {
+            self.response_bodies.insert(new_id.to_string(), stored);
+            for key in self.response_body_order.iter_mut() {
+                if key == old_id {
+                    *key = new_id.to_string();
+                }
+            }
+        }
     }
 
     /// Record the event and retain the body for `get_response_body`. The
@@ -584,5 +615,87 @@ impl Page {
         };
         self.identity_defaults = Some(defaults.clone());
         defaults
+    }
+}
+
+/// Fetch-domain interception pause for a subresource the stealth client
+/// fetches directly (`stealth.fetch_script` and kin), which bypasses the
+/// `HttpClient` hooks. Returns the client's resolution when interception
+/// is armed and answered; `None` when unarmed or unanswered in time —
+/// callers treat `None` as an unmodified continue.
+pub(crate) async fn intercept_pause(
+    callbacks: &diting_net::CallbackRegistry,
+    url: &url::Url,
+    method: &str,
+    resource_type: &str,
+    request_id: String,
+) -> Option<diting_net::InterceptResolution> {
+    let tx = callbacks.intercept_tx()?;
+    let (resolver, rx) = tokio::sync::oneshot::channel();
+    let request = diting_net::InterceptedRequest {
+        url: url.to_string(),
+        method: method.to_string(),
+        // The stealth stack builds its Chrome headers inside the transport,
+        // below this point — the paused view is empty rather than a lie.
+        headers: std::collections::HashMap::new(),
+        post_data: None,
+        resource_type: resource_type.to_string(),
+        request_id,
+        resolver,
+    };
+    tx.send(request).ok()?;
+    let timeout_ms =
+        diting_net::INTERCEPT_RESOLUTION_TIMEOUT_MS.load(std::sync::atomic::Ordering::Relaxed);
+    match tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), rx).await {
+        Ok(Ok(resolution)) => Some(resolution),
+        Ok(Err(_)) | Err(_) => None,
+    }
+}
+
+/// What a subresource call site does with an interception resolution:
+/// either the short-circuit outcome (fulfilled response / failure) or the
+/// possibly-rewritten URL to actually fetch.
+pub(crate) enum InterceptOutcome {
+    Fetch(url::Url),
+    Fulfilled(diting_net::Response),
+    Failed(diting_net::NetError),
+}
+
+/// Apply the resolution of [`intercept_pause`] at a subresource call
+/// site: Fulfill becomes a synthetic response, Fail an error, a Continue
+/// url override is SSRF-revalidated and becomes the fetch target, and any
+/// other shape (bare continue, timeout) leaves the original URL.
+pub(crate) fn intercept_outcome(
+    resolution: Option<diting_net::InterceptResolution>,
+    url: &url::Url,
+    allow_private_network: bool,
+) -> InterceptOutcome {
+    use diting_net::InterceptResolution as R;
+    match resolution {
+        Some(R::Fulfill {
+            status,
+            headers,
+            body,
+        }) => InterceptOutcome::Fulfilled(diting_net::Response {
+            url: url.clone(),
+            status,
+            headers,
+            body,
+            redirected_from: Vec::new(),
+            redirect_hops: Vec::new(),
+            request_headers: std::collections::HashMap::new(),
+        }),
+        Some(R::Fail { reason }) => InterceptOutcome::Failed(diting_net::NetError::Network(
+            format!("request blocked by client, reason: {reason}"),
+        )),
+        Some(R::Continue {
+            url: Some(new_url), ..
+        }) => {
+            let parsed = url::Url::parse(&new_url)
+                .ok()
+                .filter(|p| diting_net::client::validate_url(p, allow_private_network).is_ok());
+            InterceptOutcome::Fetch(parsed.unwrap_or_else(|| url.clone()))
+        }
+        _ => InterceptOutcome::Fetch(url.clone()),
     }
 }

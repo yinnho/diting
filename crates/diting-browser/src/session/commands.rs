@@ -143,6 +143,14 @@ pub enum PageOp {
     ExtraHeaders {
         headers: std::collections::HashMap<String, String>,
     },
+    /// `Fetch.enable`/`disable`: arm or disarm the page's request
+    /// interception channel. `Some` routes page fetches — document,
+    /// script-loaded subresources — through the CDP bridge as
+    /// `InterceptedRequest`s the bridge answers per request; `None`
+    /// disarms and lets in-flight pauses fall through to the real request.
+    FetchIntercept {
+        tx: Option<tokio::sync::mpsc::UnboundedSender<diting::diting_net::InterceptedRequest>>,
+    },
 }
 
 /// A wire `objectId` as the face already read it — the parts Chrome's

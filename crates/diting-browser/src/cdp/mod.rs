@@ -34,6 +34,7 @@
 
 pub(crate) mod emulation;
 mod envelope;
+mod fetch;
 mod network_events;
 mod objects;
 mod page_side;
@@ -125,6 +126,16 @@ struct PageSlot {
     /// (as in Chrome, where `requestId == loaderId` is what makes the
     /// request the navigation's), and this names the engine row behind it.
     doc_rows: HashMap<String, String>,
+    /// `Fetch.enable` interception state — armed while any session on the
+    /// page wants pauses; see [`fetch`].
+    fetch: Option<fetch::FetchSlot>,
+    /// Wire ids the Fetch drainer already told as a synthetic
+    /// `Network.requestWillBeSent` beside its pause: the row's own frames,
+    /// emitted when the fetch lands, must not tell the request twice.
+    /// Insert-only (engine ids never repeat within a page), capped by
+    /// FIFO eviction.
+    announced: std::collections::HashSet<String>,
+    announced_order: std::collections::VecDeque<String>,
     next_ctx: i64,
     /// The next number `DOM.describeNode` hands a node that has none.
     /// Counting goes on through a navigation: a number of a document gone
@@ -176,6 +187,8 @@ struct SessionSlot {
     lifecycle_on: bool,
     /// `Network.enable`: the page's requests, responses and their ends.
     network_on: bool,
+    /// `Fetch.enable`: this session hears `Fetch.requestPaused`.
+    fetch_on: bool,
 }
 
 impl SessionSlot {
@@ -191,6 +204,7 @@ impl SessionSlot {
             runtime_on: false,
             lifecycle_on: false,
             network_on: false,
+            fetch_on: false,
         }
     }
 
@@ -596,6 +610,13 @@ async fn page_ws(
 /// for it from other sockets come in through the inbox. A dropped outbox —
 /// its page was closed, it ran `Browser.close` — ends the socket once what
 /// is queued has gone out.
+///
+/// Each command's dispatch is spawned, not awaited in line: a paused
+/// request makes the command that raised it (a navigate, an evaluate)
+/// wait for the client's `Fetch.continueRequest` — which arrives on this
+/// same socket, so the socket must keep reading while a command is in
+/// flight. Engine ordering is unaffected: page commands reach the session
+/// thread in the order they are sent, and the thread serializes them.
 async fn run_socket(
     hub: SharedHub,
     mut socket: WebSocket,
@@ -603,12 +624,29 @@ async fn run_socket(
     home: Option<String>,
     mut inbox: mpsc::UnboundedReceiver<String>,
 ) {
-    loop {
+    let (results_tx, mut results_rx) = mpsc::unbounded_channel::<Out>();
+    'outer: loop {
         tokio::select! {
             frame = inbox.recv() => {
                 let Some(frame) = frame else { break };
                 if socket.send(Message::Text(frame)).await.is_err() {
                     break;
+                }
+            }
+            out = results_rx.recv() => {
+                let Some(out) = out else { continue };
+                let mut open = true;
+                for frame in out.frames {
+                    if socket.send(Message::Text(frame)).await.is_err() {
+                        open = false;
+                        break;
+                    }
+                }
+                for (outbox, frame) in out.spill {
+                    let _ = outbox.send(frame);
+                }
+                if !open || out.close_socket {
+                    break 'outer;
                 }
             }
             message = socket.recv() => {
@@ -621,20 +659,13 @@ async fn run_socket(
                     Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
                     Some(Ok(_)) => continue,
                 };
-                let out = dispatch(hub.clone(), client, home.as_deref(), &text).await;
-                let mut open = true;
-                for frame in out.frames {
-                    if socket.send(Message::Text(frame)).await.is_err() {
-                        open = false;
-                        break;
-                    }
-                }
-                for (outbox, frame) in out.spill {
-                    let _ = outbox.send(frame);
-                }
-                if !open || out.close_socket {
-                    break;
-                }
+                let hub = hub.clone();
+                let home = home.clone();
+                let results_tx = results_tx.clone();
+                tokio::spawn(async move {
+                    let out = dispatch(hub, client, home.as_deref(), &text).await;
+                    let _ = results_tx.send(out);
+                });
             }
         }
     }
@@ -818,6 +849,19 @@ async fn page_method(
         "Network.disable" => {
             set_network(&hub, session, false).await;
             Ok(ack(id, session))
+        }
+        "Network.setCacheDisabled" => {
+            // The engine keeps no HTTP cache — every request goes to the
+            // wire already — so the flag is truthful either way and the
+            // command is a read-and-ack (Playwright's `page.route` setup
+            // sends it before `Fetch.enable`).
+            boolean(params, "cacheDisabled")?;
+            Ok(ack(id, session))
+        }
+        "Fetch.enable" => fetch::enable(hub, id, session, params).await,
+        "Fetch.disable" => fetch::disable(hub, id, session, params).await,
+        "Fetch.continueRequest" | "Fetch.fulfillRequest" | "Fetch.failRequest" => {
+            fetch::resolve(hub, id, session, method, params).await
         }
         _ if PAGE_CHANNEL.contains(&method) => {
             runtime_forward(hub, id, session, method, params).await

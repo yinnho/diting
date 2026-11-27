@@ -436,6 +436,10 @@ pub(crate) async fn op_fetch_url_body(
     let mut override_method: Option<String> = None;
     let mut override_headers: Option<HashMap<String, String>> = None;
     let mut override_body: Option<Vec<u8>> = None;
+    // The row id the pause announces: minted here so the CDP layer can pair
+    // the pause with the row's network frames — the row itself is written
+    // only after the fetch lands, and recording rekeys to this id.
+    let mut intercept_row_id: Option<String> = None;
     if let Some(tx) = intercept_tx {
         let mut request_headers_view: HashMap<String, String> =
             serde_json::from_str(&headers_json).unwrap_or_default();
@@ -445,14 +449,22 @@ pub(crate) async fn op_fetch_url_body(
         // send (#252).
         request_headers_view.remove("__diting_body_b64");
         let (resolve_tx, resolve_rx) = tokio::sync::oneshot::channel();
+        let row_id = mint_fetch_row_id(&state.borrow());
         let intercepted = InterceptedRequest {
             url: url.clone(),
             method: method.clone(),
             headers: request_headers_view.clone(),
+            post_data: if body_is_base64 {
+                BASE64.decode(&body).ok()
+            } else {
+                Some(body.clone().into_bytes())
+            },
             resource_type: "Fetch".to_string(),
+            request_id: row_id.clone(),
             resolver: resolve_tx,
         };
         if tx.send(intercepted).is_ok() {
+            intercept_row_id = Some(row_id);
             // Bounded wait: the bridge drains pauses between commands, so a
             // resolution normally lands within one command gap. When the
             // dispatch that triggered the fetch is itself parked on this
@@ -474,7 +486,7 @@ pub(crate) async fn op_fetch_url_body(
                     // happened" in the network log (#252); Fail already
                     // replays through record_failed_fetch.
                     let body_b64 = BASE64.encode(&b);
-                    record_fetch_network_event(
+                    let recorded = record_fetch_network_event(
                         &state.borrow(),
                         &FetchNetworkEvent {
                             url: url.clone(),
@@ -490,6 +502,9 @@ pub(crate) async fn op_fetch_url_body(
                             started: started_unix,
                         },
                     );
+                    if let Some(pre) = &intercept_row_id {
+                        rekey_js_network_row(&state.borrow(), &recorded, pre);
+                    }
                     // Byte-native: the synthetic body rides the same base64
                     // channel as real network responses (binary payloads
                     // survive; text is reconstructed on the JS side).
@@ -504,7 +519,7 @@ pub(crate) async fn op_fetch_url_body(
                     return Ok(resp);
                 }
                 Ok(Ok(InterceptResolution::Fail { reason })) => {
-                    record_failed_fetch(
+                    let recorded = record_failed_fetch(
                         &state.borrow(),
                         &FetchFailure {
                             url: url.clone(),
@@ -516,6 +531,9 @@ pub(crate) async fn op_fetch_url_body(
                             started: started_unix,
                         },
                     );
+                    if let Some(pre) = &intercept_row_id {
+                        rekey_js_network_row(&state.borrow(), &recorded, pre);
+                    }
                     let resp = serde_json::json!({
                         "status": 0,
                         "body": "",
@@ -560,7 +578,7 @@ pub(crate) async fn op_fetch_url_body(
                     if let Err(reason) = validate_fetch_url(&parsed) {
                         let error =
                             format!("Intercept rewrite to forbidden URL blocked: {}", reason);
-                        record_failed_fetch(
+                        let recorded = record_failed_fetch(
                             &state.borrow(),
                             &FetchFailure {
                                 url: new_url.clone(),
@@ -572,6 +590,9 @@ pub(crate) async fn op_fetch_url_body(
                                 started: started_unix,
                             },
                         );
+                        if let Some(pre) = &intercept_row_id {
+                            rekey_js_network_row(&state.borrow(), &recorded, pre);
+                        }
                         let resp = serde_json::json!({
                             "status": 0,
                             "body": "",
@@ -586,7 +607,7 @@ pub(crate) async fn op_fetch_url_body(
                 }
                 Err(_) => {
                     let error = "Intercept rewrite to unparseable URL blocked".to_string();
-                    record_failed_fetch(
+                    let recorded = record_failed_fetch(
                         &state.borrow(),
                         &FetchFailure {
                             url: new_url.clone(),
@@ -598,6 +619,9 @@ pub(crate) async fn op_fetch_url_body(
                             started: started_unix,
                         },
                     );
+                    if let Some(pre) = &intercept_row_id {
+                        rekey_js_network_row(&state.borrow(), &recorded, pre);
+                    }
                     let resp = serde_json::json!({
                         "status": 0,
                         "body": "",
@@ -683,6 +707,9 @@ pub(crate) async fn op_fetch_url_body(
     replay_fetch_failures(&state.borrow(), &deps.failures);
     if let Some(ev) = outcome.network.as_ref() {
         let request_id = record_fetch_network_event(&state.borrow(), ev);
+        if let Some(pre) = &intercept_row_id {
+            rekey_js_network_row(&state.borrow(), &request_id, pre);
+        }
         // #224: status rides the line — the doudian post-mortem had 0-byte
         // completions whose status was unknowable from the log, and
         // "empty 200" vs "synthesized 0" are different bugs.
@@ -736,7 +763,7 @@ pub(crate) fn glob_match(pattern: &str, url: &str) -> bool {
 /// died here read as "never issued a request" — exactly the ghost the taobao
 /// shop-SPA report chased (punished mtop XHRs are CORS-refused after the
 /// body arrives, so the whole call site went dark).
-pub(super) fn record_failed_fetch(state: &OpState, f: &FetchFailure) {
+pub(super) fn record_failed_fetch(state: &OpState, f: &FetchFailure) -> String {
     let gs = state.borrow::<SharedState>().clone();
     let mut gs = gs.borrow_mut();
     gs.network_response_body_counter += 1;
@@ -749,7 +776,7 @@ pub(super) fn record_failed_fetch(state: &OpState, f: &FetchFailure) {
         .unwrap_or_default()
         .as_secs_f64();
     gs.js_network_events.push(JsNetworkEvent {
-        request_id,
+        request_id: request_id.clone(),
         url: f.url.clone(),
         method: f.method.clone(),
         status: 0,
@@ -767,6 +794,45 @@ pub(super) fn record_failed_fetch(state: &OpState, f: &FetchFailure) {
     if gs.js_network_events.len() > MAX_JS_NETWORK_EVENTS {
         let overflow = gs.js_network_events.len() - MAX_JS_NETWORK_EVENTS;
         gs.js_network_events.drain(0..overflow);
+    }
+    request_id
+}
+
+/// Mints the row id an interception pause announces: the same counter the
+/// record paths use, so the id is unique in the page regardless of how the
+/// request ends. The row written later rekeys to it.
+fn mint_fetch_row_id(state: &OpState) -> String {
+    let gs = state.borrow::<SharedState>().clone();
+    let mut gs = gs.borrow_mut();
+    gs.network_response_body_counter += 1;
+    format!("fetch-{}", gs.network_response_body_counter)
+}
+
+/// Renames a just-recorded network row (and its retained body) to the id
+/// the interception pause minted for the request. The CDP layer pairs
+/// `Fetch.requestPaused` with the row's `Network.requestWillBeSent` on
+/// that id; the row was written under a fresh one because recording mints
+/// at write time, after the pause already went out.
+pub(super) fn rekey_js_network_row(state: &OpState, old_id: &str, new_id: &str) {
+    if old_id == new_id {
+        return;
+    }
+    let gs = state.borrow::<SharedState>().clone();
+    let mut gs = gs.borrow_mut();
+    if let Some(row) = gs
+        .js_network_events
+        .iter_mut()
+        .find(|row| row.request_id == old_id)
+    {
+        row.request_id = new_id.to_string();
+    }
+    if let Some(body) = gs.network_response_bodies.remove(old_id) {
+        gs.network_response_bodies.insert(new_id.to_string(), body);
+        for key in gs.network_response_body_order.iter_mut() {
+            if key == old_id {
+                *key = new_id.to_string();
+            }
+        }
     }
 }
 

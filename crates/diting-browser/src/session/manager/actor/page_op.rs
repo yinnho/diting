@@ -71,6 +71,10 @@ impl SessionActor {
                 self.page.inner.set_extra_headers(headers).await;
                 Ok(())
             }
+            PageOp::FetchIntercept { tx } => {
+                self.page.inner.set_fetch_intercept(tx);
+                Ok(())
+            }
         };
         let _ = reply.send(result);
     }

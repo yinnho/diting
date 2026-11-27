@@ -11,6 +11,8 @@ mod dom;
 #[cfg(test)]
 mod emulation;
 #[cfg(test)]
+mod fetch;
+#[cfg(test)]
 mod network;
 #[cfg(test)]
 mod page;

@@ -138,7 +138,9 @@ impl Page {
                 url: url.to_string(),
                 method: "GET".to_string(),
                 headers,
+                post_data: None,
                 resource_type: "Document".to_string(),
+                request_id: String::new(),
                 resolver,
             };
             if tx.send(request).is_ok() {
