@@ -1,18 +1,19 @@
 //! Bounded event-loop pumps, split from runtime.rs (#224/#225 ratchet):
-//! the run_event_loop* wrappers that enforce a wall-clock budget plus
-//! V8-watchdog headroom, and the promise-settle helpers built on the same
-//! discipline. The raw `run_event_loop` primitive stays in runtime.rs.
+//! the run_event_loop* wrappers that enforce a wall-clock budget at task
+//! boundaries plus a per-task V8-watchdog spin fence, and the promise-settle
+//! helpers built on the same discipline. The raw `run_event_loop` primitive
+//! stays in runtime.rs.
 
 impl super::JsRuntime {
     /// Drive the event loop for at most `budget_ms`, bounded against BOTH async
     /// idle (tokio timeout) and synchronous hangs (V8 watchdog). A microtask
-    /// storm that pins the thread is terminated WATCHDOG_HEADROOM_MS past the
-    /// budget; a well-behaved page returns as soon as the loop goes idle.
+    /// storm that pins the thread is terminated only at the pump family's
+    /// minute-scale spin fence; a well-behaved page returns as soon as the loop
+    /// goes idle.
     pub async fn run_event_loop_bounded(&mut self, budget_ms: u64) -> Result<(), String> {
-        self.run_event_loop_bounded_with_headroom(
+        self.run_event_loop_bounded_with_task_watchdog(
             budget_ms,
-            std::time::Duration::from_millis(Self::WATCHDOG_HEADROOM_MS),
-            true,
+            std::time::Duration::from_millis(Self::PUMP_TASK_WATCHDOG_MS),
         )
         .await
     }
@@ -29,43 +30,43 @@ impl super::JsRuntime {
     /// drain yields a loop pass after every task for the burst's length (the
     /// task-boundary hook the eval wait uses), so the tokio budget ends the
     /// burst at the next boundary, and only a single task running past the
-    /// SPA patience (WATCHDOG_HEADROOM_MS — a true spin) is cut. A
-    /// Navigate/SetContent rebuilds the realm and unfreezes as before.
+    /// pump family's minute-scale spin fence is cut. A Navigate/SetContent
+    /// rebuilds the realm and unfreezes as before.
     pub async fn run_event_loop_bounded_throttled(&mut self, budget_ms: u64) -> Result<(), String> {
-        self.set_host_wait(true);
-        let r = self
-            .run_event_loop_bounded_with_headroom(
-                budget_ms,
-                std::time::Duration::from_millis(Self::WATCHDOG_HEADROOM_MS),
-                false,
-            )
-            .await;
-        self.set_host_wait(false);
-        r
+        self.run_event_loop_bounded_with_task_watchdog(
+            budget_ms,
+            std::time::Duration::from_millis(Self::PUMP_TASK_WATCHDOG_MS),
+        )
+        .await
     }
 
-    async fn run_event_loop_bounded_with_headroom(
+    pub(super) async fn run_event_loop_bounded_with_task_watchdog(
         &mut self,
         budget_ms: u64,
-        headroom: std::time::Duration,
-        escalate: bool,
+        task_budget: std::time::Duration,
     ) -> Result<(), String> {
         if budget_ms == 0 {
             return self.run_event_loop().await;
         }
         let budget = std::time::Duration::from_millis(budget_ms);
-        // #224: the plain pump arms through arm_watchdog_pump (patience
-        // grows with this realm's fire history); the #66 throttled burst
-        // keeps the flat wall — its whole job is containment.
-        let token = if escalate {
-            self.arm_watchdog_pump(budget + headroom)
-        } else {
-            self.arm_watchdog(budget + headroom)
+        // Plain and throttled pumps share the #224/#100 pump watchdog: the
+        // deadline is pushed at every event-loop pass, so it bounds ONE
+        // synchronous task rather than the whole initialization window. The
+        // host-wait flag makes the macrotask drain yield after each task,
+        // which is what makes those passes true task boundaries here.
+        self.set_host_wait(true);
+        let token = self.arm_watchdog_pump(task_budget);
+        let result = {
+            let mut heartbeat = |_rt: &mut Self| {
+                token.push_deadline(task_budget);
+                false
+            };
+            tokio::time::timeout(budget, self.run_event_loop_checked(Some(&mut heartbeat))).await
         };
-        let result = tokio::time::timeout(budget, self.run_event_loop()).await;
+        self.set_host_wait(false);
         self.disarm_watchdog(token);
         match result {
-            Ok(Ok(())) => Ok(()),
+            Ok(Ok(_)) => Ok(()),
             Ok(Err(e)) if e.contains("execution terminated") => Ok(()),
             Ok(Err(e)) => Err(e),
             // tokio idle-timeout is the normal "settled" exit, not an error.
@@ -83,17 +84,23 @@ impl super::JsRuntime {
     /// parse, render, and pushState have all drained.
     pub async fn run_event_loop_until_idle(&mut self, max_ms: u64) -> bool {
         let budget = std::time::Duration::from_millis(max_ms);
-        // Same headroom rationale as run_event_loop_bounded: the idle pump
-        // calls this with 200ms slices, and +500ms terminated legitimate
-        // multi-second React commits mid-flight (#100). See
-        // WATCHDOG_HEADROOM_MS. Pump-family arm (#224): patience escalates
-        // with this realm's fire history.
-        let token = self.arm_watchdog_pump(
-            budget + std::time::Duration::from_millis(Self::WATCHDOG_HEADROOM_MS),
-        );
-        let result = tokio::time::timeout(budget, self.run_event_loop()).await;
+        // Same task-boundary discipline as run_event_loop_bounded: the idle
+        // pump calls this with short slices, and short fences terminated
+        // legitimate multi-second React commits mid-flight (#100). The watchdog
+        // is re-armed at every pass instead of measuring the whole window.
+        let task_budget = std::time::Duration::from_millis(Self::PUMP_TASK_WATCHDOG_MS);
+        self.set_host_wait(true);
+        let token = self.arm_watchdog_pump(task_budget);
+        let result = {
+            let mut heartbeat = |_rt: &mut Self| {
+                token.push_deadline(task_budget);
+                false
+            };
+            tokio::time::timeout(budget, self.run_event_loop_checked(Some(&mut heartbeat))).await
+        };
+        self.set_host_wait(false);
         let fired = self.disarm_watchdog(token);
-        matches!(result, Ok(Ok(()))) && !fired
+        matches!(result, Ok(Ok(_))) && !fired
     }
 
     /// Pump the event loop until `done_check` returns true (e.g. an IIFE

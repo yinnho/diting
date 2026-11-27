@@ -556,21 +556,24 @@ impl WatchdogToken {
 }
 
 impl super::JsRuntime {
-    /// Headroom added on top of the caller's budget before the V8 watchdog
-    /// may terminate execution. Termination is a scalpel for infinite spins —
-    /// but react-dom 16's `performWorkOnRoot` sets its `executionContext`
-    /// bits with no `finally` to clear them, so a terminate that lands
-    /// mid-render or mid-commit poisons the realm permanently: every later
-    /// scheduler tick throws minified #327 ("Should not already be working")
-    /// and every `setState` dies silently — the Tmall publish page (#100)
-    /// lost all input write-back and button clicks to exactly this. A heavy
-    /// SPA commit legitimately runs for seconds (style + layout per commit
-    /// is engine-side cost Chrome amortizes), so the old +500ms razor killed
-    /// real work on the idle pump's 200ms slices. Five seconds of patience
-    /// still catches any true spin (a spin never finishes regardless of
-    /// budget), and the #66 duty-cycle freeze remains the backstop for
-    /// under-budget burners.
-    pub const WATCHDOG_HEADROOM_MS: u64 = 5_000;
+    /// Per-task patience for pump-family work. Termination is a scalpel for
+    /// infinite spins — but react-dom 16's `performWorkOnRoot` sets its
+    /// `executionContext` bits with no `finally` to clear them, so a terminate
+    /// that lands mid-render or mid-commit poisons the realm permanently:
+    /// every later scheduler tick throws minified #327 ("Should not already be
+    /// working") and every `setState` dies silently — the Tmall publish page
+    /// (#100) lost all input write-back and button clicks to exactly this.
+    /// Commerce SPA commits legitimately sustain tens of seconds in this
+    /// engine (82.65s measured cold in a release build on the Tmall publish
+    /// page), so two minutes left too little headroom for slower hosts. One
+    /// task gets five minutes: long enough that a legitimate commit is not
+    /// treated as a spin, still finite enough that one never-ending task does
+    /// not pin its session forever. The pump re-arms this budget at every
+    /// event-loop task boundary: a chain of legitimate tasks may run
+    /// indefinitely, while one true synchronous spin is still bounded. The
+    /// #66 duty-cycle freeze remains the backstop for repeated under-budget
+    /// burners.
+    pub const PUMP_TASK_WATCHDOG_MS: u64 = 300_000;
 
     /// Watchdog duration for the meta_code half of an eval (#110): 10s floor,
     /// else the caller's own await budget — the settle half of the same eval
@@ -595,48 +598,19 @@ impl super::JsRuntime {
         )
     }
 
-    /// #224: the pump-family arm (`settle_pending_work`, netidle,
-    /// `run_event_loop_bounded`, `run_event_loop_until_idle`). Same wall as
-    /// [`Self::arm_watchdog`], but the budget grows with this realm's fire
-    /// history: every termination the watchdog already dealt out doubles
-    /// the next pump budget, up to ×128. Doudian's publish boot is the
-    /// counterexample that motivated it: minute-scale synchronous
-    /// schema/form JS (legal commerce work, just 4-10× slower than Chrome
-    /// here) ran into settle 3s+5s / until_idle 200ms+5s walls FIFTEEN
-    /// times in one boot — each fire severed whatever promise chain was
-    /// mid-commit, and the prefill chain never completed (主图 never
-    /// mounted; op deliveries were lost outright). A realm that has
-    /// already been beheaded N times is either slow-and-legitimate (the
-    /// patience saves it) or a spin (the #66 duty freeze catches it —
-    /// a spin burns duty regardless of watchdog budget). NOT applied to
-    /// the eval/module/script watchdogs: those are API contracts with
-    /// caller-visible timeouts, nor to the #66 throttled burst (that
-    /// symmetric fence exists to CONTAIN a burner).
+    /// #224/#100: the pump-family arm (`settle_pending_work`, netidle,
+    /// `run_event_loop_bounded`, `run_event_loop_until_idle`). A pump fire is
+    /// never a latency control: if it lands in page/framework code whose state
+    /// reset is not `finally`-safe (react-dom's executionContext is the known
+    /// case), the realm remains permanently poisoned even after every engine
+    /// bracket is healed. The caller passes ONE task's patience and then
+    /// pushes the deadline at each event-loop task boundary — the wall must
+    /// never measure a whole initialization window, because legitimate SPA
+    /// boots are chains of long synchronous tasks. NOT applied to
+    /// eval/module/script watchdogs: those are API contracts with
+    /// caller-visible timeouts.
     pub fn arm_watchdog_pump(&mut self, budget: std::time::Duration) -> WatchdogToken {
-        let mult = self.pump_patience();
-        // Cap the escalated wall at base + 60s. The patience exists for
-        // legitimate slow commits (42s of sustained sync measured on this
-        // page family) — not to stretch a termination-immune wedge. The
-        // first #224 repro pinned the session actor for minutes inside one
-        // optimized microtask (a memmove-shaped loop that ignored a pending
-        // TerminateExecution; V8 optimized code without interrupt checks
-        // doesn't observe termination at all), and at ×128 the settle wall
-        // alone was 256s of that. +60s keeps every escalated wall in the
-        // "survivable, commands drain within a minute" band.
-        let cap = budget + std::time::Duration::from_secs(60);
-        let scaled = budget.saturating_mul(mult).min(cap);
-        if scaled > budget {
-            tracing::debug!(
-                "#224 pump watchdog patience ×{mult} (capped at {}ms)",
-                scaled.as_millis()
-            );
-        }
-        self.arm_watchdog(scaled)
-    }
-
-    /// The current #224 escalation factor: 1 << min(fires, 7), capped ×128.
-    fn pump_patience(&self) -> u32 {
-        1u32 << self.watchdog_fired_total.get().min(7)
+        self.arm_watchdog(budget)
     }
 
     /// Stop a watchdog armed by [`Self::arm_watchdog`]. If it had already fired
@@ -662,9 +636,8 @@ impl super::JsRuntime {
             self.watchdog_fired_total
                 .set(self.watchdog_fired_total.get() + 1);
             tracing::warn!(
-                "V8 watchdog fired: terminated a synchronous overrun ({} fires this realm; pump budgets now ×{})",
-                self.watchdog_fired_total.get(),
-                self.pump_patience()
+                "V8 watchdog fired: terminated a synchronous overrun ({} fires this realm)",
+                self.watchdog_fired_total.get()
             );
         }
         fired
