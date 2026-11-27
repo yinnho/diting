@@ -23,7 +23,7 @@ use super::{
     loader_of, local_of, new_id, now_secs, ok, page_of, page_of_mut, product, session_msg,
     to_sessions, Attached, Failure, Hub, Out, PageSlot, SessionSlot, SharedHub, World, CONTEXT_ID,
 };
-use crate::session::{send_command, SessionCommand, SESSIONS};
+use crate::session::{close_session_and_wait, send_command, SessionCommand, SESSIONS};
 
 pub(super) async fn browser_method(
     hub: SharedHub,
@@ -125,12 +125,8 @@ pub(super) async fn browser_method(
 /// Close engine sessions — outside the hub lock, and before the reply, so
 /// a client that has the reply finds them closed.
 pub(super) async fn close_engine(_hub: SharedHub, sessions: Vec<String>) {
-    if sessions.is_empty() {
-        return;
-    }
-    let mut mgr = SESSIONS.lock().await;
     for session in sessions {
-        mgr.close_and_wait(&session).await;
+        close_session_and_wait(&session).await;
     }
 }
 
@@ -367,8 +363,7 @@ async fn create_target(
     let (url, title) = match nav {
         Ok(resp) => (resp.url, resp.title.unwrap_or_default()),
         Err(err) => {
-            let mut mgr = SESSIONS.lock().await;
-            mgr.close_and_wait(&engine).await;
+            close_session_and_wait(&engine).await;
             return Err(session_msg(err).into());
         }
     };

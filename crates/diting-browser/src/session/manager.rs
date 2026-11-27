@@ -48,6 +48,43 @@ fn zombie_error(session_id: &str) -> SessionError {
     ))
 }
 
+/// The two halves of a close-and-wait. Removal and the Close command belong
+/// under the manager lock; the thread ack does not. A navigation or a
+/// watchdog-bounded eval can legitimately keep that ack away for seconds,
+/// and holding SESSIONS across it turned one closing page into a process-wide
+/// creation/command freeze.
+enum CloseWait {
+    Done(bool),
+    Pending(oneshot::Receiver<()>),
+}
+
+impl CloseWait {
+    async fn finish(self) -> bool {
+        match self {
+            CloseWait::Done(done) => done,
+            CloseWait::Pending(rx) => {
+                match tokio::time::timeout(std::time::Duration::from_secs(20), rx).await {
+                    Ok(Ok(())) => true,
+                    Ok(Err(_)) => true, // dropped sender = thread exiting
+                    Err(_) => false,
+                }
+            }
+        }
+    }
+}
+
+/// Close a session through the global manager without holding that manager
+/// across the thread-ack wait. The session is removed and its Close is queued
+/// in one short locked section; the bounded wait then runs lock-free, so a
+/// stuck navigation contains itself instead of freezing every other target.
+pub(crate) async fn close_session_and_wait(session_id: &str) -> bool {
+    let wait = {
+        let mut mgr = SESSIONS.lock().await;
+        mgr.begin_close(session_id)
+    };
+    wait.finish().await
+}
+
 /// Await a session's reply, giving up once the engine declares its thread a
 /// zombie (the watchdog's terminate never landed, see
 /// `diting::diting_js::runtime::is_zombie_thread`). Without this a page that
@@ -610,11 +647,10 @@ impl SessionManager {
         }
     }
 
-    /// Close and wait (bounded) for the session thread to acknowledge. Returns
-    /// true if the thread exited (or was already dead); false means it did not
-    /// ack within the budget - the command stays queued and the thread will
-    /// exit when its current (watchdog-bounded) command finishes.
-    pub async fn close_and_wait(&mut self, session_id: &str) -> bool {
+    /// The locked half of close-and-wait: remove the session and queue its
+    /// Close. The returned wait is deliberately separable so global callers
+    /// can drop the manager lock before awaiting the thread ack.
+    fn begin_close(&mut self, session_id: &str) -> CloseWait {
         if let Some(session) = self.sessions.remove(session_id) {
             self.snapshots.delete(session_id);
             let (tx, rx) = oneshot::channel();
@@ -623,21 +659,28 @@ impl SessionManager {
                 .send(SessionCommand::Close { reply: tx })
                 .is_err()
             {
-                return true; // thread already gone
+                return CloseWait::Done(true); // thread already gone
             }
-            match tokio::time::timeout(std::time::Duration::from_secs(20), rx).await {
-                Ok(Ok(())) => true,
-                Ok(Err(_)) => true, // dropped sender = thread exiting
-                Err(_) => false,
-            }
+            CloseWait::Pending(rx)
         } else if self.dormant.remove(session_id).is_some() {
             // A shell has no thread to wait on; close means done — the
             // snapshot goes with it, same as a live close.
             self.snapshots.delete(session_id);
-            true
+            CloseWait::Done(true)
         } else {
-            false
+            CloseWait::Done(false)
         }
+    }
+
+    /// Close and wait (bounded) for the session thread to acknowledge. Returns
+    /// true if the thread exited (or was already dead); false means it did not
+    /// ack within the budget - the command stays queued and the thread will
+    /// exit when its current (watchdog-bounded) command finishes. Production
+    /// callers use the lock-free global helper above; this direct form is the
+    /// local-manager test face.
+    #[cfg(test)]
+    pub async fn close_and_wait(&mut self, session_id: &str) -> bool {
+        self.begin_close(session_id).finish().await
     }
 
     /// Evict expired sessions. Persistent sessions keep their snapshot: the

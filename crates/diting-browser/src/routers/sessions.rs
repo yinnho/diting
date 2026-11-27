@@ -1323,10 +1323,11 @@ pub(crate) async fn session_wait_handler(
 pub(crate) async fn session_close_handler(
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let mut mgr = session::SESSIONS.lock().await;
     // Wait for the session thread's ack so `ok` is truthful - a runaway eval
-    // can pin the thread inside V8 for up to its watchdog budget.
-    let closed = mgr.close_and_wait(&id).await;
+    // can pin the thread inside V8 for up to its watchdog budget. The wait
+    // itself stays outside the global session lock: one page in that state
+    // must not freeze every other session's commands and target creation.
+    let closed = session::close_session_and_wait(&id).await;
     Ok((StatusCode::OK, Json(serde_json::json!({ "ok": closed }))))
 }
 
