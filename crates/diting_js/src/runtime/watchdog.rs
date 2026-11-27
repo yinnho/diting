@@ -114,6 +114,16 @@ const ZOMBIE_VERDICT_AFTER: std::time::Duration = if cfg!(test) {
 /// per incident, loudly logged, instead of a hang.
 const WATCHDOG_CANCEL_GRACE: std::time::Duration = std::time::Duration::from_secs(2);
 
+/// Poll quantum for the bounded cancel ceremony. This is not the watchdog's
+/// fire cadence: it runs only while stopping an armed watchdog, and almost
+/// every stop is healthy. A 5ms quantum used to make every healthy eval pay
+/// one or more scheduler-sized ticks just to notice that its watchdog thread
+/// had already exited (measured as a ~15ms fixed Runtime.evaluate cost).
+/// 100µs keeps the healthy cancel prompt without meaningfully busy-spinning
+/// the pathological #332 wedge path, which is still bounded by the grace
+/// above either way.
+const WATCHDOG_CANCEL_POLL: std::time::Duration = std::time::Duration::from_micros(100);
+
 /// Debug knob (DITING_WATCHDOG_STACK_DUMP=1): dump the live JS stack of
 /// a synchronous overrun. Two producers share this callback:
 ///  - `watchdog_terminate` requests one at fire time (best effort: if the spin
@@ -438,14 +448,14 @@ fn bounded_cancel_and_join(
             if std::time::Instant::now() >= deadline {
                 break;
             }
-            std::thread::sleep(std::time::Duration::from_millis(5));
+            std::thread::sleep(WATCHDOG_CANCEL_POLL);
         }
     }
     let joined = match join.take() {
         None => true,
         Some(j) => {
             while !j.is_finished() && std::time::Instant::now() < deadline {
-                std::thread::sleep(std::time::Duration::from_millis(5));
+                std::thread::sleep(WATCHDOG_CANCEL_POLL);
             }
             if j.is_finished() {
                 let _ = j.join();
@@ -988,5 +998,40 @@ mod cancel_grace_tests {
         // Release the wedge so the leaked thread can die with the test.
         *release.0.lock().unwrap() = true;
         release.1.notify_one();
+    }
+
+    /// Healthy cancel is the hot path — every eval and bounded pump arms and
+    /// disarms a watchdog. The ceremony must notice a promptly exiting
+    /// watchdog in its sub-millisecond shape, not quantize each command to
+    /// the wedge path's scheduler tick. Ten cancels at the retired 5ms
+    /// quantum cost ~50ms even when every thread behaved.
+    #[test]
+    fn healthy_cancel_does_not_pay_a_scheduler_tick_per_watchdog() {
+        let began = std::time::Instant::now();
+        for _ in 0..10 {
+            let pair =
+                std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
+            let healthy = std::thread::spawn({
+                let pair = pair.clone();
+                move || {
+                    let (lock, cvar) = &*pair;
+                    let mut cancelled = lock.lock().unwrap();
+                    while !*cancelled {
+                        cancelled = cvar.wait(cancelled).unwrap();
+                    }
+                }
+            });
+            let (signalled, joined) = bounded_cancel_and_join(
+                &pair,
+                Some(healthy),
+                std::time::Instant::now() + std::time::Duration::from_millis(300),
+            );
+            assert!(signalled && joined);
+        }
+        assert!(
+            began.elapsed() < std::time::Duration::from_millis(40),
+            "ten healthy watchdog cancels took {:?}",
+            began.elapsed()
+        );
     }
 }
