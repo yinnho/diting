@@ -28,6 +28,58 @@ The product thesis remains:
 - **Doors** — the protocol faces: HTTP REST, the CDP websocket bridge, and the
   CLI/diagnostic entrypoints.
 
+## 1.1 Product strategy guardrail
+
+The current owner-approved strategy is **engine-first, local/self-hosted, and
+single-binary**. Diting is not currently trying to become a hosted multi-tenant
+browser platform. Do not roadmap cloud control planes, hosted session fleets,
+billing/usage metering, managed proxy businesses, hosted runtimes, or platform
+template marketplaces merely because Browserbase, Steel, Hyperbrowser, or
+Lexmount have them. A previous hosted/free-trial attempt was abused at a cost
+the current team cannot carry; any reversal of this boundary is a product
+decision requiring explicit owner direction, not an inference from competitor
+movement.
+
+Competitor watching therefore has a narrow purpose: improve the engine and its
+agent-facing usability. Moli, Obscura, Lightpanda, and similar projects are
+signals for browser correctness, performance, extraction quality, protocol
+compatibility, and real-site reliability. Hosted-platform packaging is market
+intelligence only, not a feature mandate.
+
+High-value site-specific flows are **private operational memory**, not public
+content inventory. Publishing concrete site flows can invite countermeasures,
+make the flows rot faster, and create an unwanted maintenance/anti-abuse
+burden. The engine ships no site-specific business logic or signature chains.
+The desired loop is instead:
+
+```text
+agent explores a site once
+  → distills the successful path into a private flow
+  → strips or references secrets rather than embedding them
+  → validates replay
+  → repairs the flow from structured failure receipts when the site drifts
+  → reuses the flow with zero additional model exploration cost
+```
+
+Public documentation may teach the flow format and use generic examples, but
+must not become a public catalog of high-value site-specific know-how. Flow
+assets belong to the user or organization that generated them; optional
+sharing must stay inside an explicit trust boundary.
+
+“Best engine” is measured by outcomes, not by counting browser API names:
+
+1. real-site success, especially authenticated heavy SPAs and Chinese web
+   workflows;
+2. navigation, session, iframe, form, upload, storage, and document-lifecycle
+   correctness;
+3. startup time, memory use, concurrency, and long-running stability;
+4. acquisition quality: extraction, markdown, search merging, receipts, and
+   provenance useful to agents;
+5. agent operability: stable typed APIs, diagnosable failures, replayable
+   private flows, and zero-token reuse;
+6. local control: no Chromium dependency, no required cloud control plane, and
+   user custody of credentials, sessions, and workflow assets.
+
 ## 2. Dependency direction, crate map, and binding rules
 
 The compile-time dependency direction is one-way:

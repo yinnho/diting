@@ -1,4 +1,16 @@
-# Gate contract (#64)
+# Diting agent instructions
+
+## Product strategy guardrail
+
+The current owner-approved strategy is engine-first, local/self-hosted, and
+single-binary. Do not propose a hosted multi-tenant browser platform, cloud
+control plane, billing/usage metering, managed proxy business, hosted runtime,
+or public site-specific flow marketplace as a roadmap item without explicit
+owner direction. Flows are private, agent-generated user assets. The binding
+version of this boundary and the competitor-watch interpretation live in
+`ARCHITECTURE.md` §1.1.
+
+## Gate contract (#64)
 
 Every Rust/Cargo change passes all five local gates before commit. CI runs
 the same jobs — a red `CI` check on main is a breakage, not noise (the
