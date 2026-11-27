@@ -66,6 +66,7 @@ __pycache__/
 # 新增顶层目录时在这里补一行 !/名字/，否则 git 看不见它。
 /*
 !.gitattributes
+!/ARCHITECTURE.md
 !/.cargo/
 !/.config/
 !/.github/

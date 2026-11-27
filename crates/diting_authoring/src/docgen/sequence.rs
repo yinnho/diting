@@ -13,6 +13,7 @@
 
 use super::sigil;
 use super::spec::{text_units, SequenceSpec};
+use super::svgutil::{esc, fitted_font, TEXT_WIDTH_FACTOR};
 use super::theme::Theme;
 
 // Tenths of a pixel. PX = /10.
@@ -29,9 +30,8 @@ const ARROW_INSET: i32 = 70;
 const HEAD_LEN: i32 = 80;
 const LABEL_H: i32 = 160;
 const TITLE_Y: i32 = 340;
-/// Fitted-font geometry shared with archify's text-fit: 0.6px advance per
-/// unit per px of size, 8px reserved inside the box.
-const TEXT_WIDTH_FACTOR: i32 = 6; // tenths of px per unit per tenth-of-px size
+/// Fitted-font geometry shared with the other diagram families; 8px is
+/// reserved inside the box.
 const TEXT_PADDING: i32 = 80;
 const LABEL_PREFERRED: i32 = 110;
 const LABEL_MIN: i32 = 80;
@@ -58,14 +58,6 @@ fn message_y(index: usize) -> i32 {
     LIFELINE_TOP + 300 + index as i32 * ROW_STEP
 }
 
-/// Largest font size (tenths) at or below `preferred` fitting `text` in
-/// `available` tenths, floored at `minimum` — archify's fittedNodeFontSize.
-fn fitted_font(text: &str, available: i32, preferred: i32, minimum: i32) -> i32 {
-    let units = text_units(text) as i32;
-    let by_width = available * 10 / (units * TEXT_WIDTH_FACTOR);
-    preferred.min(by_width).max(minimum)
-}
-
 /// Does `text` still overflow `available` at its legible minimum?
 fn overflows_at_minimum(text: &str, available: i32, minimum: i32) -> bool {
     let units = text_units(text) as i32;
@@ -90,16 +82,6 @@ fn variant_style(
 /// Format tenths as a compact decimal: integer when whole, one place when
 /// not. `{:.1}` on an exact x/10 rounds correctly, so bytes are stable.
 use super::tx;
-
-/// XML-escape text content and attribute values; collapse newlines/tabs so
-/// a label never smuggles structure into single-line `<text>`.
-fn esc(s: &str) -> String {
-    let flat = s.replace(['\n', '\r', '\t'], " ");
-    flat.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-}
 
 /// Render a validated spec. Geometry-level failures (labels no shrink can
 /// rescue) come back as problems for the receipt; the caller falls the

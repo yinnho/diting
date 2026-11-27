@@ -24,6 +24,7 @@ pub mod shell;
 pub mod sigil;
 pub mod spec;
 pub mod story;
+mod svgutil;
 pub mod theme;
 pub mod workflow;
 

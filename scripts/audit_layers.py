@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Layering audit — ARCHITECTURE.md §2 rules R1–R3, grep level, zero deps.
+"""Layering audit — ARCHITECTURE.md §2 rules R1–R4 + §6 ratchet, grep level, zero deps.
 
 Runs in CI (ci.yml `layers` job) and locally (`python3 scripts/audit_layers.py`).
 Reads source as text — it is a tripwire against accidental boundary crossings,
@@ -39,23 +39,28 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE = ROOT / "crates" / "diting"
-# #58: the engine is the facade plus its seven body crates; every engine rule
-# runs over all of them. js/ (the snapshot sources) lives with diting_js.
+# #58: the engine is the facade plus its body crates; every engine rule runs
+# over all of them. js/ (the snapshot sources) lives with diting_js. The
+# runtime/ops pair is engine substrate too: leaving it outside this list used
+# to exempt it from the same boundary and god-file tripwires.
 ENGINE_CRATES = [ENGINE] + [
     ROOT / "crates" / c
     for c in ("diting_env", "diting_dom", "diting_css", "diting_layout",
-              "diting_net", "diting_js", "diting_page")
+              "diting_net", "diting_js", "diting_page", "diting_ops",
+              "diting_runtime")
 ]
 ENGINE_JS = ROOT / "crates" / "diting_js" / "js"
 PRODUCT = ROOT / "crates/diting-browser/src"
+AUTHORING = ROOT / "crates/diting_authoring/src"
 
 # The faces: doors hold routing/parameter structs only (R3), and nothing may
 # import them (R1b) — main.rs is the bin root doing assembly, so it may.
-FACE_MODULES = ("routers", "firecrawl_compat", "doctor_cli")
+FACE_MODULES = ("routers", "firecrawl_compat", "doctor_cli", "cdp")
 FACE_PATHS = (
     PRODUCT / "routers",
     PRODUCT / "firecrawl_compat.rs",
     PRODUCT / "doctor_cli.rs",
+    PRODUCT / "cdp",
     PRODUCT / "main.rs",
 )
 
@@ -226,8 +231,9 @@ def check_r2b() -> list[str]:
 def check_r3() -> list[str]:
     """Faces carry no unsafe (and stay thin enough to review by eye)."""
     out = []
+    test_only_mods = cfg_test_mod_files([PRODUCT])
     for f in rs_files(PRODUCT):
-        if not in_face(f):
+        if not in_face(f) or f in test_only_mods or f.name == "tests.rs":
             continue
         for i, line in enumerate(strip_comments(f.read_text()).splitlines(), 1):
             if re.search(r"\bunsafe\b", line):
@@ -358,14 +364,17 @@ def cfg_test_mod_files(bases: list[Path]) -> set[Path]:
                 if not test_gated:
                     continue
                 name = m.group(1)
-                # mod.rs 布局: name.rs 或 name/mod.rs；普通文件布局（如 tests.rs
-                # + tests/ 目录）：stem/name.rs（Rust 2018 路径规则）
-                cands = [f.parent / f"{name}.rs", f.parent / name / "mod.rs"]
-                if f.name != "mod.rs":
-                    cands.append(f.parent / f.stem / f"{name}.rs")
+                # Rust 2018 module resolution: crate roots and mod.rs look in
+                # the current directory; a file module such as tests.rs looks in
+                # its same-named subdirectory. Resolving both shapes here used
+                # to mark a production sibling (cdp/fetch.rs) test-only merely
+                # because tests/fetch.rs shared its stem.
+                base = f.parent if f.name in ("lib.rs", "main.rs", "mod.rs") else f.parent / f.stem
+                cands = [base / f"{name}.rs", base / name / "mod.rs"]
                 for cand in cands:
                     if cand.exists():
                         gated.add(cand)
+                        break
     return gated
 
 
@@ -397,9 +406,9 @@ def check_god_files() -> list[str]:
     seen = set()
     # The engine's baked-in realm JS (js/, executed into the V8 snapshot by
     # build.rs) is engine source that happens to be JS — same ratchet.
-    files = rs_files(PRODUCT) + engine_rs_files()
+    files = rs_files(PRODUCT) + rs_files(AUTHORING) + engine_rs_files()
     files += sorted(ENGINE_JS.glob("*.js"))
-    test_only_mods = cfg_test_mod_files([PRODUCT] + ENGINE_CRATES)
+    test_only_mods = cfg_test_mod_files([PRODUCT, AUTHORING] + ENGINE_CRATES)
     for f in files:
         if f.name == "tests.rs":  # colocated contract suites are a feature, not debt
             continue

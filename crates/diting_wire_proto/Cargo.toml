@@ -83,3 +83,7 @@ default-features = false
 [dependencies.want]
 version = "0.3.1"
 
+
+# Vendored-crate exemption is explicit: house clippy policy is not
+# inherited wholesale into upstream-shaped trees (crates/VENDORED.md).
+[lints]

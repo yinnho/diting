@@ -736,8 +736,9 @@ pub fn do_click(req: ClickRequest) -> Result<ClickResponse> {
                 page.settle(wait * 1000).await;
             }
 
-            let clicked = if let Some(el) = page.query_selector(&req.selector) {
-                el.click().context("element.click() failed")?;
+            let clicked = if let Some(element) = page.query_selector(&req.selector) {
+                page.click_element(element)
+                    .context("element.click() failed")?;
                 true
             } else {
                 false

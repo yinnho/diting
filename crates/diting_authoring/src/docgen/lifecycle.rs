@@ -27,6 +27,7 @@ use super::spec::{
     lifecycle_band, text_units, LifecycleBand, LifecycleLane, LifecycleSpec, LifecycleState,
     LifecycleTransition,
 };
+use super::svgutil::{esc, fitted_font};
 use super::theme::Theme;
 use super::tx;
 
@@ -60,7 +61,6 @@ const LABEL_PREFERRED: i32 = 100;
 const LABEL_MIN: i32 = 80;
 const SUB_PREFERRED: i32 = 70;
 const SUB_MIN: i32 = 60;
-const TEXT_WIDTH_FACTOR: i32 = 6;
 /// Legend: 14×9 swatch, 3px to the text, 24px between items.
 const LEGEND_SWATCH_W: i32 = 140;
 const LEGEND_SWATCH_H: i32 = 90;
@@ -563,20 +563,6 @@ fn variant_style(
         "dashed" => (theme.skip, 11, Some("6 4"), theme.skip),
         _ => (theme.ink_soft, 11, None, theme.ink_soft),
     }
-}
-
-fn fitted_font(text: &str, available: i32, preferred: i32, minimum: i32) -> i32 {
-    let units = text_units(text) as i32;
-    let by_width = available * 10 / (units * TEXT_WIDTH_FACTOR);
-    preferred.min(by_width).max(minimum)
-}
-
-fn esc(s: &str) -> String {
-    let flat = s.replace(['\n', '\r', '\t'], " ");
-    flat.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
 }
 
 fn emit_svg(

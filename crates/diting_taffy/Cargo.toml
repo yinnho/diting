@@ -50,3 +50,7 @@ path = "src/lib.rs"
 [dependencies]
 slotmap = { version = "1.1", default-features = false, optional = true }
 smallvec = { version = "1.16", default-features = false, optional = true }
+
+# Vendored-crate exemption is explicit: house clippy policy is not
+# inherited wholesale into upstream-shaped trees (crates/VENDORED.md).
+[lints]

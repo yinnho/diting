@@ -31,3 +31,7 @@ path = "src/lib.rs"
 skrifa = { version = "0.44", default-features = false }
 yazi = { version = "0.2.1", optional = true, default-features = false }
 zeno = { version = "0.3.3", optional = true, default-features = false }
+
+# Vendored-crate exemption is explicit: house clippy policy is not
+# inherited wholesale into upstream-shaped trees (crates/VENDORED.md).
+[lints]

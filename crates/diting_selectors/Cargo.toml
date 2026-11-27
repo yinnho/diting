@@ -30,3 +30,7 @@ precomputed-hash = "0.1"
 rustc-hash = "2.1.1"
 servo_arc = "0.6.0"
 smallvec = "1.0"
+
+# Vendored-crate exemption is explicit: house clippy policy is not
+# inherited wholesale into upstream-shaped trees (crates/VENDORED.md).
+[lints]

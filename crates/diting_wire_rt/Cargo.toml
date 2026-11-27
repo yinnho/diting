@@ -44,3 +44,7 @@ default-features = false
 [dependencies.diting_wire_proto]
 path = "../diting_wire_proto"
 optional = true
+
+# Vendored-crate exemption is explicit: house clippy policy is not
+# inherited wholesale into upstream-shaped trees (crates/VENDORED.md).
+[lints]

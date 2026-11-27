@@ -24,3 +24,7 @@ doctest = false
 diting_markup5ever = { path = "../diting_markup5ever" }
 log = "0.4"
 memchr = "2.8.0"
+
+# Vendored-crate exemption is explicit: house clippy policy is not
+# inherited wholesale into upstream-shaped trees (crates/VENDORED.md).
+[lints]

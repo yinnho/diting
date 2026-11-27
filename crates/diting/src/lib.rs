@@ -1,8 +1,11 @@
 //! Diting (谛听) — the browser engine under Diting.
 //!
 //! One responsibility: load and run a page — network → DOM → CSS → layout →
-//! paint, with a built-in V8 runtime — and expose it through the `Page`-level
-//! API. No product concerns live here (ARCHITECTURE.md §2, rule R2).
+//! paint, with a built-in V8 runtime. No product concerns live here
+//! (ARCHITECTURE.md §2, rule R2). The facade exposes the Page/runtime API plus
+//! the acquisition/render primitives the product legitimately consumes; the
+//! remaining internal surface is tolerated legacy surface (§3), not a claim
+//! that every consumer is Page-only.
 //!
 //! Facade since #58: the engine lives in the `diting_*` crates (env → dom →
 //! css → layout; net; js; page) and this crate re-exports them under their

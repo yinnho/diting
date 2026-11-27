@@ -21,6 +21,9 @@ doctest = false
 [features]
 
 [dependencies]
-log = "0.4"
 tendril = "0.5"
 web_atoms = "0.3.0"
+
+# Vendored-crate exemption is explicit: house clippy policy is not
+# inherited wholesale into upstream-shaped trees (crates/VENDORED.md).
+[lints]

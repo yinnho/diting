@@ -117,6 +117,13 @@ jobs:
           key: clippy-v3
       - name: Clippy
         run: cargo clippy --workspace --all-targets --features stealth,screenshot -- -D warnings
+      - name: Feature-combination compile gates
+        # ARCHITECTURE.md R6: `--no-default-features` is the documented
+        # acquisition-only face. Compile the boundary combinations so the
+        # authoring option cannot become a silent always-on dependency.
+        run: |
+          cargo check -p diting-browser --no-default-features
+          cargo check -p diting-browser --no-default-features --features screenshot
 
   fmt:
     # #64: format gate over every house crate. Vendored trees keep upstream

@@ -153,3 +153,7 @@ default-features = false
 [target."cfg(unix)".dependencies.libc]
 version = "0.2.186"
 
+
+# Vendored-crate exemption is explicit: house clippy policy is not
+# inherited wholesale into upstream-shaped trees (crates/VENDORED.md).
+[lints]

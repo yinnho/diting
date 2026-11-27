@@ -170,17 +170,45 @@ impl Page {
     }
 
     /// Query a single element by CSS selector.
-    pub fn query_selector(&mut self, selector: &str) -> Option<Element> {
+    ///
+    /// The returned handle is intentionally opaque and lifetimeless: it is a
+    /// page-side DOM id, not a Rust pointer. A handle can go stale when the
+    /// page navigates or mutates; clicking a stale handle fails instead of
+    /// dereferencing invalid memory.
+    pub fn query_selector(&mut self, selector: &str) -> Option<ElementHandle> {
         let escaped = selector.replace('\\', "\\\\").replace('\'', "\\'");
         let js = format!(
             "(function() {{ var el = document.querySelector('{}'); return el ? el._nid : null; }})()",
             escaped
         );
         let val = self.evaluate(&js);
-        nid_from_value(&val).map(|nid| Element {
-            node_id: nid,
-            page: self as *const Page,
-        })
+        nid_from_value(&val).map(|node_id| ElementHandle { node_id })
+    }
+
+    /// Click an element previously returned by [`Page::query_selector`].
+    pub fn click_element(&mut self, element: ElementHandle) -> Result<(), Error> {
+        let node_id = element.node_id;
+        // Scroll into view
+        self.evaluate_with_timeout(
+            &format!(
+                "(function() {{ var el = globalThis._wrap && globalThis._wrap({}); if (el) el.scrollIntoView({{block:'center'}}); }})()",
+                node_id
+            ),
+            INTERACTION_EVAL_TIMEOUT,
+        );
+        // Click
+        let result = self.evaluate_with_timeout(
+            &format!(
+                "(function() {{ var el = globalThis._wrap && globalThis._wrap({}); if (el) {{ el.click(); return true; }} return false; }})()",
+                node_id
+            ),
+            INTERACTION_EVAL_TIMEOUT,
+        );
+        if result.as_bool().unwrap_or(false) {
+            Ok(())
+        } else {
+            Err(Error::ElementNotFound("click failed".into()))
+        }
     }
 
     /// Wait for a named cookie to appear (polls every 200ms).
@@ -255,38 +283,12 @@ impl Page {
     }
 }
 
-/// Handle to a DOM element.
+/// Opaque handle to an element in one page's live DOM.
 ///
-/// Created via [`Page::query_selector`].
-pub struct Element {
+/// This is deliberately not a borrow of [`Page`]: interaction methods stay on
+/// `Page`, so Rust's ownership rules continue to govern page access. Stale or
+/// cross-page handles are runtime lookup failures, not memory-safety hazards.
+#[derive(Clone, Copy, Debug)]
+pub struct ElementHandle {
     node_id: u64,
-    page: *const Page,
-}
-
-impl Element {
-    /// Click this element.
-    pub fn click(&self) -> Result<(), Error> {
-        let page = unsafe { &mut *(self.page as *mut Page) };
-        // Scroll into view
-        page.evaluate_with_timeout(
-            &format!(
-                "(function() {{ var el = globalThis._wrap && globalThis._wrap({}); if (el) el.scrollIntoView({{block:'center'}}); }})()",
-                self.node_id
-            ),
-            INTERACTION_EVAL_TIMEOUT,
-        );
-        // Click
-        let result = page.evaluate_with_timeout(
-            &format!(
-                "(function() {{ var el = globalThis._wrap && globalThis._wrap({}); if (el) {{ el.click(); return true; }} return false; }})()",
-                self.node_id
-            ),
-            INTERACTION_EVAL_TIMEOUT,
-        );
-        if result.as_bool().unwrap_or(false) {
-            Ok(())
-        } else {
-            Err(Error::ElementNotFound("click failed".into()))
-        }
-    }
 }

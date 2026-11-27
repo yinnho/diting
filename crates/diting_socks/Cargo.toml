@@ -17,3 +17,5 @@ tokio = { version = "1", default-features = false, features = [
 
 # Vendor fork: upstream lint discipline applies (VENDORED.md), the
 # workspace [lints] table does not cover this crate.
+
+[lints]

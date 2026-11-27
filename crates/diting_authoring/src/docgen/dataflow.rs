@@ -23,6 +23,7 @@ use super::graph::{
 };
 use super::sigil;
 use super::spec::{text_units, DataflowFlow, DataflowNode, DataflowSpec};
+use super::svgutil::{esc, fitted_font};
 use super::theme::{variant_style, Theme};
 use super::tx;
 
@@ -61,7 +62,6 @@ const LABEL_PREFERRED: i32 = 100;
 const LABEL_MIN: i32 = 80;
 const SUB_PREFERRED: i32 = 70;
 const SUB_MIN: i32 = 60;
-const TEXT_WIDTH_FACTOR: i32 = 6;
 /// Legend: 20px line swatch, 3px to the text, 24px between items.
 const LEGEND_SWATCH_W: i32 = 200;
 const LEGEND_SWATCH_TEXT_GAP: i32 = 30;
@@ -444,20 +444,6 @@ fn measured_bounds(
 // ---------------------------------------------------------------------------
 // SVG emission
 // ---------------------------------------------------------------------------
-
-fn fitted_font(text: &str, available: i32, preferred: i32, minimum: i32) -> i32 {
-    let units = text_units(text) as i32;
-    let by_width = available * 10 / (units * TEXT_WIDTH_FACTOR);
-    preferred.min(by_width).max(minimum)
-}
-
-fn esc(s: &str) -> String {
-    let flat = s.replace(['\n', '\r', '\t'], " ");
-    flat.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-}
 
 fn emit_svg(
     doc: &Canon,

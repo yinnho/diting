@@ -60,11 +60,6 @@ anyhow = "1"
 thiserror = "2"
 libc = "0.2"
 
-# --- docgen (render_markdown): markdown event stream + HTML emission ---
-# Parser-only infrastructure (html5ever precedent); diagram vocabulary and
-# layout arithmetic adapted from archify (MIT).
-pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
-
 # --- tracing ---
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -87,12 +82,6 @@ diting_cssparser = { path = "../diting_cssparser" }
 base64 = "0.23"
 sha2 = "0.11"
 
-# --- stealth client (TLS fingerprint spoofing) ---
-# The browser-fidelity HTTP stack is OUR code now (crates/diting_wire*, diting_profiles;
-# vendored from wreq 6.0.0-rc.31 family, see crates/VENDORED.md). The product keeps the
-# platform emulation presets used by search personas.
-diting_profiles = { path = "../diting_profiles" }
-
 # Retired 2026-11-06: the blitz reference pipeline (DioxusLabs/blitz rev-pinned
 # + stylo_alias + a parley/fontique/anyrender/peniko fixture stack, feeding
 # bridge_cross_check.rs / screenshot_reference.rs) was deleted — the dual-engine
@@ -111,7 +100,6 @@ rusqlite = { version = "0.41.1", features = ["bundled"] }
 # linked — V8's Temporal pulls it in — so this line adds the name, not code.
 icu_locale_core = { version = "2", features = ["alloc"] }
 
-aes-gcm = "0.11"
 # #26 browser-profile import: Chrome macOS cookies are AES-128-CBC under a
 # PBKDF2-HMAC-SHA1 key; the snapshot copy of the profile db lives in a
 # private TempDir. Same versions the engine's WebCrypto already locks.

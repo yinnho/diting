@@ -893,7 +893,7 @@ async fn capture_screenshot(
     }
     #[cfg(not(feature = "screenshot"))]
     {
-        let _ = (id, session, params);
+        let _ = (hub, id, session, params);
         Err(NEEDS_SCREENSHOT.into())
     }
 }
