@@ -1,0 +1,51 @@
+name: Font truth regeneration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/webplatform/gen/gen_font_metrics.py'
+      - 'tools/webplatform/gen/font_metrics_lazy.py'
+      - 'tools/webplatform/font-truth-source.json'
+      - 'crates/diting_js/js/font_metrics.js'
+      - 'crates/diting_js/js/font_metrics_index.json'
+      - 'crates/diting_js/js/font_metrics_data.zst'
+      - '.github/workflows/font-truth.yml'
+  pull_request:
+    paths:
+      - 'tools/webplatform/gen/gen_font_metrics.py'
+      - 'tools/webplatform/gen/font_metrics_lazy.py'
+      - 'tools/webplatform/font-truth-source.json'
+      - 'crates/diting_js/js/font_metrics.js'
+      - 'crates/diting_js/js/font_metrics_index.json'
+      - 'crates/diting_js/js/font_metrics_data.zst'
+      - '.github/workflows/font-truth.yml'
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Checkout pinned truth repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: yinnho/diting-webplatform-truth
+          path: truth
+      - name: Install zstd CLI
+        run: sudo apt-get update && sudo apt-get install -y zstd
+      - name: Verify truth pin
+        run: python3 tools/webplatform/check_truth_pin.py truth
+      - name: Regenerate and compare semantic digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp=$(mktemp -d)
+          python3 tools/webplatform/gen/gen_font_metrics.py \
+            --truth-root truth \
+            --out "$tmp/font_metrics.js" \
+            --data-out "$tmp/font_metrics_data.zst" \
+            --index-out "$tmp/font_metrics_index.json"
+          cmp "$tmp/font_metrics.js" crates/diting_js/js/font_metrics.js
+          python3 tools/webplatform/compare_font_semantic.py "$tmp/font_metrics_index.json"
+          python3 tools/webplatform/check_font_artifact.py

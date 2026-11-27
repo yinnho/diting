@@ -4,13 +4,13 @@
   "register_threshold_bytes": 1048576,
   "entries": [
     {
-      "path": "crates/diting_js/js/font_metrics_data.tables",
+      "path": "crates/diting_js/js/font_metrics_data.zst",
       "category": "generated-runtime-artifact",
       "owner": "webplatform",
-      "max_bytes": 89730236,
-      "sha256": "cda1971cd6c2989a75da32a9733cc20962b3a1562d4bcecbf8af158713bcdc34",
-      "reason": "generated lazy font-metrics payload embedded in the binary; raw v1 format is being retired",
-      "retire": "replace with zstd-block v2 artifact"
+      "max_bytes": 5733967,
+      "sha256": "48d083b56ced387373680cb652eae15d7a1b025d741dcb2e078264958dded0c0",
+      "reason": "generated zstd-block lazy font-metrics payload embedded in the binary",
+      "retire": "none; regenerate only through the pinned truth/semantic-digest pipeline"
     },
     {
       "path": "crates/diting_layout/src/diting_fonts/diting-cjk-bold.ttf",
@@ -38,132 +38,6 @@
       "sha256": "a5301af889e84e39d24b97a7ef19bcc04e70ac877ec27526efd5f2cb32908d52",
       "reason": "small current-Chrome surface truth input consumed by checked-in generators",
       "retire": "none"
-    },
-    {
-      "path": "tools/webplatform/chrome/fonts-armed-truth-145.json",
-      "category": "truth",
-      "owner": "webplatform",
-      "max_bytes": 3736220,
-      "sha256": "00052eb74bb4e0e8c3173dde3a7095d0ced6aa8db396b4de9ab752d25d96c29f",
-      "reason": "Chrome 145 immutable font-measurement truth; migration to diting-webplatform-truth in progress",
-      "retire": "move to public truth repository"
-    },
-    {
-      "path": "tools/webplatform/chrome/fonts-cfkill-truth-145.json",
-      "category": "truth",
-      "owner": "webplatform",
-      "max_bytes": 502818,
-      "sha256": "6993f27d003d63eb7042e823f2156463cf1428ff151b403204b8d947d5370f02",
-      "reason": "Chrome 145 immutable font-measurement truth; migration to diting-webplatform-truth in progress",
-      "retire": "move to public truth repository"
-    },
-    {
-      "path": "tools/webplatform/chrome/fonts-colon-truth-145.json",
-      "category": "truth",
-      "owner": "webplatform",
-      "max_bytes": 1197732,
-      "sha256": "d745759ec51e18618ca69bdd3b288e5b44c63e04d6dfc9ecad35c3784c18dbad",
-      "reason": "Chrome 145 immutable font-measurement truth; migration to diting-webplatform-truth in progress",
-      "retire": "move to public truth repository"
-    },
-    {
-      "path": "tools/webplatform/chrome/fonts-faces-truth-145.json",
-      "category": "truth",
-      "owner": "webplatform",
-      "max_bytes": 104752344,
-      "sha256": "5b5c610a6775c3bc74440d1840c8f1ba57a29674fdbd74112101eed409df99d6",
-      "reason": "Chrome 145 immutable font-measurement truth; migration to diting-webplatform-truth in progress",
-      "retire": "move to public truth repository"
-    },
-    {
-      "path": "tools/webplatform/chrome/fonts-fmfill-truth-145.json",
-      "category": "truth",
-      "owner": "webplatform",
-      "max_bytes": 1219733,
-      "sha256": "c5cfdfbba747123f6a1115f5e677d5e31150966bccf0295c5fcd76b487889423",
-      "reason": "Chrome 145 immutable font-measurement truth; migration to diting-webplatform-truth in progress",
-      "retire": "move to public truth repository"
-    },
-    {
-      "path": "tools/webplatform/chrome/fonts-k16band-truth-145.json",
-      "category": "truth",
-      "owner": "webplatform",
-      "max_bytes": 4198832,
-      "sha256": "66f63d24344dcb0bb7e73182f79d48d8c5a54e46c781c7d28ff1c0623c284948",
-      "reason": "Chrome 145 immutable font-measurement truth; migration to diting-webplatform-truth in progress",
-      "retire": "move to public truth repository"
-    },
-    {
-      "path": "tools/webplatform/chrome/fonts-kern-truth-145.json",
-      "category": "truth",
-      "owner": "webplatform",
-      "max_bytes": 2926500,
-      "sha256": "f6feaae585afbbbc615a674730faf4c05c55bd4af9d9e334c03296634eea8024",
-      "reason": "Chrome 145 immutable font-measurement truth; migration to diting-webplatform-truth in progress",
-      "retire": "move to public truth repository"
-    },
-    {
-      "path": "tools/webplatform/chrome/fonts-kernfill-truth-145.json",
-      "category": "truth",
-      "owner": "webplatform",
-      "max_bytes": 1238,
-      "sha256": "4908a34edb98eeccea5c9e7eeee3caa3e1110c5db05c2a15cf83ed2b5b42bf23",
-      "reason": "Chrome 145 immutable font-measurement truth; migration to diting-webplatform-truth in progress",
-      "retire": "move to public truth repository"
-    },
-    {
-      "path": "tools/webplatform/chrome/fonts-khalfband-truth-145.json",
-      "category": "truth",
-      "owner": "webplatform",
-      "max_bytes": 129949,
-      "sha256": "d6f6e8848a0aa16d03884fbf2d06a3b1037d996232a6bf3d21cba9a673060328",
-      "reason": "Chrome 145 immutable font-measurement truth; migration to diting-webplatform-truth in progress",
-      "retire": "move to public truth repository"
-    },
-    {
-      "path": "tools/webplatform/chrome/fonts-lightkern-truth-145.json",
-      "category": "truth",
-      "owner": "webplatform",
-      "max_bytes": 939808,
-      "sha256": "52f32d6c24c518952c37c6f7f6733ab24306592913385825dbbe7f2a201af74f",
-      "reason": "Chrome 145 immutable font-measurement truth; migration to diting-webplatform-truth in progress",
-      "retire": "move to public truth repository"
-    },
-    {
-      "path": "tools/webplatform/chrome/fonts-metrics-truth-145.json",
-      "category": "truth",
-      "owner": "webplatform",
-      "max_bytes": 207148,
-      "sha256": "0ed91f358a8a61bce3e5e0abdfcd9f8ee6a2acd7c97953ef8d1f894075a5aae2",
-      "reason": "Chrome 145 immutable font-measurement truth; migration to diting-webplatform-truth in progress",
-      "retire": "move to public truth repository"
-    },
-    {
-      "path": "tools/webplatform/chrome/fonts-scqfill-truth-145.json",
-      "category": "truth",
-      "owner": "webplatform",
-      "max_bytes": 2739,
-      "sha256": "45d60cef202c7b5ad07991abd06142acb99509843f1816ca67c5ff487b03806f",
-      "reason": "Chrome 145 immutable font-measurement truth; migration to diting-webplatform-truth in progress",
-      "retire": "move to public truth repository"
-    },
-    {
-      "path": "tools/webplatform/chrome/fonts-trispot-truth-145.json",
-      "category": "truth",
-      "owner": "webplatform",
-      "max_bytes": 13734605,
-      "sha256": "4c7cf2461b37c1447d9b76765a42e6237f4629e806521d3b473d975380cae486",
-      "reason": "Chrome 145 immutable font-measurement truth; migration to diting-webplatform-truth in progress",
-      "retire": "move to public truth repository"
-    },
-    {
-      "path": "tools/webplatform/chrome/fonts-truth-145.json",
-      "category": "truth",
-      "owner": "webplatform",
-      "max_bytes": 5208,
-      "sha256": "b818e9922e1772d504b490ae7979db6409c13c31b0d72fe280a9306a01db4826",
-      "reason": "Chrome 145 immutable font-measurement truth; migration to diting-webplatform-truth in progress",
-      "retire": "move to public truth repository"
     }
   ]
 }

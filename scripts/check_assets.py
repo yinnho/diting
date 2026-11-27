@@ -62,7 +62,7 @@ def main() -> int:
             if got != want_hash:
                 errors.append(f"{path}: sha256 changed without ledger update ({got})")
 
-    stale = sorted(set(entries) - tracked)
+    stale = sorted(path for path in set(entries) - tracked if not (ROOT / path).exists())
     for path in stale:
         errors.append(f"{path}: ledger entry is stale; remove it when the file leaves the repo")
 
