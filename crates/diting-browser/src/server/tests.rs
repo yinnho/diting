@@ -861,6 +861,16 @@ mod cost_knob_tests {
 /// has nothing to read on `about:blank` and the transport arm does not match
 /// a deadline error. Pinned end-to-end: blackhole origin (accepts, never
 /// responds) + a local forward proxy that serves the real page.
+/// Serializes ONLY the two starve tests against each other. Each points
+/// the process-global `DITING_PROXY` at its own fixture proxy stub — run
+/// concurrently and one's retry leg walks through the other's proxy
+/// ("PROXY-MUST-NOT-RUN" cross-contamination). Every other test in the
+/// binary is immune to the leak (should_auto_proxy is false for their
+/// 127.0.0.1 fixtures now that the route-table sentences key on [::1]),
+/// so this lock must never become a suite-wide convoy the way the retired
+/// net-env lock did.
+static STARVE_PROXY_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[cfg(test)]
 mod starve_before_commit_tests {
     use crate::server::do_fetch;
@@ -880,12 +890,13 @@ mod starve_before_commit_tests {
 
     #[test]
     fn uncommitted_starvation_bails_to_the_proxy_and_lands() {
+        let _proxy_env = super::STARVE_PROXY_ENV_LOCK.lock().unwrap();
         let _net = net_env_guard();
         let stop = Arc::new(AtomicBool::new(false));
 
         // Blackhole origin: accepts the connection and never answers — the
         // direct navigation can neither commit nor die at transport.
-        let bh = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let bh = std::net::TcpListener::bind("[::1]:0").unwrap();
         let bh_port = bh.local_addr().unwrap().port();
         let bh_saw = Arc::new(AtomicBool::new(false));
         {
@@ -954,20 +965,22 @@ mod starve_before_commit_tests {
 
         unsafe { std::env::set_var("DITING_PROXY", format!("http://127.0.0.1:{px_port}")) };
         unsafe { std::env::set_var("DITING_STARVE_BAIL_MS", "1500") };
-        // Memory-only route table: the direct-fail bookkeeping below must
-        // not leak a sentence for 127.0.0.1 into other tests' on-disk
-        // table. The process-global table is shared across tests — lift
-        // any sentence an earlier test left for this host, or this fetch
-        // starts proxy-first and the direct leg (and the blackhole assert)
-        // never runs.
-        unsafe { std::env::set_var("DITING_EPHEMERAL", "1") };
-        diting::route_table::note_direct("127.0.0.1", true);
+        // Isolation shape: the target host is [::1] on purpose. The
+        // process-global route table keys on the bare host, and every
+        // other test in the binary serves its fixtures on 127.0.0.1 —
+        // sentencing 127.0.0.1 here would route their concurrent traffic
+        // through this test's fixture proxy (should_auto_proxy consults
+        // skip_direct_remaining). ::1 collides with nobody, so the
+        // proxy-win sentence below stays private to this test. The scrub
+        // still lifts any sentence a sibling run left in the shared
+        // table, or this fetch starts proxy-first and the direct leg
+        // (and the blackhole assert) never runs.
+        diting::route_table::note_direct("[::1]", true);
         let _scrub_proxy = ScrubEnv("DITING_PROXY");
         let _scrub_bail = ScrubEnv("DITING_STARVE_BAIL_MS");
-        let _scrub_ephemeral = ScrubEnv("DITING_EPHEMERAL");
 
         let req: FetchRequest = serde_json::from_value(serde_json::json!({
-            "url": format!("http://127.0.0.1:{bh_port}/doc"),
+            "url": format!("http://[::1]:{bh_port}/doc"),
         }))
         .unwrap();
         let resp = do_fetch(req).expect("the proxy retry must rescue the fetch");
@@ -979,13 +992,15 @@ mod starve_before_commit_tests {
         );
         let log = px_log.lock().unwrap();
         assert!(
-            log.iter()
-                .any(|l| l.contains(&format!("127.0.0.1:{bh_port}"))),
+            log.iter().any(|l| l.contains(&format!("[::1]:{bh_port}"))),
             "the retry must go through the proxy in absolute form: {log:?}"
         );
         drop(log);
         assert!(bh_saw.load(Ordering::SeqCst), "the direct leg really ran");
         stop.store(true, Ordering::SeqCst);
+        // Leave no [::1] sentence in the shared on-disk table: the test's
+        // proxy win is real bookkeeping, but it must not outlive the test.
+        diting::route_table::note_direct("[::1]", true);
     }
 }
 
@@ -1020,6 +1035,7 @@ mod starve_zero_progress_tests {
 
     #[test]
     fn progressing_scripts_keep_the_direct_leg_and_late_marker_lands() {
+        let _proxy_env = super::STARVE_PROXY_ENV_LOCK.lock().unwrap();
         let _net = net_env_guard();
 
         // Origin: doc commits instantly, /fast.js delivers instantly,
@@ -1027,7 +1043,7 @@ mod starve_zero_progress_tests {
         // cell reads committed=true, script arrivals ≥1 (progressing, not
         // starving) and the resumed navigation must run the late body's
         // marker.
-        let origin = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let origin = std::net::TcpListener::bind("[::1]:0").unwrap();
         let port = origin.local_addr().unwrap().port();
         std::thread::spawn(move || {
             // Thread per connection: /late.js parks its connection for ~10s
@@ -1149,20 +1165,17 @@ mod starve_zero_progress_tests {
 
         unsafe { std::env::set_var("DITING_PROXY", format!("http://127.0.0.1:{px_port}")) };
         unsafe { std::env::set_var("DITING_STARVE_BAIL_MS", "8000") };
-        // Memory-only route table: this test's bookkeeping must not leak a
-        // sentence for 127.0.0.1 into other tests' on-disk table. The
-        // process-global table is SHARED across tests though — a sibling
-        // starve test's proxy win sentences 127.0.0.1 to the proxy for
-        // minutes, which would route this fetch's leg before the
-        // checkpoint even arms. Lift any inherited sentence first.
-        unsafe { std::env::set_var("DITING_EPHEMERAL", "1") };
-        diting::route_table::note_direct("127.0.0.1", true);
+        // Same [::1] isolation shape as the sibling starve test: the
+        // route table keys on the bare host, so bookkeeping for ::1 can
+        // never sentence the 127.0.0.1 fixtures every other test serves.
+        // The scrub lifts any inherited sentence for this host, or the
+        // leg starts proxy-first before the checkpoint even arms.
+        diting::route_table::note_direct("[::1]", true);
         let _scrub_proxy = ScrubEnv("DITING_PROXY");
         let _scrub_bail = ScrubEnv("DITING_STARVE_BAIL_MS");
-        let _scrub_ephemeral = ScrubEnv("DITING_EPHEMERAL");
 
         let req: FetchRequest = serde_json::from_value(serde_json::json!({
-            "url": format!("http://127.0.0.1:{port}/doc.html"),
+            "url": format!("http://[::1]:{port}/doc.html"),
         }))
         .unwrap();
         let resp = do_fetch(req).expect("the progressing direct leg must complete");
@@ -1186,5 +1199,6 @@ mod starve_zero_progress_tests {
             log.is_empty(),
             "the proxy must not see a single request: {log:?}"
         );
+        diting::route_table::note_direct("[::1]", true);
     }
 }
