@@ -8,8 +8,8 @@ cannot share heap objects, so the data has to live outside V8.
 
 What: each big `const NAME = <json>;` line is cut out and its top-level
 entries written verbatim (raw JSON bytes, so key order -- and every for..in
-order the model depends on -- is untouched) into font_metrics_data.tables, with
-an [offset, len] index in font_metrics_index.json. The engine embeds both
+order the model depends on -- is untouched) into font_metrics_data.zst, with
+a block/entry index in font_metrics_index.json. The engine embeds both
 read-only (one copy per process); the JS side fetches one entry on first
 touch through the `font_table` op and keeps it per realm. The load-time
 fixups that used to walk every family now run per family when it is first
@@ -18,9 +18,12 @@ decoded (`fixFamily`), in the same order. The measuring code is unchanged.
 Every edit below is an exact-text replacement asserted to match once: when
 the generator's template moves, this fails loudly instead of drifting.
 """
+import hashlib
 import json
 import os
 import re
+import struct
+import subprocess
 
 # Tables served lazily. Everything else (LIGAP, MIDF, AKC, SBAND, XP, ...) is
 # small and stays inline.
@@ -234,7 +237,119 @@ def _cut_block(src, start, end):
     return src[:i] + src[j:]
 
 
-def lazify(src, data_path, index_path):
+def _zstd_frame(raw):
+    """One independent zstd frame. Compression is generation-time only; the
+    runtime decodes frames with the zstd crate. The CLI is deliberately the
+    generator dependency so this Python tree does not grow a zstandard wheel
+    requirement."""
+    cp = subprocess.run(
+        ['zstd', '-19', '-T0', '-q', '-c'],
+        input=bytes(raw), stdout=subprocess.PIPE, check=True)
+    return cp.stdout
+
+
+def _sem_digest(items):
+    """Digest over the semantic payload, independent of zstd encoder bytes.
+
+    items are (table, key, raw_json_bytes) in storage order. Length-prefixing
+    makes the encoding unambiguous; table order is sorted while key order is
+    the payload's original insertion order (JSON object member order is part
+    of the runtime model).
+    """
+    h = hashlib.sha256()
+    h.update(b'font-metrics-semantics-v2\0')
+    by_table = {}
+    for tbl, key, raw in items:
+        if tbl not in by_table:
+            by_table[tbl] = []
+        by_table[tbl].append((key, raw))
+    for tbl in sorted(by_table):
+        tb = tbl.encode('utf8')
+        h.update(struct.pack('>Q', len(tb)))
+        h.update(tb)
+        for key, raw in sorted(by_table[tbl]):
+            kb = key.encode('utf8')
+            h.update(struct.pack('>Q', len(kb)))
+            h.update(kb)
+            h.update(struct.pack('>Q', len(raw)))
+            h.update(raw)
+    return h.hexdigest()
+
+
+def _pack_zstd_blocks(blob, raw_index, block_size):
+    """Pack the v1 contiguous entry blob into independently compressed blocks.
+
+    Returns (compressed_blob, v2_index). Entries retain exact raw JSON bytes;
+    only their storage envelope changes. A large entry becomes its own block.
+    """
+    entries = []
+    for tbl, keys in raw_index.items():
+        for key, (off, ln) in keys.items():
+            entries.append((off, tbl, key, bytes(blob[off:off + ln])))
+    entries.sort(key=lambda x: x[0])
+
+    blocks = []  # uncompressed byte strings
+    spills = []  # (entry-index-in-entries, block-index, offset-in-block)
+    cur = bytearray()
+    cur_entries = []
+
+    def flush():
+        nonlocal cur, cur_entries
+        if cur_entries:
+            blocks.append(bytes(cur))
+            cur = bytearray()
+            cur_entries = []
+
+    for ei, (_off, _tbl, _key, raw) in enumerate(entries):
+        if len(raw) >= block_size:
+            flush()
+            blocks.append(raw)
+            spills.append((ei, len(blocks) - 1, 0))
+        else:
+            if cur and len(cur) + len(raw) > block_size:
+                flush()
+            spills.append((ei, len(blocks), len(cur)))
+            cur += raw
+            cur_entries.append(ei)
+    flush()
+
+    out = bytearray()
+    block_meta = []
+    unpacked = []
+    for i, raw_block in enumerate(blocks):
+        comp = _zstd_frame(raw_block)
+        block_meta.append({
+            'off': len(out),
+            'clen': len(comp),
+            'ulen': len(raw_block),
+            'sha256': hashlib.sha256(raw_block).hexdigest(),
+        })
+        out += comp
+        unpacked.append(raw_block)
+
+    tables = {}
+    for (ei, bi, inner) in spills:
+        _off, tbl, key, raw = entries[ei]
+        meta = block_meta[bi]
+        assert unpacked[bi][inner:inner + len(raw)] == raw
+        tables.setdefault(tbl, {})[key] = {'b': bi, 'o': inner, 'n': len(raw)}
+
+    sem = _sem_digest([(tbl, key, raw) for _off, tbl, key, raw in entries])
+    index = {
+        'format': 'font-metrics-index-v2',
+        'codec': 'zstd-frame-concat-v1',
+        'block_size': block_size,
+        'data_file': 'font_metrics_data.zst',
+        'data_size': len(out),
+        'data_sha256': hashlib.sha256(out).hexdigest(),
+        'semantic_sha256': sem,
+        'blocks': block_meta,
+        'tables': tables,
+    }
+    return bytes(out), index
+
+
+def lazify(src, data_path, index_path, block_size=256 * 1024):
     lines = src.split('\n')
     blob = bytearray()
     index = {}
@@ -326,9 +441,23 @@ def lazify(src, data_path, index_path):
         hits = [m.start() for m in re.finditer(r'(?<![\w\'"])%s(?![\w\'"])' % name, code)]
         assert not hits, 'font_metrics_lazy: %s still referenced' % name
 
+    packed, v2_index = _pack_zstd_blocks(bytes(blob), index, block_size)
+    # Roundtrip proof at generation time: every compressed block must decode
+    # to the exact uncompressed bytes whose sha256 the index carries.
+    pos = 0
+    for bm in v2_index['blocks']:
+        frame = packed[pos:pos + bm['clen']]
+        cp = subprocess.run(['zstd', '-dc', '-q', '-c'], input=frame,
+                            stdout=subprocess.PIPE, check=True)
+        raw_block = cp.stdout
+        assert len(raw_block) == bm['ulen']
+        assert hashlib.sha256(raw_block).hexdigest() == bm['sha256']
+        pos += bm['clen']
+    assert pos == len(packed)
+
     with open(data_path, 'wb') as f:
-        f.write(bytes(blob))
+        f.write(packed)
     with open(index_path, 'w', encoding='utf8') as f:
-        json.dump(index, f, separators=(',', ':'), sort_keys=True)
+        json.dump(v2_index, f, separators=(',', ':'), sort_keys=True)
         f.write('\n')
     return src

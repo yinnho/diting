@@ -42,7 +42,7 @@ if [ "${1:-}" = "--update" ]; then
   python3 $WP/gen/gen_iface.py $WP/spec/htmlmedia.json crates/diting_js/js/platform/gen/htmlreflect.gen.js gen/htmlreflect $WP/chrome/htmlreflect-truth-157.json patch-reflect
   python3 $WP/bundle.py
   (cd $WP/chrome && sha *.json > MANIFEST.sha256)
-  echo "updated"; exit 0
+  echo "updated (font metrics regenerate separately: tools/webplatform/regen_font_metrics.sh)"; exit 0
 fi
 
 fail=0
@@ -134,6 +134,11 @@ gen_patch htmlmedia.json htmlreflect htmlreflect-truth-157.json patch-reflect
 python3 $WP/bundle.py "$tmp/platform_bundle.js" >/dev/null
 diff -q "$tmp/platform_bundle.js" crates/diting_js/js/platform_bundle.js >/dev/null \
   || { echo "FAIL: crates/diting_js/js/platform_bundle.js is stale vs bundle.py" >&2; fail=1; }
+# 3c. font metrics artifact v2 is validated structurally here. Full truth
+# regeneration is the separate font-truth lane because the 145 corpus lives in
+# diting-webplatform-truth, not in ordinary source checkouts.
+python3 $WP/check_font_artifact.py >/dev/null \
+  || { python3 $WP/check_font_artifact.py >&2; fail=1; }
 # 4. every Chrome full version we can claim really shipped; all layers follow the one target
 python3 tools/apply_chrome_target.py --check >/dev/null && python3 tools/check_coherence.py >/dev/null || { python3 tools/check_coherence.py >&2; fail=1; }
 python3 $WP/check_versions.py >/dev/null || { python3 $WP/check_versions.py >&2; fail=1; }

@@ -58,6 +58,7 @@ strip = true
 [patch.crates-io]
 # btls-sys 0.5.6 with ONE local patch on the bundled BoringSSL snapshot
 # (mldsa-sigalgs: SSL_SIGN_MLDSA44/65/87 + GREASE passthrough — Chrome 156+
-# ClientHello sigalgs lead, issue #25). Same name+version so btls 0.5.6 links
-# ours; drop the patch file when upstream's snapshot learns the values.
-btls-sys = { path = "crates/diting_btls_sys" }
+# ClientHello sigalgs lead, issue #25). The fork lives outside the product
+# source repo and is pinned by exact rev; drop it when upstream's snapshot
+# learns the values.
+btls-sys = { git = "https://github.com/yinnho/diting-btls-sys.git", rev = "3ef0822b49f2ff75f1b8bad45729beb62cf26a23" }

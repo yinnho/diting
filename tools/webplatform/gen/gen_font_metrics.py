@@ -20,45 +20,48 @@ tables make a pair oscillate at small sizes.
 
 Usage: python3 tools/webplatform/gen/gen_font_metrics.py
 """
+import argparse
 import json
 import os
+import subprocess
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-TRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-metrics-truth-145.json')
-KTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-kern-truth-145.json')
-FTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-faces-truth-145.json')
+TRUTH_DIR = os.path.join(ROOT, 'tools/webplatform/chrome')
+TRUTH = os.path.join(TRUTH_DIR, 'fonts-metrics-truth-145.json')
+KTRUTH = os.path.join(TRUTH_DIR, 'fonts-kern-truth-145.json')
+FTRUTH = os.path.join(TRUTH_DIR, 'fonts-faces-truth-145.json')
 # (刀103) triSpot lives in its own file: appending it to fonts-faces-truth
 # pushed that file past GitHub's 100MB hard limit (108.5MB); the spot
 # universe is ~26MB on its own. Same pattern as fonts-kern vs fonts-faces.
-SPTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-trispot-truth-145.json')
+SPTRUTH = os.path.join(TRUTH_DIR, 'fonts-trispot-truth-145.json')
 # (刀105) armed-kernel truth: FIRE-char kern effects (quad('⁏&',X)-class)
 # that fire only when a leading FIRE char arms the GPOS walk. The runtime
 # kernel lives in sum(); the file also carries the plain-companion rows
 # (trow/tspot/kfill) merged into the kern/tri sources below.
-AKTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-armed-truth-145.json')
+AKTRUTH = os.path.join(TRUTH_DIR, 'fonts-armed-truth-145.json')
 # (刀106) colon-window truth: the (p2,':',c) GPOS contextual universe
 # (@100 firing rows, below-28-only keys, face mods/kills), the ⁏-quote-colon
 # family (8 windows — tspot ladders all faces, I-face @100 mods), suKern
 # fill/band pairs, and kadjDrop (⁏-window values mis-attributed to pairs).
-CTTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-colon-truth-145.json')
+CTTRUTH = os.path.join(TRUTH_DIR, 'fonts-colon-truth-145.json')
 # (刀108) light-face kern truth: w100/w200/w300 never captured the Latin-1/
 # mu/prime pair universe (engine-missing real kerns) and 刀105's kfill faces
 # overlay wrote 21 reversed-key px rows per light face (engine false
 # positives — chrome fires zero on every one bare). Fills + 6..28 half-grid
 # bands for the 6,117-pair diff universe, all-zero pxv for the polluted
 # rows, and 14 hard zero-kills on R/B/I/M/S/900 (kfill's c\ family).
-LKTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-lightkern-truth-145.json')
+LKTRUTH = os.path.join(TRUTH_DIR, 'fonts-lightkern-truth-145.json')
 # (刀114) px=16 kern band truth: every su face's kb band table starts at
 # 16.5 — px=16 misses the band and falls to K[0]*16/10000 (kk knots are
 # 4dp-em ints, half-quantum loss up to 0.0008px/pair vs chrome's exact
 # font-unit kerns). This layer pins measured @16 kerns (centi-px 2dp) as
 # '16' anchors for the offender pairs of all 22 faces.
-K16TRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-k16band-truth-145.json')
+K16TRUTH = os.path.join(TRUTH_DIR, 'fonts-k16band-truth-145.json')
 # (刀115) interior half-grid anchors for integer-keyed bands (colon family
 # et al.): chrome kern at the half cells the integer captures skipped,
 # written only where it leaves the kk ladder by >0.0018.
-KHTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-khalfband-truth-145.json')
-SQFTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-scqfill-truth-145.json')
+KHTRUTH = os.path.join(TRUTH_DIR, 'fonts-khalfband-truth-145.json')
+SQFTRUTH = os.path.join(TRUTH_DIR, 'fonts-scqfill-truth-145.json')
 # (刀118) Cf-insert kill truth: chrome drops contextual kern/liga windows when
 # a transparent Cf sits at a junction — kern passes but the liga/context layer
 # dies (k118a/k118f censuses). pairs: {kr: {pair: [r, mask]}} (r = residual
@@ -67,7 +70,7 @@ SQFTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-scqfill-truth-145.
 # clean triple (px@100 ints; junction member precedence Z>J>W — mixed gaps
 # measured order-independent with the z delta governing). Indexes ride the
 # KERN/TRI table indexes of this checkout.
-CFKTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-cfkill-truth-145.json')
+CFKTRUTH = os.path.join(TRUTH_DIR, 'fonts-cfkill-truth-145.json')
 # (刀119) FM fill truth: the k119a presence sweep found 83 MORE resolvable
 # families (Skia, Didot, Rockwell, STIX Two Math/Text, Times, the Sangam MN
 # scripts, …) absent from the metrics truth. Rows live in this SPLIT file —
@@ -78,9 +81,9 @@ CFKTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-cfkill-truth-145.j
 # default font). Faces carry the QUOTED spelling leg; 6 families whose
 # quoted/unquoted legs resolve to different real faces have the unquoted
 # rows parked in _meta.qdiff for a later resolver knife.
-FMFTRUTH = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-fmfill-truth-145.json')
+FMFTRUTH = os.path.join(TRUTH_DIR, 'fonts-fmfill-truth-145.json')
 OUT = os.path.join(ROOT, 'crates/diting_js/js/font_metrics.js')
-DATA_OUT = os.path.join(ROOT, 'crates/diting_js/js/font_metrics_data.tables')
+DATA_OUT = os.path.join(ROOT, 'crates/diting_js/js/font_metrics_data.zst')
 INDEX_OUT = os.path.join(ROOT, 'crates/diting_js/js/font_metrics_index.json')
 
 # generic family -> captured table name (Chrome 145 macOS zh persona: UNQUOTED
@@ -114,10 +117,69 @@ def jsround(x):
     return math.floor(x + 0.5)
 
 
+def reset_truth_paths():
+    global TRUTH, KTRUTH, FTRUTH, SPTRUTH, AKTRUTH, CTTRUTH, LKTRUTH
+    global K16TRUTH, KHTRUTH, SQFTRUTH, CFKTRUTH, FMFTRUTH
+    names = {
+        'TRUTH': 'fonts-metrics-truth-145.json',
+        'KTRUTH': 'fonts-kern-truth-145.json',
+        'FTRUTH': 'fonts-faces-truth-145.json',
+        'SPTRUTH': 'fonts-trispot-truth-145.json',
+        'AKTRUTH': 'fonts-armed-truth-145.json',
+        'CTTRUTH': 'fonts-colon-truth-145.json',
+        'LKTRUTH': 'fonts-lightkern-truth-145.json',
+        'K16TRUTH': 'fonts-k16band-truth-145.json',
+        'KHTRUTH': 'fonts-khalfband-truth-145.json',
+        'SQFTRUTH': 'fonts-scqfill-truth-145.json',
+        'CFKTRUTH': 'fonts-cfkill-truth-145.json',
+        'FMFTRUTH': 'fonts-fmfill-truth-145.json',
+    }
+    for var, name in names.items():
+        direct = os.path.join(TRUTH_DIR, name)
+        nested = os.path.join(TRUTH_DIR, 'fonts', '145', name)
+        chosen = direct
+        if not (os.path.exists(direct) or os.path.exists(direct + '.zst')) and \
+                (os.path.exists(nested) or os.path.exists(nested + '.zst')):
+            chosen = nested
+        globals()[var] = chosen
+
+
+def truth_exists(path):
+    return os.path.exists(path) or os.path.exists(path + '.zst')
+
+
+def load_json_file(path):
+    if os.path.exists(path):
+        with open(path, encoding='utf8') as f:
+            return json.load(f)
+    zst = path + '.zst'
+    if os.path.exists(zst):
+        cp = subprocess.run(['zstd', '-dc', '-q', '-c', zst],
+                            stdout=subprocess.PIPE, check=True)
+        return json.loads(cp.stdout.decode('utf8'))
+    raise FileNotFoundError(path + ' (or ' + zst + ')')
+
+
 def main():
-    d = json.load(open(TRUTH))
-    kd = json.load(open(KTRUTH))
-    fd = json.load(open(FTRUTH)) if os.path.exists(FTRUTH) else None
+    global TRUTH_DIR, OUT, DATA_OUT, INDEX_OUT
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--truth-root', default=os.environ.get('DITING_FONT_TRUTH_ROOT'),
+                    help='directory holding raw .json or compressed .json.zst truth files; a repo-style fonts/145 child is also recognized')
+    ap.add_argument('--out', default=OUT)
+    ap.add_argument('--data-out', default=DATA_OUT)
+    ap.add_argument('--index-out', default=INDEX_OUT)
+    ap.add_argument('--block-size', type=int, default=256 * 1024)
+    args = ap.parse_args()
+    if args.truth_root:
+        TRUTH_DIR = args.truth_root
+    reset_truth_paths()
+    OUT = args.out
+    DATA_OUT = args.data_out
+    INDEX_OUT = args.index_out
+
+    d = load_json_file(TRUTH)
+    kd = load_json_file(KTRUTH)
+    fd = load_json_file(FTRUTH) if truth_exists(FTRUTH) else None
     # (刀107) @100 kern-capture escaping hole: 31 real pairs (backslash +
     # µ-quote families — '\\T' −7.3243, '\\G' −2.4414, 'µ'' −1.4649 px @100)
     # were dropped from the original @100 pair universe by probe JS escaping,
@@ -126,9 +188,9 @@ def main():
     # to_int_table does the ×100). v entries + kernOf's v=0 fallback (the
     # other 372 members kern 0.0000 @100 and ≥28 — no entry needed, the
     # kk ladder covers 16..24).
-    KF = os.path.join(ROOT, 'tools/webplatform/chrome/fonts-kernfill-truth-145.json')
-    if os.path.exists(KF):
-        kf = json.load(open(KF))
+    KF = os.path.join(TRUTH_DIR, 'fonts-kernfill-truth-145.json')
+    if truth_exists(KF):
+        kf = load_json_file(KF)
         for fam, pairs in kf.items():
             if fam == '_meta':
                 continue
@@ -139,7 +201,7 @@ def main():
     # GPOS contextual triplet rows for the 36 walk X's (0-9A-Z — TA-head X's
     # are kernel territory, their standalone tri IS the armed residual);
     # base R into kd.tri, faces into triFaces mods (src-side key spelling).
-    AK = json.load(open(AKTRUTH)) if os.path.exists(AKTRUTH) else None
+    AK = load_json_file(AKTRUTH) if truth_exists(AKTRUTH) else None
     if AK:
         ak_ta = {chr(c) for c in AK['ta']}
         ak_tb = {chr(c) for c in AK['tb']}
@@ -178,7 +240,7 @@ def main():
     # deletes pair rows whose anchors were the ⁏-window values mis-read as
     # pair adjustments (chrome fires nothing for the pairs at any px — G
     # probe; akv extrapolated them to @10x error).
-    CT = json.load(open(CTTRUTH)) if os.path.exists(CTTRUTH) else None
+    CT = load_json_file(CTTRUTH) if truth_exists(CTTRUTH) else None
     if CT:
         for key, v in (CT.get('tri') or {}).items():
             kd['tri'].setdefault('system-ui', {})[key] = v
@@ -218,7 +280,7 @@ def main():
     # int quantization put 0.005px on the >=28 v-leg — spot-90 proof);
     # each filled pair drops any stale kb row first so fill+band fully
     # define the pair (band hit would otherwise shadow the new ladder).
-    LK = json.load(open(LKTRUTH)) if os.path.exists(LKTRUTH) else None
+    LK = load_json_file(LKTRUTH) if truth_exists(LKTRUTH) else None
     if LK:
         for tag, pairs in (LK.get('suKernFill') or {}).items():
             for key, pxv in pairs.items():
@@ -244,7 +306,7 @@ def main():
     # (刀114) px=16 band anchors — AFTER LK so its whole-band REPLACE for
     # non-R faces cannot erase the '16' key; update-merge everywhere so a
     # face's existing band (16.5..) keeps its anchors and only gains 16.
-    K16 = json.load(open(K16TRUTH)) if os.path.exists(K16TRUTH) else None
+    K16 = load_json_file(K16TRUTH) if truth_exists(K16TRUTH) else None
     if K16:
         for tag, pairs in (K16.get('suKernBand') or {}).items():
             for key, band in pairs.items():
@@ -261,7 +323,7 @@ def main():
     # 0.078px off that path (aT@18.5). These anchors pin the measured
     # chrome kern wherever it leaves the ladder by >0.0018 (the 刀110
     # swing-aware gate); merged AFTER LK/K16, update-merge everywhere.
-    KH = json.load(open(KHTRUTH)) if os.path.exists(KHTRUTH) else None
+    KH = load_json_file(KHTRUTH) if truth_exists(KHTRUTH) else None
     if KH:
         for tag, pairs in (KH.get('suKernBand') or {}).items():
             for key, band in pairs.items():
@@ -276,7 +338,7 @@ def main():
     # boundaries, so the half-grid anchor layer needs in-level coverage the
     # gated captures left holed (kk-knot integers 20/24/40..) plus exact-px
     # strip pins. Merged AFTER KH, update-merge everywhere.
-    SQF = json.load(open(SQFTRUTH)) if os.path.exists(SQFTRUTH) else None
+    SQF = load_json_file(SQFTRUTH) if truth_exists(SQFTRUTH) else None
     if SQF:
         for tag, pairs in (SQF.get('suKernBand') or {}).items():
             for key, band in pairs.items():
@@ -425,8 +487,8 @@ def main():
     # <5 clamps to v(5), >=28 falls back to the resolved linear value.
     # Split file (fonts-trispot-truth-145.json) — see SPTRUTH note above.
     tspot = {}
-    if os.path.exists(SPTRUTH):
-        tspot = json.load(open(SPTRUTH))
+    if truth_exists(SPTRUTH):
+        tspot = load_json_file(SPTRUTH)
     # (刀106) colon tspot rows join the 刀103 layer BEFORE the AKC scan below
     # — ⁏-headed ladder keys must enter AKC like their tri/triFaces siblings
     # (a post-scan merge would leave the armed kernel double-firing sub-28).
@@ -650,7 +712,7 @@ def main():
     # strictly at the tail. faces fall back krR/R-tri (kernFaces/tri/sc layers
     # deferred); ext rows merge into d['ext'] so the ext pass attaches x and
     # near-R faces inherit the family ext base.
-    FMF = json.load(open(FMFTRUTH)) if os.path.exists(FMFTRUTH) else None
+    FMF = load_json_file(FMFTRUTH) if truth_exists(FMFTRUTH) else None
     if FMF and fd:
         fmf_base = len(fd['tables'])
         fd['tables'].extend(FMF.get('tables') or [])
@@ -994,7 +1056,7 @@ def main():
     # (刀118) Cf-insert kill truth, aligned to the KERN/TRI canons above.
     # Emitted unconditionally (all-null lists when the truth file is absent)
     # so the sum() use sites need no presence guards.
-    CFK = json.load(open(CFKTRUTH)) if os.path.exists(CFKTRUTH) else None
+    CFK = load_json_file(CFKTRUTH) if truth_exists(CFKTRUTH) else None
     cfkp = {int(k): v for k, v in ((CFK or {}).get('pairs') or {}).items()}
     cfkt = {int(k): v for k, v in ((CFK or {}).get('tris') or {}).items()}
     assert all(i < len(kcanon) for i in cfkp), 'cfkill pair table index out of KERN range'
@@ -1763,7 +1825,7 @@ def main():
     src = '\n'.join(lines) + '\n'
     # Big tables leave the snapshot (per-realm heap): see font_metrics_lazy.py.
     from font_metrics_lazy import lazify
-    src = lazify(src, DATA_OUT, INDEX_OUT)
+    src = lazify(src, DATA_OUT, INDEX_OUT, args.block_size)
     open(OUT, 'w', encoding='utf8').write(src)
     spots_n = sum(1 for n in names.values() if 's' in n)
     print('wrote %s: %d unique tables, %d names, %d generics, %d fonts with size overrides, '

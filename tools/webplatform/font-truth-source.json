@@ -1,0 +1,9 @@
+{
+  "schema": "diting-font-truth-source-v1",
+  "repository": "https://github.com/yinnho/diting-webplatform-truth.git",
+  "commit": "130145f1d15d617224ada59d89503a5573bb9815",
+  "manifest": "manifests/font-145-manifest.json",
+  "manifest_sha256": "1c194487a61f92fe9588fd1ab553673192aecf7de87218d490b15e81c42f8bbb",
+  "truth_layout": "fonts/145/*.json.zst",
+  "note": "Chrome 145 font captures are immutable. Regeneration requires this exact truth checkout or a newer deliberately pinned one."
+}
