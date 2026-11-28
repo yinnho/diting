@@ -2,7 +2,7 @@
 //! layer: L2
 //! exposes: XPathResult, XPathExpression
 //! requires-load: legacy:Document, legacy:Node, legacy:DOMException, legacy:MutationObserver
-//! requires-call: legacy:document, legacy:Element, legacy:Attr, legacy:Text
+//! requires-call: legacy:document, legacy:Element, legacy:Attr, legacy:Text, legacy:_OPS, legacy:__diting_liftSlot
 
 // XPath 1.0 — thin face over the native engine. The lexer/parser/evaluator
 // moved to Rust (crates/diting_xpath, vendored from moli-xpath, driven
