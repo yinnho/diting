@@ -1,5 +1,4 @@
 use crate::regexp::RegExp;
-use crate::Error;
 
 #[derive(Debug)]
 /// A structured representation of a URLPattern matcher, which can be used to
@@ -38,7 +37,9 @@ pub(crate) enum InnerMatcher<R: RegExp> {
     ///
     /// # Examples
     /// - /foo/:id?
-    RegExp { regexp: Result<R, Error> },
+    // the component's own compile, shared — compiling the same pattern
+    // twice was measurable in the truth-matrix run
+    RegExp { regexp: Option<std::rc::Rc<R>> },
 }
 
 impl<R: RegExp> Matcher<R> {
@@ -90,7 +91,7 @@ impl<R: RegExp> Matcher<R> {
                 }
                 Some(vec![Some(input)])
             }
-            InnerMatcher::RegExp { regexp, .. } => regexp.as_ref().unwrap().matches(input),
+            InnerMatcher::RegExp { regexp, .. } => regexp.as_ref().and_then(|r| r.matches(input)),
         }
     }
 }

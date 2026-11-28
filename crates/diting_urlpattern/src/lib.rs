@@ -302,12 +302,11 @@ impl<R: RegExp> UrlPattern<R> {
     // Ref: https://wicg.github.io/urlpattern/#dom-urlpattern-urlpattern
     /// Parse a [UrlPatternInit] into a [UrlPattern].
     pub fn parse(init: UrlPatternInit, options: UrlPatternOptions) -> Result<Self, Error> {
-        Self::parse_internal(init, true, options)
+        Self::parse_internal(init, options)
     }
 
     pub(crate) fn parse_internal(
         init: UrlPatternInit,
-        report_regex_errors: bool,
         options: UrlPatternOptions,
     ) -> Result<Self, Error> {
         let mut processed_init = init.process(
@@ -338,7 +337,7 @@ impl<R: RegExp> UrlPattern<R> {
             canonicalize_and_process::canonicalize_protocol,
             parser::Options::default(),
         )?
-        .optionally_transpose_regex_error(report_regex_errors)?;
+        .optionally_transpose_regex_error()?;
 
         let hostname_is_ipv6 = processed_init
             .hostname
@@ -353,7 +352,7 @@ impl<R: RegExp> UrlPattern<R> {
                 canonicalize_and_process::canonicalize_ipv6_hostname,
                 parser::Options::hostname(),
             )?
-            .optionally_transpose_regex_error(report_regex_errors)?
+            .optionally_transpose_regex_error()?
         } else {
             compile_component(
                 "hostname",
@@ -361,7 +360,7 @@ impl<R: RegExp> UrlPattern<R> {
                 canonicalize_and_process::canonicalize_hostname,
                 parser::Options::hostname(),
             )?
-            .optionally_transpose_regex_error(report_regex_errors)?
+            .optionally_transpose_regex_error()?
         };
 
         let compile_options = parser::Options {
@@ -379,7 +378,7 @@ impl<R: RegExp> UrlPattern<R> {
                     ..parser::Options::pathname()
                 },
             )?
-            .optionally_transpose_regex_error(report_regex_errors)?
+            .optionally_transpose_regex_error()?
         } else {
             compile_component(
                 "pathname",
@@ -387,7 +386,7 @@ impl<R: RegExp> UrlPattern<R> {
                 canonicalize_and_process::canonicalize_an_opaque_pathname,
                 compile_options.clone(),
             )?
-            .optionally_transpose_regex_error(report_regex_errors)?
+            .optionally_transpose_regex_error()?
         };
 
         Ok(UrlPattern {
@@ -398,14 +397,14 @@ impl<R: RegExp> UrlPattern<R> {
                 canonicalize_and_process::canonicalize_username,
                 parser::Options::default(),
             )?
-            .optionally_transpose_regex_error(report_regex_errors)?,
+            .optionally_transpose_regex_error()?,
             password: compile_component(
                 "password",
                 processed_init.password.as_deref(),
                 canonicalize_and_process::canonicalize_password,
                 parser::Options::default(),
             )?
-            .optionally_transpose_regex_error(report_regex_errors)?,
+            .optionally_transpose_regex_error()?,
             hostname,
             port: compile_component(
                 "port",
@@ -413,7 +412,7 @@ impl<R: RegExp> UrlPattern<R> {
                 |port| canonicalize_and_process::canonicalize_port(port, None),
                 parser::Options::default(),
             )?
-            .optionally_transpose_regex_error(report_regex_errors)?,
+            .optionally_transpose_regex_error()?,
             pathname,
             search: compile_component(
                 "search",
@@ -421,14 +420,14 @@ impl<R: RegExp> UrlPattern<R> {
                 canonicalize_and_process::canonicalize_search,
                 compile_options.clone(),
             )?
-            .optionally_transpose_regex_error(report_regex_errors)?,
+            .optionally_transpose_regex_error()?,
             hash: compile_component(
                 "hash",
                 processed_init.hash.as_deref(),
                 canonicalize_and_process::canonicalize_hash,
                 compile_options,
             )?
-            .optionally_transpose_regex_error(report_regex_errors)?,
+            .optionally_transpose_regex_error()?,
         })
     }
 

@@ -11,13 +11,10 @@ use std::fmt;
 #[derive(Debug)]
 pub enum Error {
     BaseUrlRequired,
-    BaseUrlWithInit,
     /// a fully-worded detail message (tokenizer/parser/canonicalizer)
     Message(String),
     Tokenizer(TokenizerError, usize),
     Parser(ParserError),
-    Url(url::ParseError),
-    RegExp(()),
 }
 
 impl fmt::Display for Error {
@@ -26,14 +23,9 @@ impl fmt::Display for Error {
             Error::BaseUrlRequired => {
                 f.write_str("a relative input without a base URL is not valid")
             }
-            Error::BaseUrlWithInit => {
-                f.write_str("specifying both an init object, and a separate base URL is not valid")
-            }
             Error::Message(m) => f.write_str(m),
             Error::Tokenizer(err, pos) => write!(f, "{}", err.at(*pos)),
             Error::Parser(err) => write!(f, "{err}"),
-            Error::Url(err) => err.fmt(f),
-            Error::RegExp(_) => f.write_str("regexp error"),
         }
     }
 }

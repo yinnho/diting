@@ -230,13 +230,16 @@ unsafe extern "C" fn ctor(info: *const FunctionCallbackInfo) {
             // check, and even when the constructor string is absolute
             // (pinned: '/x' + 'not a url' and 'https://x.com/ABC' + undefined
             // both throw Invalid baseURL)
-            if let Some(raw) = &base_raw {
-                if url::Url::parse(raw).is_err() {
-                    throw_type(scope, &format!("Invalid baseURL '{raw}'."), pre);
-                    return;
-                }
-            }
-            let base = base_raw.as_deref().and_then(|b| url::Url::parse(b).ok());
+            let base = match &base_raw {
+                Some(raw) => match url::Url::parse(raw) {
+                    Ok(u) => Some(u),
+                    Err(_) => {
+                        throw_type(scope, &format!("Invalid baseURL '{raw}'."), pre);
+                        return;
+                    }
+                },
+                None => None,
+            };
             match up::UrlPatternInit::parse_constructor_string::<regex::Regex>(&s, base.clone()) {
                 Ok(pi) => init = pi,
                 Err(up::Error::BaseUrlRequired) => {
@@ -248,9 +251,7 @@ unsafe extern "C" fn ctor(info: *const FunctionCallbackInfo) {
                     return;
                 }
             }
-            if let Some(raw) = base_raw {
-                init.base_url = url::Url::parse(&raw).ok();
-            }
+            // parse_constructor_string already threaded the base into the init
         }
     }
     if !options.is_undefined() && !options.is_null() && !is_obj(options) {

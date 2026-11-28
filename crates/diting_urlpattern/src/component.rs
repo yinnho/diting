@@ -17,7 +17,7 @@ use std::fmt::Write;
 #[derive(Debug)]
 pub(crate) struct Component<R: RegExp> {
     pub pattern_string: String,
-    pub regexp: Result<R, Error>,
+    pub regexp: Result<std::rc::Rc<R>, Error>,
     pub group_name_list: Vec<String>,
     pub matcher: Matcher<R>,
     pub has_regexp_group: bool,
@@ -45,7 +45,7 @@ impl<R: RegExp> Component<R> {
         let (regexp_string, name_list) =
             generate_regular_expression_and_name_list(&part_list, &options);
         let flags = if options.ignore_case { "ui" } else { "u" };
-        let regexp = R::parse(&regexp_string, flags).map_err(|e| {
+        let regexp = R::parse(&regexp_string, flags).map(std::rc::Rc::new).map_err(|e| {
             let _ = e;
             // diting: liburlpattern reports the first individually-invalid regexp
             // group — probe the parts in order to find it (measured wording). The
@@ -67,7 +67,7 @@ impl<R: RegExp> Component<R> {
             wrap(Error::Message(detail))
         });
         let pattern_string = generate_pattern_string(&part_list, &options);
-        let matcher = generate_matcher::<R>(&part_list, &options, flags);
+        let matcher = generate_matcher::<R>(&part_list, &options, flags, regexp.as_ref().ok().cloned());
         Ok(Component {
             pattern_string,
             regexp,
@@ -107,13 +107,8 @@ impl<R: RegExp> Component<R> {
         crate::UrlPatternComponentResult { input, groups }
     }
 
-    pub(crate) fn optionally_transpose_regex_error(
-        mut self,
-        do_transpose: bool,
-    ) -> Result<Self, Error> {
-        if do_transpose {
-            self.regexp = Ok(self.regexp?);
-        }
+    pub(crate) fn optionally_transpose_regex_error(mut self) -> Result<Self, Error> {
+        self.regexp = Ok(self.regexp?);
         Ok(self)
     }
 }
@@ -300,15 +295,18 @@ fn generate_matcher<R: RegExp>(
     mut part_list: &[&Part],
     options: &Options,
     flags: &str,
+    shared_regexp: Option<std::rc::Rc<R>>,
 ) -> Matcher<R> {
     fn is_literal(part: &Part) -> bool {
         part.kind == PartType::FixedText && part.modifier == PartModifier::None
     }
 
     // If the first part is a fixed string, we can use it as a literal prefix.
+    let mut reduced = false;
     let mut prefix = match part_list.first() {
         Some(part) if is_literal(part) => {
             part_list = &part_list[1..];
+            reduced = true;
             part.value.clone()
         }
         _ => "".into(),
@@ -317,6 +315,7 @@ fn generate_matcher<R: RegExp>(
     let mut suffix = match part_list.last() {
         Some(part) if is_literal(part) => {
             part_list = &part_list[..part_list.len() - 1];
+            reduced = true;
             part.value.clone()
         }
         _ => "".into(),
@@ -360,11 +359,20 @@ fn generate_matcher<R: RegExp>(
                 allow_empty: false,
             }
         }
-        // For all other cases, we fall back to a regexp matcher.
-        part_list => {
-            let (regexp_string, _) = generate_regular_expression_and_name_list(part_list, options);
-            let regexp = R::parse(&regexp_string, flags).map_err(Error::RegExp);
-            InnerMatcher::RegExp { regexp }
+        // For all other cases, we fall back to a regexp matcher. The matcher
+        // regex is generated from the REDUCED part list (leading/trailing
+        // literals stripped) — a different pattern from the component regex.
+        // Only when nothing was stripped are the two identical, and only then
+        // may the component's own compile be shared.
+        rest => {
+            if !reduced {
+                InnerMatcher::RegExp { regexp: shared_regexp }
+            } else {
+                let (regexp_string, _) = generate_regular_expression_and_name_list(rest, options);
+                InnerMatcher::RegExp {
+                    regexp: R::parse(&regexp_string, flags).map(std::rc::Rc::new).ok(),
+                }
+            }
         }
     };
 
