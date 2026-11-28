@@ -17,11 +17,14 @@
 //!    [`external_refs`] - V8 stores snapshotted callbacks by INDEX into that
 //!    table (append-only, order is load-bearing).
 
+pub(crate) mod convert;
 pub(crate) mod declare;
 pub(crate) mod event;
 pub(crate) mod event_target;
 pub(crate) mod exceptions;
 pub(crate) mod geometry;
+pub(crate) mod matmath;
+pub(crate) mod matrix;
 
 /// The one interface table. `parent` fields index into THIS slice; order
 /// is install order (a parent precedes its children).
@@ -40,6 +43,7 @@ pub(crate) fn external_refs() -> Vec<v8::ExternalReference> {
     let mut v = declare::external_refs();
     v.extend(event_target::external_refs());
     v.extend(event::external_refs());
+    v.extend(matrix::external_refs());
     v
 }
 
@@ -47,6 +51,7 @@ pub(crate) fn external_refs() -> Vec<v8::ExternalReference> {
 /// `install_faces`, so the bake and a fresh VM see the identical object.
 pub(crate) fn install(scope: &mut v8::PinScope<'_, '_>, global: v8::Local<v8::Object>) {
     declare::install(scope, global, IFACES);
+    matrix::install(scope, global);
     event::install(scope, global);
     event_target::capture_dom_exception(scope, global);
     event_target::install(scope, global);
