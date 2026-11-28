@@ -1,0 +1,19 @@
+[package]
+name = "diting_xpath"
+version = "0.1.0"
+edition = "2021"
+license = "MPL-2.0"
+# Vendored from moli-xpath (lexmount/moli, MPL-2.0) — see crates/VENDORED.md.
+# Upstream file-license headers are kept; upstream formatting is kept.
+
+[lib]
+# inline upstream #[cfg(test)] tests are kept ON: they compile and run clean
+# (unlike the wire-family intake) and pin the engine post-retarget.
+doctest = false
+
+[dependencies]
+log = "0.4"
+diting_markup5ever = { path = "../diting_markup5ever" }
+
+[lints]
+workspace = true

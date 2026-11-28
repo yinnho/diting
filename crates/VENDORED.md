@@ -19,6 +19,7 @@ Upstream security advisories are watched by hand (see "Security" below).
 | `diting_selectors` | `selectors` | 0.42.0 | MPL-2.0 | The Servo Project Developers |
 | `diting_swash` | `swash` | 0.2.10 | Apache-2.0 OR MIT | Chad Brokaw (dfrg) |
 | `diting_taffy` | `taffy` (main rev `4aca4f49`) | 0.15.0 | MIT | Visly Inc. and the Taffy Authors (DioxusLabs) |
+| `diting_xpath` | `moli-xpath` (lexmount/moli) | 0.1.0 (2026-11-25 rev) | MPL-2.0 | moli contributors |
 
 Source: the crates.io release tarballs of the versions above (https://github.com/0x676e67).
 Apache-2.0 obligations (section 4): each crate keeps its `LICENSE`; the repository `NOTICE`

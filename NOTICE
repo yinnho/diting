@@ -65,5 +65,10 @@ main revision 802e497 (Copyright (c) 2018 Visly Inc., Copyright the Taffy Author
 DioxusLabs; MIT; the license file is kept in the crate) — and has since been pruned
 and modified; it is maintained here. See crates/VENDORED.md.
 
+The XPath 1.0 engine (crates/diting_xpath) was taken from the `moli-xpath` crate
+of the moli project (lexmount/moli) by the moli contributors — MPL-2.0; the
+per-file license headers are kept and the crate is maintained here.
+See crates/VENDORED.md.
+
 Other third-party components are used under their own licenses; see Cargo.lock
 and the dependency manifests.
