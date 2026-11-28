@@ -721,6 +721,10 @@ impl Page {
         body: &str,
     ) -> Result<(), PageError> {
         let url = Url::parse(url_str).map_err(|e| PageError::InvalidUrl(e.to_string()))?;
+        // Navigation phase clocks (DITING_NAV_TIMING): permanent forensics
+        // for the navigation-lifecycle campaign — which phase the fixed
+        // per-navigation cost actually lives in.
+        let t_nav = std::time::Instant::now();
 
         // The outgoing document's events must outlive this navigation: the
         // CDP drain that emits Network events only runs after the new
@@ -749,22 +753,23 @@ impl Page {
 
         if url.scheme() == "about" {
             self.navigate_blank();
-            self.init_js();
-            // Preloads (Page.addScriptToEvaluateOnNewDocument, the
-            // Runtime.addBinding shim) must run on about:blank too —
-            // puppeteer's `browser.newPage()` lands on about:blank and
-            // a follow-up `exposeFunction` is unusable otherwise.
-            let preload_sources = self.preload_scripts.clone();
-            if let Some(js) = &mut self.js {
-                for source in &preload_sources {
-                    if let Err(e) = js.execute_script_guarded("<preload>", source.as_str()) {
-                        tracing::debug!("Preload script error on about:blank: {}", e);
-                    }
-                }
-            }
+            // Lazy blank realm: about:blank has no scripts of its own, so
+            // its realm is pure cost until something touches JS — and the
+            // dominant shape (puppeteer's `newPage()` → immediate `goto()`)
+            // would build the blank realm and throw it away within
+            // milliseconds. Mark the deferral instead; the first eval-side
+            // operation materializes realm + preloads through
+            // `materialize_deferred_realm` (the exact wiring an eager
+            // blank used to get, preloads included — exposeFunction on a
+            // fresh page must still exist before the caller's first
+            // evaluate). A real navigation's init_js clears the flag, so
+            // a deferred blank that is navigated away never builds
+            // anything at all.
+            self.deferred_blank_realm = true;
             return Ok(());
         }
 
+        let t_fetch = std::time::Instant::now();
         let response = if url.scheme() == "data" {
             let content_type = url_str
                 .strip_prefix("data:")
@@ -814,6 +819,8 @@ impl Page {
             );
             PageError::from(e)
         })?;
+        let fetch_ms = t_fetch.elapsed().as_micros();
+        let t_parse = std::time::Instant::now();
 
         self.record_network_event_with_body(
             url.as_str(),
@@ -917,6 +924,9 @@ impl Page {
         } else {
             parse_html(&body_text)
         };
+
+        let parse_ms = t_parse.elapsed().as_micros();
+        let t_css = std::time::Instant::now();
 
         let title = dom
             .query_selector("title")
@@ -1065,8 +1075,12 @@ impl Page {
             css_sources.push((url_str, css));
         }
 
+        let css_ms = t_css.elapsed().as_micros();
+        let t_realm = std::time::Instant::now();
         self.dom = Some(dom);
         self.init_js();
+        let realm_ms = t_realm.elapsed().as_micros();
+        let t_scripts = std::time::Instant::now();
 
         // Hand the fetched sheet bodies to the JS state natively: the
         // layout run joins them into the cascade (getComputedStyle /
@@ -1114,10 +1128,31 @@ impl Page {
         // page.click() handlers were no-ops. Now scripts run regardless
         // of waitUntil and DCL means "DOM parsed AND scripts executed".
         self.execute_scripts().await;
+        let scripts_ms = t_scripts.elapsed().as_micros();
+
+        // One structured line per navigation (DITING_NAV_TIMING). The
+        // settled/lifecycle split lives inside `scripts` — the dynamic
+        // settle loops run as part of execute_scripts.
+        let log_nav_timing = |netidle_ms: u128| {
+            if diting_env::env_knobs::nav_timing() {
+                tracing::info!(
+                    "nav timing [{url_str}]: fetch {}us parse {}us css {}us realm {}us \
+                     scripts {}us netidle {}us total {}us",
+                    fetch_ms,
+                    parse_ms,
+                    css_ms,
+                    realm_ms,
+                    scripts_ms,
+                    netidle_ms,
+                    t_nav.elapsed().as_micros(),
+                );
+            }
+        };
 
         self.lifecycle = LifecycleState::DomContentLoaded;
 
         if wait_until == crate::lifecycle::WaitUntil::DomContentLoaded {
+            log_nav_timing(0);
             return Ok(());
         }
 
@@ -1131,6 +1166,7 @@ impl Page {
 
         self.lifecycle = LifecycleState::Loaded;
 
+        let t_netidle = std::time::Instant::now();
         if matches!(
             wait_until,
             crate::lifecycle::WaitUntil::NetworkIdle0 | crate::lifecycle::WaitUntil::NetworkIdle2
@@ -1183,6 +1219,7 @@ impl Page {
             self.lifecycle = LifecycleState::NetworkIdle;
         }
 
+        log_nav_timing(t_netidle.elapsed().as_micros());
         Ok(())
     }
 

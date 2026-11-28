@@ -535,12 +535,22 @@ impl SessionActor {
             return;
         }
         let url = self.page.url();
-        let title = self
-            .page
-            .evaluate("document.title")
-            .as_str()
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string());
+        // The title read must not force the deferred blank realm into
+        // existence: a live realm may carry a script-mutated title the
+        // native document has not re-synced, but a deferred blank has no
+        // scripts at all — its title is exactly the native one (empty).
+        // Materializing a whole V8 isolate to read "" was the lazy-blank
+        // defeat: createTarget waits on this command, so every new target
+        // built the blank realm it was meant to skip.
+        let title = if self.page.inner.has_js() {
+            self.page
+                .evaluate("document.title")
+                .as_str()
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+        } else {
+            Some(self.page.inner.title()).filter(|s| !s.is_empty())
+        };
         let challenge = crate::har::challenge_kind(&url).map(|s| s.to_string());
         let redirected_from = self.page.inner.navigation_record().redirect_chain.clone();
         let _ = reply.send(Ok(SessionNavResponse {
@@ -1101,6 +1111,10 @@ impl SessionActor {
             last_nav_error,
             ..
         } = self;
+        // A healthy blank page whose realm was deferred materializes on
+        // this first JS touch; a failed navigation still has no runtime
+        // and reports #80 below.
+        page.inner.materialize_deferred_realm();
         let outcome = if !page.inner.has_js() {
             // #80: without a JS runtime every eval would
             // silently answer null (only document.title /

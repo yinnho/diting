@@ -273,16 +273,23 @@ impl JsRuntime {
         // the end of the function costs nothing.
         let _tokio_context = enter_tokio_context();
 
+        // Realm-construction phase clocks (DITING_REALM_TIMING): permanent
+        // forensics for the realm-cost campaign — these are the numbers
+        // that decide what lazy-realm / context-reuse work is worth.
+        let t_construct = std::time::Instant::now();
         // Serialize isolate construction process-wide: V8's JSDispatchTable
         // setup is not safe to run from several threads at once, and sessions
         // plus one-shot ops each construct on their own thread concurrently
         // (upstream obscura hit this under thread-per-connection, #430).
         // Disposal serializes through the same lock — see
         // `SerializedDropRuntime` (#108).
-        let mut runtime = {
+        let (mut runtime, lock_ms, restore_ms) = {
+            let t_lock = std::time::Instant::now();
             let _construct_guard = ISOLATE_CONSTRUCT_LOCK
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let lock_ms = t_lock.elapsed().as_micros();
+            let t_restore = std::time::Instant::now();
             v8_flags_before_first_isolate();
             // #276 shared-source campaign: restore-side const mint (pure
             // data — OneByteConst needs no isolate; the build script did
@@ -290,7 +297,8 @@ impl JsRuntime {
             diting_runtime::snapshot::ensure_script_consts(
                 crate::snapshot_sources::SNAPSHOT_SRC_ASCII,
             );
-            Vm::from_snapshot(SNAPSHOT).expect("our snapshot container revives")
+            let vm = Vm::from_snapshot(SNAPSHOT).expect("our snapshot container revives");
+            (vm, lock_ms, t_restore.elapsed().as_micros())
         };
         // #276 memory forensics: point A — the heap as the snapshot restore
         // left it, before any init script runs.
@@ -308,6 +316,7 @@ impl JsRuntime {
         // snapshot baked (bootstrap.js captured it as `const _OPS` — object
         // identity survives the snapshot restore). Never on globalThis: op
         // names as window properties would change the fingerprint face.
+        let t_ops = std::time::Instant::now();
         let op_state = runtime.install_ops_under(our_decls(), &["Deno", "core", "ops"]);
         op_state.borrow_mut().put(state_clone);
         // #226: async fetch completion mirror — see FetchSettlements in ops.
@@ -316,19 +325,23 @@ impl JsRuntime {
             .put(crate::ops::FetchSettlements::default());
 
         runtime.install_modules(module_loader.clone());
+        let ops_ms = t_ops.elapsed().as_micros();
 
+        let t_init = std::time::Instant::now();
         runtime
             .execute_script(
                 "<anonymous>"  /* was diting:init; page-visible Error.stack */,
                 "globalThis.__diting_objects = {}; globalThis.__diting_oid = 0; globalThis.__diting_init();",
             )
             .expect("init should not fail");
+        let init_ms = t_init.elapsed().as_micros();
 
         // document.all needs a real [[IsHTMLDDA]] object (typeof "undefined"
         // yet indexable/callable); only V8's `%GetUndetectable()` can mint
         // one. Natives syntax is on for exactly this one compile, under the
         // construction lock, then switched off so page scripts never parse
         // `%Foo()` (Chrome: SyntaxError).
+        let t_natives = std::time::Instant::now();
         {
             let _natives_guard = ISOLATE_CONSTRUCT_LOCK
                 .lock()
@@ -343,28 +356,16 @@ impl JsRuntime {
                 tracing::warn!("document.all undetectable object not installed: {}", e);
             }
         }
+        let natives_ms = t_natives.elapsed().as_micros();
 
-        // #276: post-init shrink — the knob trades ~2ms per realm build
-        // for ~1.4MB physical per realm (see Vm::shrink_heap).
-        // Concurrency gate (#276): under big pools (crawl shape, 25 ways)
-        // the per-navigation GC measured ~8ms CPU with lock contention —
-        // +28s wall on the 940-page crawl for −27MB. Few-session
-        // deployments (the parked-console shape, where it's free) still
-        // shrink.
-        if env_knobs::realm_shrink() && diting_runtime::live_isolates() <= 8 {
-            let t0 = std::time::Instant::now();
-            runtime.shrink_heap();
-            if env_knobs::realm_heap_stats() {
-                let h = runtime.heap_statistics();
-                tracing::info!(
-                    "realm heap [S shrunk]: used {} total {} physical {} shrink_ms {:?}",
-                    h.used_heap_size(),
-                    h.total_heap_size(),
-                    h.total_physical_size(),
-                    t0.elapsed()
-                );
-            }
-        }
+        // #276 post-init shrink: REMOVED from the construction hot path.
+        // The full GC cost a measured ~4-5ms per realm build, and every
+        // navigation pays for a realm build. Its memory benefit only ever
+        // covered the first ~1s of a realm's life: the session actor
+        // already full-GCs parked realms after five quiet pump slices
+        // (the idle shrink, same `DITING_REALM_SHRINK` knob), and the
+        // >8-live-isolate concurrency gate meant bulk crawls never got
+        // the post-init shrink anyway.
         // #276 memory forensics: point B — after ops install, init script,
         // natives mint; this is the per-realm steady baseline a page starts
         // from.
@@ -375,6 +376,23 @@ impl JsRuntime {
                 h.used_heap_size(),
                 h.total_heap_size(),
                 h.total_physical_size()
+            );
+        }
+        if env_knobs::realm_timing() {
+            let h = runtime.heap_statistics();
+            tracing::info!(
+                "realm timing [{base_url}]: lock {}us restore {}us ops {}us init {}us \
+                 natives {}us total {}us | heap used {} physical {} \
+                 | live isolates {}",
+                lock_ms,
+                restore_ms,
+                ops_ms,
+                init_ms,
+                natives_ms,
+                t_construct.elapsed().as_micros(),
+                h.used_heap_size(),
+                h.total_physical_size(),
+                diting_runtime::live_isolates(),
             );
         }
         let isolate_handle = runtime.isolate_handle();

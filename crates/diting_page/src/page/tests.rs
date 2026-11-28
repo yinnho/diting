@@ -928,6 +928,55 @@ async fn navigate_blank_resets_state() {
     assert!(p.js.is_none());
 }
 
+/// Lazy blank realm: navigating to about:blank defers the realm — the
+/// dominant `newPage()` → `goto()` shape must not build a blank realm
+/// just to throw it away milliseconds later.
+#[tokio::test(flavor = "current_thread")]
+async fn blank_navigation_defers_the_realm() {
+    let mut p = test_page();
+    p.navigate("about:blank").await.unwrap();
+    assert!(!p.has_js());
+    assert!(p.has_deferred_blank_realm());
+}
+
+/// The first eval-side touch materializes the deferred realm with the
+/// full eager wiring: the expression evaluates for real, and the preload
+/// group (exposeFunction's shape) ran BEFORE it.
+#[tokio::test(flavor = "current_thread")]
+async fn eval_materializes_the_deferred_blank_realm_with_preloads() {
+    let mut p = test_page();
+    p.add_preload_script("globalThis.__preload_ran = 41;".to_string());
+    p.navigate("about:blank").await.unwrap();
+    assert!(!p.has_js());
+    let val = p.evaluate("globalThis.__preload_ran + 1");
+    assert_eq!(val.as_f64(), Some(42.0));
+    assert!(p.has_js());
+    assert!(!p.has_deferred_blank_realm());
+}
+
+/// The win the deferral exists for: a blank page navigated away before
+/// any JS touch never builds the blank realm at all — the landing page
+/// still gets exactly one working realm.
+#[tokio::test(flavor = "current_thread")]
+async fn blank_then_real_navigation_builds_only_the_landing_realm() {
+    let port = local_http_server(vec![(
+        "/landing",
+        200,
+        "<html><body><script>globalThis.__landed = (globalThis.__landed||0)+1;</script></body></html>"
+            .to_string(),
+    )]);
+    let mut p = test_page();
+    p.navigate("about:blank").await.unwrap();
+    assert!(p.has_deferred_blank_realm());
+    p.navigate(&format!("http://127.0.0.1:{port}/landing"))
+        .await
+        .unwrap();
+    assert!(!p.has_deferred_blank_realm());
+    assert!(p.has_js());
+    let val = p.evaluate("globalThis.__landed");
+    assert_eq!(val.as_f64(), Some(1.0));
+}
+
 #[test]
 fn module_eval_budget_parses_override_and_default() {
     assert_eq!(super::scripts::module_eval_budget_from(None), 10_000);

@@ -77,6 +77,7 @@ impl Page {
         expression: &str,
         timeout: std::time::Duration,
     ) -> Result<serde_json::Value, String> {
+        self.materialize_deferred_realm();
         if let Some(js) = &mut self.js {
             js.evaluate_with_timeout(expression, timeout).map_err(|e| {
                 let preview: String = expression.chars().take(80).collect();
@@ -90,6 +91,7 @@ impl Page {
     }
 
     pub fn evaluate(&mut self, expression: &str) -> serde_json::Value {
+        self.materialize_deferred_realm();
         if let Some(js) = &mut self.js {
             match js.evaluate(expression) {
                 Ok(val) => val,
@@ -116,6 +118,7 @@ impl Page {
         return_by_value: bool,
         await_promise: bool,
     ) -> diting_js::runtime::RemoteObjectInfo {
+        self.materialize_deferred_realm();
         if let Some(js) = &mut self.js {
             match js
                 .evaluate_remote(expression, return_by_value, await_promise)
@@ -170,6 +173,7 @@ impl Page {
         await_budget_ms: u64,
         frame_nid: Option<u32>,
     ) -> diting_js::runtime::EvalOutcome {
+        self.materialize_deferred_realm();
         if let Some(js) = &mut self.js {
             match js
                 .evaluate_remote_outcome(

@@ -280,6 +280,18 @@ pub struct Page {
     // the recipes. The session actor used to keep this second list itself.
     user_preload_scripts: Vec<String>,
     preload_scripts: Vec<String>,
+    /// The live document is about:blank and its JS realm was never built.
+    /// A blank page has no scripts of its own, so the realm is pure cost
+    /// until something actually touches JS — the classic shape is
+    /// puppeteer's `newPage()` (lands on about:blank) immediately followed
+    /// by `goto()`, which would build the blank realm and throw it away
+    /// within milliseconds. Deferring skips that construction entirely;
+    /// the first eval-side operation materializes the realm through
+    /// [`Page::materialize_deferred_realm`] (init_js + preloads, same as
+    /// an eager blank). Distinct from "no runtime because the navigation
+    /// failed" (#80): deferred is a healthy page that simply has not
+    /// needed JS yet.
+    deferred_blank_realm: bool,
     /// Page-scoped navigation deadline override. `None` falls back to
     /// `DITING_NAV_TIMEOUT_MS` (default 30s); set via
     /// `set_navigation_timeout` when an automation request carries an
@@ -431,6 +443,7 @@ impl Page {
             intercept_tx: None,
             user_preload_scripts: Vec::new(),
             preload_scripts: Vec::new(),
+            deferred_blank_realm: false,
             navigation_timeout_ms: None,
             storm_backoff_ms: 0,
             storm_hot_until: None,

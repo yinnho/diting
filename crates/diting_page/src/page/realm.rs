@@ -9,7 +9,7 @@ use super::Page;
 
 impl Page {
     /// #276 idle shrink: full-GC the live realm at an idle command boundary
-    /// (`DITING_REALM_SHRINK`, same knob as the post-init shrink).
+    /// (`DITING_REALM_SHRINK`).
     /// For parked sessions on garbage-heavy pages — a merchant console
     /// churning for minutes — this returns accumulated garbage to the pool
     /// without waiting for the next navigation's realm rebuild. Safe here
@@ -51,6 +51,9 @@ impl Page {
     }
 
     pub(super) fn init_js(&mut self) {
+        // Any realm construction ends a blank-page deferral: the flag
+        // exists only to skip building a realm nobody has touched.
+        self.deferred_blank_realm = false;
         // Drop any existing runtime so the JS realm starts clean on
         // every navigation. The old code reused the V8 isolate and
         // only re-bound `globalThis.document`, leaving window.onload,
@@ -79,8 +82,11 @@ impl Page {
         // and op_fetch_url so dynamic imports and JS fetch() honour the
         // configured upstream proxy (#139). When proxy_url is None this is
         // equivalent to with_base_url() (direct connection).
+        let t_construct = std::time::Instant::now();
         let mut rt =
             JsRuntime::with_base_url_and_proxy(&self.url_string(), self.context.proxy_url.clone());
+        let construct_us = t_construct.elapsed().as_micros();
+        let t_replay = std::time::Instant::now();
         // Commit the in-flight document onto this realm. Navigation staged
         // title/referrer/encoding on `pending_document` so the outgoing
         // realm kept its own document; resume (no pending) reattaches the live
@@ -183,6 +189,14 @@ impl Page {
         self.apply_timezone_override();
         self.apply_locale_override();
         self.apply_platform_override();
+        if diting_env::env_knobs::realm_timing() {
+            tracing::info!(
+                "init_js timing [{}]: construct {}us replay {}us",
+                self.url_string(),
+                construct_us,
+                t_replay.elapsed().as_micros(),
+            );
+        }
     }
 
     /// The language the page reads in `navigator.language(s)`: the
@@ -298,6 +312,36 @@ impl Page {
             return;
         }
         self.init_js();
+    }
+
+    /// Build the deferred about:blank realm on first JS touch. The wiring
+    /// is exactly what an eager blank navigation does — init_js plus the
+    /// preload group (puppeteer's `exposeFunction` on a fresh `newPage()`
+    /// must exist before the caller's first evaluate) — just deferred
+    /// until something actually needs it. No-op unless the live document
+    /// is a deferred blank; suspended realms deliberately stay parked
+    /// (their owner resumes them).
+    pub fn materialize_deferred_realm(&mut self) {
+        if !self.deferred_blank_realm {
+            return;
+        }
+        self.init_js();
+        let preload_sources = self.preload_scripts.clone();
+        if let Some(js) = &mut self.js {
+            for source in &preload_sources {
+                if let Err(e) = js.execute_script_guarded("<preload>", source.as_str()) {
+                    tracing::debug!("Preload script error on about:blank: {}", e);
+                }
+            }
+        }
+    }
+
+    /// The live document is a healthy blank page whose realm simply has
+    /// not been needed yet — eval-side entry points use this to decide
+    /// between materializing (deferred) and reporting the #80 no-runtime
+    /// error (failed navigation).
+    pub fn has_deferred_blank_realm(&self) -> bool {
+        self.deferred_blank_realm
     }
 
     pub fn has_js(&self) -> bool {

@@ -30,6 +30,9 @@ impl SessionActor {
             console_ring,
             ..
         } = self;
+        // A healthy blank page whose realm was deferred materializes on
+        // this first JS touch; a failed navigation still reports #80.
+        page.inner.materialize_deferred_realm();
         let outcome = if !page.inner.has_js() {
             Err(format!(
                 "page has no JS runtime — the last navigation did not \
@@ -113,6 +116,7 @@ impl SessionActor {
         let Self {
             page, console_ring, ..
         } = self;
+        page.inner.materialize_deferred_realm();
         let outcome = if !page.inner.has_js() {
             Err("page has no JS runtime".to_string())
         } else {

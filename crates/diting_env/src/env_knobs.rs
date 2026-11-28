@@ -340,12 +340,12 @@ pub fn app_data_dir() -> Option<std::path::PathBuf> {
     }
 }
 
-/// `DITING_REALM_SHRINK` (default ON, `0` opts out): full-GC each
-/// realm right after init, plus the idle shrink for parked sessions
-/// (#276). Measured: ~2ms per realm build for ~1.4MB physical back per
-/// realm (25-realm concurrent peak −7.6%); the deeper tier was measured
-/// DEAD (critical pressure + double GC buys 33KB more — the live set is
-/// the floor).
+/// `DITING_REALM_SHRINK` (default ON, `0` opts out): the idle shrink
+/// full-GCs a parked session's realm after five quiet pump slices (#276).
+/// The post-init half of this policy was removed from the construction
+/// hot path: it cost a measured ~4-5ms on every navigation's realm build
+/// while its memory benefit only covered the first ~1s of the realm's
+/// life — exactly what the idle shrink already reclaims.
 /// #70 `DITING_BACKGROUND_AFTER_SECS`: how long a session may go without a
 /// command before its timers get Chrome's hidden-tab budget (wake-ups
 /// aligned to 1s; twice that long and chained timers align to 1min). The
@@ -369,6 +369,29 @@ pub fn realm_shrink() -> bool {
 /// memory cost can be decomposed (#276 memory work). Off by default.
 pub fn realm_heap_stats() -> bool {
     std::env::var("DITING_REALM_HEAP_STATS")
+        .map(|v| v != "0" && !v.is_empty())
+        .unwrap_or(false)
+}
+
+/// `DITING_REALM_TIMING`: log one structured line per realm construction
+/// with the per-phase milliseconds (construct-lock wait, snapshot restore,
+/// ops/module install, init script, natives mint) plus
+/// the resulting heap sizes and the process-wide live-isolate count.
+/// Permanent forensics surface for the realm-cost campaign — the numbers
+/// that decide what lazy/context-reuse work is worth. Off by default;
+/// the clocks are a handful of `Instant::now()` calls either way.
+pub fn realm_timing() -> bool {
+    std::env::var("DITING_REALM_TIMING")
+        .map(|v| v != "0" && !v.is_empty())
+        .unwrap_or(false)
+}
+
+/// `DITING_NAV_TIMING`: log one structured line per document navigation
+/// with the per-phase milliseconds (document fetch, parse, stylesheet
+/// collect, realm build, script execution, network-idle wait). Off by
+/// default.
+pub fn nav_timing() -> bool {
+    std::env::var("DITING_NAV_TIMING")
         .map(|v| v != "0" && !v.is_empty())
         .unwrap_or(false)
 }
