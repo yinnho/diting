@@ -120,6 +120,14 @@ pub struct JsState {
     /// The document's input stream for `document.write()`, created on the
     /// first call. Why the calls share one parser is in `write_stream`.
     pub(crate) write_stream: std::cell::RefCell<Option<crate::write_stream::DocumentWriteStream>>,
+    /// Single-entry xpath snapshot cache: the native evaluator rebuilds a
+    /// full-tree snapshot per `document.evaluate` call otherwise, which is
+    /// O(tree) every time — xpath-heavy scraping flows regressed badly.
+    /// Keyed on the tree's mutation epoch + the context's topmost ancestor;
+    /// any content write invalidates. One entry because scraping flows
+    /// evaluate batches of expressions against the same document.
+    pub(crate) xpath_snapshot_cache:
+        std::cell::RefCell<Option<(u64, NodeId, Rc<crate::xpath_eval::Built>)>>,
     /// HTML's per-script "already started" flag. This is native page state
     /// rather than wrapper state, because it must survive moves and clones and
     /// because fragment parsing can create nodes before a JS wrapper exists.
@@ -510,6 +518,7 @@ impl JsState {
             dialog_accept: false,
             dialog_prompt_text: None,
             write_stream: std::cell::RefCell::new(None),
+            xpath_snapshot_cache: std::cell::RefCell::new(None),
             already_started_scripts: RefCell::new(HashSet::new()),
             import_map: Rc::new(RefCell::new(crate::import_map::ImportMap::default())),
             blob_store: Rc::new(RefCell::new(HashMap::new())),

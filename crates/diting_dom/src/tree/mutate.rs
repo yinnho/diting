@@ -85,6 +85,7 @@ impl DomTree {
         }
         inner.match_dirty.parent_zone(parent_id);
         inner.match_dirty.inserted(child_id);
+        inner.mutate_gen = inner.mutate_gen.wrapping_add(1);
     }
 
     pub fn insert_before(&self, existing_id: NodeId, new_sibling_id: NodeId) {
@@ -173,6 +174,7 @@ impl DomTree {
         }
         inner.match_dirty.parent_zone(parent_id);
         inner.match_dirty.inserted(new_sibling_id);
+        inner.mutate_gen = inner.mutate_gen.wrapping_add(1);
     }
 
     pub fn detach(&self, node_id: NodeId) {
@@ -230,6 +232,7 @@ impl DomTree {
             inner.match_dirty.parent_zone(parent_id);
             inner.match_dirty.detached(node_id);
         }
+        inner.mutate_gen = inner.mutate_gen.wrapping_add(1);
     }
 
     /// Detach a node from its parent AND remove it (and all descendants)

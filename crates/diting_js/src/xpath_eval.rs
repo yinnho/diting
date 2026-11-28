@@ -21,6 +21,12 @@ pub struct Built {
     pub snapshot: diting_xpath::Snapshot,
     /// index = SnapshotNodeId
     pub back: Vec<Option<BackRef>>,
+    /// live node -> snapshot slot, for context resolution on cache hits:
+    /// a reused snapshot's evaluation context is the CALLER's node, never
+    /// the node the snapshot was first built for.
+    pub node_snap: std::collections::HashMap<NodeId, SnapshotNodeId>,
+    /// (attribute owner, qualified name) -> snapshot slot, same purpose.
+    pub attr_snap: std::collections::HashMap<(NodeId, String), SnapshotNodeId>,
     pub root_snapshot_id: SnapshotNodeId,
     pub context_snapshot_id: Option<SnapshotNodeId>,
 }
@@ -44,17 +50,34 @@ pub fn build_snapshot(tree: &DomTree, context: NodeId) -> Option<Built> {
     while let Some(p) = tree.get_node(root).and_then(|n| n.parent) {
         root = p;
     }
-    let is_html_doc = !tree.is_quirks(); // namespace html-ness: diting documents are HTML documents; quirks is unrelated but the flag plumbing lands with the truth pass
-    let _ = is_html_doc;
-
     let mut b = SnapshotBuilder::new();
     let mut back: Vec<Option<BackRef>> = Vec::new();
+    let mut node_snap: std::collections::HashMap<NodeId, SnapshotNodeId> =
+        std::collections::HashMap::new();
+    let mut attr_snap: std::collections::HashMap<(NodeId, String), SnapshotNodeId> =
+        std::collections::HashMap::new();
     let mut ctx_snap: Option<SnapshotNodeId> = None;
 
     // preorder walk; the builder indexes nodes in push order.
-    fn push_tracking(back: &mut Vec<Option<BackRef>>, id: SnapshotNodeId, r: Option<BackRef>) {
+    fn push_tracking(
+        back: &mut Vec<Option<BackRef>>,
+        node_snap: &mut std::collections::HashMap<NodeId, SnapshotNodeId>,
+        attr_snap: &mut std::collections::HashMap<(NodeId, String), SnapshotNodeId>,
+        id: SnapshotNodeId,
+        r: Option<BackRef>,
+    ) {
         if back.len() <= id {
             back.resize(id + 1, None);
+        }
+        if let Some(ref br) = r {
+            match br {
+                BackRef::Node(n) => {
+                    node_snap.insert(*n, id);
+                }
+                BackRef::Attr(owner, q) => {
+                    attr_snap.insert((*owner, q.clone()), id);
+                }
+            }
         }
         back[id] = r;
     }
@@ -69,7 +92,13 @@ pub fn build_snapshot(tree: &DomTree, context: NodeId) -> Option<Built> {
     if matches!(root_data.data, NodeData::Document) {
         let doc_snap = b.append_document();
         // the document node itself is a selectable result (`/`, `/.`)
-        push_tracking(&mut back, doc_snap, Some(BackRef::Node(root)));
+        push_tracking(
+            &mut back,
+            &mut node_snap,
+            &mut attr_snap,
+            doc_snap,
+            Some(BackRef::Node(root)),
+        );
         root_snap = doc_snap;
         if root == context {
             ctx_snap = Some(doc_snap);
@@ -100,7 +129,13 @@ pub fn build_snapshot(tree: &DomTree, context: NodeId) -> Option<Built> {
                 let (local, prefix, ns) = qual_parts(name);
                 let html_el = ns.as_deref() == Some("http://www.w3.org/1999/xhtml") || ns.is_none();
                 let id = b.append_element(parent_snap, local, prefix, ns, html_el);
-                push_tracking(&mut back, id, Some(BackRef::Node(nid)));
+                push_tracking(
+                    &mut back,
+                    &mut node_snap,
+                    &mut attr_snap,
+                    id,
+                    Some(BackRef::Node(nid)),
+                );
                 for a in attrs {
                     let (alocal, aprefix, ans) = qual_parts(&a.name);
                     let aid = b.append_attribute(id, alocal, a.value.clone(), aprefix, ans);
@@ -109,7 +144,13 @@ pub fn build_snapshot(tree: &DomTree, context: NodeId) -> Option<Built> {
                     } else {
                         a.name.local.to_string()
                     };
-                    push_tracking(&mut back, aid, Some(BackRef::Attr(nid, qualified)));
+                    push_tracking(
+                        &mut back,
+                        &mut node_snap,
+                        &mut attr_snap,
+                        aid,
+                        Some(BackRef::Attr(nid, qualified)),
+                    );
                 }
                 for c in tree.children(nid).into_iter().rev() {
                     stack.push((c, Some(id)));
@@ -118,12 +159,24 @@ pub fn build_snapshot(tree: &DomTree, context: NodeId) -> Option<Built> {
             }
             NodeData::Text { contents } => {
                 let id = b.append_text(parent_snap, contents.clone());
-                push_tracking(&mut back, id, Some(BackRef::Node(nid)));
+                push_tracking(
+                    &mut back,
+                    &mut node_snap,
+                    &mut attr_snap,
+                    id,
+                    Some(BackRef::Node(nid)),
+                );
                 id
             }
             NodeData::Comment { contents } => {
                 let id = b.append_comment(parent_snap, contents.clone());
-                push_tracking(&mut back, id, Some(BackRef::Node(nid)));
+                push_tracking(
+                    &mut back,
+                    &mut node_snap,
+                    &mut attr_snap,
+                    id,
+                    Some(BackRef::Node(nid)),
+                );
                 id
             }
             NodeData::ProcessingInstruction { .. } => {
@@ -147,6 +200,8 @@ pub fn build_snapshot(tree: &DomTree, context: NodeId) -> Option<Built> {
     Some(Built {
         snapshot: b.finish(root_snap),
         back,
+        node_snap,
+        attr_snap,
         root_snapshot_id: root_snap,
         context_snapshot_id: ctx_snap,
     })

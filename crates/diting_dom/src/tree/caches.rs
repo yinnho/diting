@@ -10,7 +10,9 @@ impl DomTree {
     /// changed: the next sync rebuilds. Writers that know what they changed
     /// use the scoped hooks instead (`note_attr_change` and friends).
     pub fn note_restyle(&self, _id: NodeId) {
-        self.inner.borrow_mut().match_dirty.full = true;
+        let mut inner = self.inner.borrow_mut();
+        inner.match_dirty.full = true;
+        inner.mutate_gen = inner.mutate_gen.wrapping_add(1);
     }
 
     /// Escape hatch for mutation paths the dirty registry cannot describe:
@@ -54,6 +56,7 @@ impl DomTree {
     pub fn note_attr_change(&self, id: NodeId, name: &str, old: Option<&str>, new: Option<&str>) {
         let parent = self.with_node(id, |n| n.parent).flatten();
         let mut inner = self.inner.borrow_mut();
+        inner.mutate_gen = inner.mutate_gen.wrapping_add(1);
         inner.match_dirty.attr_change(name, old, new);
         // A write on a detached element flips nothing attached — its own
         // hits died with the detach — but the zone build skips detached
@@ -87,11 +90,14 @@ impl DomTree {
             inner.match_dirty.parent_zone(p);
         }
         inner.match_dirty.structure = true;
+        inner.mutate_gen = inner.mutate_gen.wrapping_add(1);
     }
 
     /// A form control's live value / checkedness / indeterminate state
     /// changed (`:checked`, `:indeterminate` and the other wild rules).
     pub fn note_live_change(&self) {
-        self.inner.borrow_mut().match_dirty.live = true;
+        let mut inner = self.inner.borrow_mut();
+        inner.match_dirty.live = true;
+        inner.mutate_gen = inner.mutate_gen.wrapping_add(1);
     }
 }

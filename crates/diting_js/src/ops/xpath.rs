@@ -101,16 +101,40 @@ fn op_xpath_eval_inner(
         return serde_json::json!({ "err": "no-context" }).to_string();
     }
     let context = NodeId::new(ctx_nid as u32);
-    let Some(built) = build_snapshot(dom, context) else {
-        return serde_json::json!({ "err": "no-context" }).to_string();
+    // Snapshot cache: keyed on the tree's content-mutation epoch plus the
+    // context's topmost ancestor (the snapshot root). A batch of evaluate
+    // calls against an unmutated document shares one rebuild instead of
+    // paying O(tree) per call.
+    let mut root = context;
+    while let Some(p) = dom.get_node(root).and_then(|n| n.parent) {
+        root = p;
+    }
+    let epoch = dom.mutation_epoch();
+    let cached = gs
+        .xpath_snapshot_cache
+        .borrow()
+        .as_ref()
+        .filter(|(e, r, _)| *e == epoch && *r == root)
+        .map(|(_, _, b)| b.clone());
+    let built = match cached {
+        Some(b) => b,
+        None => {
+            let Some(b) = build_snapshot(dom, context) else {
+                return serde_json::json!({ "err": "no-context" }).to_string();
+            };
+            let b = std::rc::Rc::new(b);
+            *gs.xpath_snapshot_cache.borrow_mut() = Some((epoch, root, b.clone()));
+            b
+        }
     };
     let ctx_snap = if attr_name.is_empty() {
-        built.context_snapshot_id
+        built.node_snap.get(&context).copied()
     } else {
-        // attribute context: the context node is the attribute itself — find
-        // the snapshot slot whose back-ref is this owner+name pair
-        let want = crate::xpath_eval::BackRef::Attr(context, attr_name.to_string());
-        built.back.iter().position(|r| r.as_ref() == Some(&want))
+        // attribute context: the context node is the attribute itself
+        built
+            .attr_snap
+            .get(&(context, attr_name.to_string()))
+            .copied()
     };
     let Some(ctx_snap) = ctx_snap else {
         return serde_json::json!({ "err": "no-context" }).to_string();

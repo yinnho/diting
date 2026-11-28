@@ -37,6 +37,11 @@ impl JsRuntime {
     pub fn set_dom(&self, dom: DomTree) {
         let mut st = self.state.borrow_mut();
         st.dom = Some(dom);
+        // The xpath snapshot cache keys on (mutation epoch, root NodeId) —
+        // both collide across documents: a fresh tree restarts its epoch at
+        // small values and the document node is always slot 0. Drop it with
+        // the rest of the per-document state below.
+        *st.xpath_snapshot_cache.borrow_mut() = None;
         // New document: the previous page's scroll offset and image bodies
         // mean nothing here (stale URLs would simply miss, but they'd hold
         // memory until the entry cap evicts them). Transitions must be

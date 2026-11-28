@@ -285,6 +285,12 @@ pub(crate) struct DomTreeInner {
     /// with it ("tree shape changed"), so it must never repeat a value —
     /// see [`DomTree::epoch`].
     epoch_gen: u64,
+    /// Monotonic mutation counter bumped by every content-affecting write
+    /// path — structural moves, attribute writes, text writes, live-value
+    /// flips. Unlike `epoch_gen` (allocation/focus only, layout-cache
+    /// oriented), this one exists for caches whose inputs are the document
+    /// CONTENT itself, e.g. the xpath snapshot cache in diting_js.
+    mutate_gen: u64,
     /// Structural/attribute mutations since the last incremental selector
     /// match sync — see [`super::selector::MatchDirty`]. Stamped by the
     /// mutation methods themselves so no caller can forget.
@@ -341,6 +347,7 @@ impl DomTree {
                 scroll_offsets: HashMap::new(),
                 scroll_gen: 0,
                 epoch_gen: 0,
+                mutate_gen: 0,
                 match_dirty: MatchDirty::default(),
                 match_cache: None,
                 style_memo: None,
@@ -362,6 +369,14 @@ impl DomTree {
     // epoch-keyed caches the same stamp for a mutated tree (#124).
     pub fn epoch(&self) -> u64 {
         self.inner.borrow().epoch_gen
+    }
+
+    // Content-mutation stamp: bumps on structural moves, attribute writes,
+    // text writes and live-value flips — everything a content-derived cache
+    // (xpath snapshot) keys on. Focus/hover flips intentionally do NOT bump
+    // it: pseudo-class state is not document content.
+    pub fn mutation_epoch(&self) -> u64 {
+        self.inner.borrow().mutate_gen
     }
 
     pub fn set_quirks(&self, quirks: bool) {
@@ -415,6 +430,7 @@ impl DomTree {
             data,
         });
         inner.epoch_gen = inner.epoch_gen.wrapping_add(1);
+        inner.mutate_gen = inner.mutate_gen.wrapping_add(1);
         id
     }
 

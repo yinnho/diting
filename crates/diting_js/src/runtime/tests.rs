@@ -3,6 +3,7 @@
 // 测试已按域分桶（docs/tests-分桶表-20261113.md，#74）；新测试进对应域桶，hub 只挂声明。
 #[cfg(test)]
 mod restore_bench;
+mod xpath_bench;
 
 #[cfg(test)]
 mod bridge;
