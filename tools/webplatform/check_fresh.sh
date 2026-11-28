@@ -19,7 +19,6 @@ if [ "${1:-}" = "--update" ]; then
   python3 $WP/gen/gen_canvas_face.py
   python3 $WP/gen/gen_window_order.py "$WINORDER"
   python3 $WP/gen/gen_iface.py $WP/spec/storage.json crates/diting_js/js/platform/gen/storage.gen.js gen/storage
-  python3 $WP/gen/gen_iface.py $WP/spec/geometry.json crates/diting_js/js/platform/gen/geometry.gen.js gen/geometry $WP/chrome/geometry-truth-157.json
   python3 $WP/gen/gen_iface.py $WP/spec/css-typed-om.json crates/diting_js/js/platform/gen/cssunit.gen.js gen/cssunit $WP/chrome/cssunit-truth-157.json
   python3 $WP/gen/gen_iface.py $WP/spec/css-keyword.json crates/diting_js/js/platform/gen/csskeyword.gen.js gen/csskeyword $WP/chrome/csskeyword-truth-157.json
   python3 $WP/gen/gen_iface.py $WP/spec/input-device.json crates/diting_js/js/platform/gen/inputdevice.gen.js gen/inputdevice $WP/chrome/inputdevice-truth-157.json
@@ -70,7 +69,8 @@ gen_value() { # <spec> <name> <truth>
   diff -q "$tmp/$2.gen.js" "crates/diting_js/js/platform/gen/$2.gen.js" >/dev/null \
     || { echo "FAIL: crates/diting_js/js/platform/gen/$2.gen.js is stale vs gen_iface.py" >&2; fail=1; }
 }
-gen_value geometry.json geometry geometry-truth-157.json
+# geometry is native (crates/diting_runtime/src/native/): the truth file stays
+# (native_matrix.rs diffs against it) but no JS is generated from the spec.
 gen_value css-typed-om.json cssunit cssunit-truth-157.json
 # CSSKeywordValue: one USVString. Keyword parse() constructs it.
 gen_value css-keyword.json csskeyword csskeyword-truth-157.json

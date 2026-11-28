@@ -1,8 +1,8 @@
 //! Native DOMMatrix pilot — same pattern as native_pilot.rs: the Chrome
 //! geometry probe runs in a bare isolate whose DOMMatrix/DOMMatrixReadOnly
 //! are Rust-native, through both the snapshot path and a fresh VM. Only
-//! the matrix+quad keys are diffed here: the
-//! WebKitCSSMatrix alias is not native yet, and shape keys cover the
+//! all family keys are diffed here: the
+//! (shape keys included — the whole family is native now.)
 //! whole geometry family.
 
 use diting_runtime::vm::{create_snapshot, Vm};
@@ -15,7 +15,9 @@ const PROBE: &str = include_str!("../../../tools/webplatform/chrome/geometry-pro
 const TRUTH: &str = include_str!("../../../tools/webplatform/chrome/geometry-truth-157.json");
 
 fn run(vm: &mut Vm) -> BTreeMap<String, serde_json::Value> {
-    let out = vm.eval_string(PROBE).expect("probe runs");
+    // the probe addresses the global as `self`, which a bare isolate lacks
+    let probe = format!("var self = globalThis;\n{PROBE}");
+    let out = vm.eval_string(&probe).expect("probe runs");
     serde_json::from_str(&out).expect("probe returns JSON")
 }
 
@@ -23,13 +25,17 @@ fn diff(got: &BTreeMap<String, serde_json::Value>) -> Vec<String> {
     let truth: BTreeMap<String, serde_json::Value> = serde_json::from_str(TRUTH).unwrap();
     let mut bad = Vec::new();
     for (k, want) in &truth {
-        // matrix keys only — quad/point/rect/alias land separately.
+        // the whole family is native: behavior AND shape keys.
         if !(k.starts_with("dm.")
             || k.starts_with("dmro.")
             || k.starts_with("ro.")
             || k.starts_with("dq.")
             || k.starts_with("ar.")
-            || k.starts_with("wkcm."))
+            || k.starts_with("wkcm.")
+            || k.starts_with("dp.")
+            || k.starts_with("dr.")
+            || k.starts_with("dpro.")
+            || k.starts_with("shape."))
         {
             continue;
         }

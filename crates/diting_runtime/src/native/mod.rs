@@ -25,6 +25,7 @@ pub(crate) mod exceptions;
 pub(crate) mod geometry;
 pub(crate) mod matmath;
 pub(crate) mod matrix;
+mod matrix_conv;
 pub(crate) mod quad;
 
 /// The one interface table. `parent` fields index into THIS slice; order
