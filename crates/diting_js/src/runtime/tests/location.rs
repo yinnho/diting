@@ -649,12 +649,22 @@ async fn urlpattern_matches_chrome_truth() {
     // #O by the probe) out of that namespace
     rt.set_url("http://probe.test/p.html");
     let probe = include_str!("../../../../../tools/webplatform/chrome/urlpattern-probe.js");
-    let result = rt
-        .call_function_on_remote(&format!("() => ({})", probe), None, &[], true, true)
+    // evaluate (not callFunctionOn) with an explicit budget: the matrix is
+    // ~1600 regex compiles whose debug-mode cost fits in 2s on a dev box but
+    // overruns the 10s watchdog floor on a shared CI runner (#urlpattern-ci)
+    let outcome = rt
+        .evaluate_remote_outcome(
+            probe,
+            true,
+            true,
+            60_000,
+            None,
+            crate::runtime::remote_eval::EvalInput::Forgiving,
+        )
         .await
         .unwrap();
     let engine: serde_json::Value =
-        serde_json::from_str(result.value.unwrap().as_str().unwrap()).unwrap();
+        serde_json::from_str(outcome.info.value.unwrap().as_str().unwrap()).unwrap();
     let truth: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../../tools/webplatform/chrome/urlpattern-truth-157.json"
     ))
