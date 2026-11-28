@@ -3240,3 +3240,70 @@ fn htmlreflect_no_measured_member_falls_back_to_js() {
         .unwrap();
     assert_eq!(probe.as_str().unwrap(), "Illegal invocation");
 }
+
+/// Brand-check truth, measured in real Chrome 2026-11-28 (probe matrix in
+/// the migration ledger): cross-brand receivers, forged prototype chains,
+/// non-element receivers all throw "Illegal invocation"; same-interface
+/// cross-tag (q/blockquote are both HTMLQuoteElement) passes. The check is
+// tag-based through the captured tagName getter, so shadowing and chain
+/// tampering cannot forge identity.
+#[test]
+fn htmlreflect_brand_check_matches_chrome() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let out = rt
+        .evaluate(
+            r#"(function(){
+        const out = {};
+        const T = (name, fn) => {
+            try { out[name] = 'ok:' + String(fn()); }
+            catch (e) { out[name] = e.constructor.name + ':' + e.message; }
+        };
+        const a = document.createElement('a');
+        const div = document.createElement('div');
+        const q = document.createElement('q');
+        const bq = document.createElement('blockquote');
+        a.download = 'x';
+        const desc = Object.getOwnPropertyDescriptor(HTMLAnchorElement.prototype, 'download');
+        T('correct-get', () => a.download);
+        T('cross-get-div', () => desc.get.call(div));
+        T('cross-set-div', () => { desc.set.call(div, 'y'); });
+        const div2 = document.createElement('div');
+        Object.setPrototypeOf(div2, HTMLAnchorElement.prototype);
+        T('forged-chain-get', () => div2.download);
+        T('forged-chain-set', () => { div2.download = 'z'; });
+        T('plain-object', () => desc.get.call({}));
+        T('undefined-recv', () => desc.get.call(undefined));
+        T('string-recv', () => desc.get.call('str'));
+        const qdesc = Object.getOwnPropertyDescriptor(HTMLQuoteElement.prototype, 'cite');
+        T('quote-cross-tag-same-iface', () => qdesc.get.call(bq));
+        T('anchor-on-quote', () => desc.get.call(q));
+        // shadowing must not forge identity: an anchor carrying a fake
+        // own tagName is still an anchor
+        const a2 = document.createElement('a');
+        Object.defineProperty(a2, 'tagName', { value: 'DIV' });
+        T('shadowed-tagname-still-anchor', () => { a2.download = 'w'; return a2.download; });
+        // and a div shadowing as A must still fail
+        const div3 = document.createElement('div');
+        Object.defineProperty(div3, 'tagName', { value: 'A' });
+        T('shadowed-tagname-div', () => desc.get.call(div3));
+        return JSON.stringify(out);
+    })()"#,
+        )
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    let chrome = serde_json::json!({
+        "correct-get": "ok:x",
+        "cross-get-div": "TypeError:Illegal invocation",
+        "cross-set-div": "TypeError:Illegal invocation",
+        "forged-chain-get": "TypeError:Illegal invocation",
+        "forged-chain-set": "TypeError:Illegal invocation",
+        "plain-object": "TypeError:Illegal invocation",
+        "undefined-recv": "TypeError:Illegal invocation",
+        "string-recv": "TypeError:Illegal invocation",
+        "quote-cross-tag-same-iface": "ok:",
+        "anchor-on-quote": "TypeError:Illegal invocation",
+        "shadowed-tagname-still-anchor": "ok:w",
+        "shadowed-tagname-div": "TypeError:Illegal invocation",
+    });
+    assert_eq!(v, chrome, "brand matrix mismatch");
+}

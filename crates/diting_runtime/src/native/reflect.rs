@@ -59,6 +59,10 @@ pub(crate) struct Spec {
     pub fallback_doc: bool,
     /// null/undefined set removes the attribute instead of stringifying
     pub null_removes: bool,
+    /// brand check: the lowercase tags whose element interface IS this
+    /// spec's interface (HTML spec element-interface table; every measured
+    /// spec sits on a concrete interface, so no inheritance walk is needed)
+    pub tags: &'static [&'static str],
 }
 
 fn throw_type_error(scope: &mut v8::PinScope<'_, '_>, msg: &str) {
@@ -213,6 +217,47 @@ fn nid_present(scope: &mut v8::PinScope<'_, '_>, this: Local<v8::Object>) -> boo
         .unwrap_or(false)
 }
 
+// ---- brand check: Chrome tests the receiver's internal interface
+// identity, not its (forgeable) prototype chain — measured: a div with
+// `setPrototypeOf(div, HTMLAnchorElement.prototype)` still throws
+// "Illegal invocation" on anchor members, while q/blockquote share
+// HTMLQuoteElement and pass cross-tag. The unforgeable identity channel
+// is the element's tag: the shim captures Element.prototype's tagName
+// getter at install time into `__diting_reflect_priv` — calling that
+// captured function bypasses own-property shadowing and prototype
+// tampering because it resolves `_domParse("tag_name", this._nid)`.
+// A missing capture degrades to the `_nid` gate rather than breaking
+// every access; the coverage test pins the capture being present.
+
+fn brand_ok(scope: &mut v8::PinScope<'_, '_>, this: Local<v8::Object>, spec: &Spec) -> bool {
+    let global = scope.get_current_context().global(scope);
+    let pk = v8::String::new(scope, "__diting_reflect_priv").unwrap();
+    let Some(privs) = global.get(scope, pk.into()) else {
+        return true;
+    };
+    if !privs.is_object() {
+        return true;
+    }
+    let Ok(privs) = Local::<v8::Object>::try_from(privs) else {
+        return true;
+    };
+    let tk = v8::String::new(scope, "tagGet").unwrap();
+    let Some(tag_get) = privs.get(scope, tk.into()) else {
+        return true;
+    };
+    let Ok(tag_get) = Local::<v8::Function>::try_from(tag_get) else {
+        return true;
+    };
+    let Some(tag) = tag_get.call(scope, this.into(), &[]) else {
+        return false;
+    };
+    if !tag.is_string() {
+        return false;
+    }
+    let tag = tag.to_rust_string_lossy(scope).to_ascii_lowercase();
+    spec.tags.iter().any(|t| *t == tag)
+}
+
 fn spec_from_args(
     scope: &mut v8::PinScope<'_, '_>,
     args: &FunctionCallbackArguments,
@@ -231,7 +276,7 @@ unsafe extern "C" fn reflect_get(info: *const FunctionCallbackInfo) {
     let spec = spec_from_args(scope, &args);
     let mut rv = ReturnValue::from_function_callback_info(info);
     let this = args.this();
-    if !nid_present(scope, this) {
+    if !nid_present(scope, this) || !brand_ok(scope, this, spec) {
         illegal(scope);
         return;
     }
@@ -352,7 +397,7 @@ unsafe extern "C" fn reflect_set(info: *const FunctionCallbackInfo) {
     v8::callback_scope!(unsafe scope, info);
     let spec = spec_from_args(scope, &args);
     let this = args.this();
-    if !nid_present(scope, this) {
+    if !nid_present(scope, this) || !brand_ok(scope, this, spec) {
         illegal(scope);
         return;
     }

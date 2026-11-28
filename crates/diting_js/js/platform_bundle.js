@@ -255,6 +255,11 @@ const __platform = (function () {
         && typeof globalThis.__diting_reflect_one === 'function'
         && globalThis.__diting_reflect_one(proto, name, iface)) {
       globalThis.__diting_reflect_native.push(iface + '.' + name);
+      if (!globalThis.__diting_reflect_priv) {
+        const tagDesc = Object.getOwnPropertyDescriptor(Element.prototype, 'tagName');
+        globalThis.__diting_reflect_priv = { tagGet: tagDesc && tagDesc.get };
+        if (globalThis.__diting_hide_list) globalThis.__diting_hide_list.push('__diting_reflect_priv');
+      }
       return;
     }
     globalThis.__diting_reflect_fallback.push(iface + '.' + name);

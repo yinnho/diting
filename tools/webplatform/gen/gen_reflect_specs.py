@@ -13,6 +13,34 @@ SRC = 'crates/diting_js/js/platform/gen/htmlreflect.gen.js'
 import sys
 OUT = sys.argv[1] if len(sys.argv) > 1 else 'crates/diting_runtime/src/native/reflect_table.rs'
 
+
+# HTML spec element-interface table for the 39 concrete interfaces the
+# measured table covers. The brand check is tag-based: the spec's allowed
+# set is the tags whose interface IS the spec interface (no reflect spec
+# sits on a base interface, so no inheritance walk is needed).
+IFACE_TAGS = {
+    'HTMLAnchorElement': ['a'], 'HTMLAreaElement': ['area'],
+    'HTMLBaseElement': ['base'], 'HTMLBRElement': ['br'],
+    'HTMLButtonElement': ['button'], 'HTMLDirectoryElement': ['dir'],
+    'HTMLDListElement': ['dl'], 'HTMLEmbedElement': ['embed'],
+    'HTMLFieldSetElement': ['fieldset'], 'HTMLFontElement': ['font'],
+    'HTMLFormElement': ['form'], 'HTMLFrameElement': ['frame'],
+    'HTMLHRElement': ['hr'], 'HTMLIFrameElement': ['iframe'],
+    'HTMLInputElement': ['input'], 'HTMLLegendElement': ['legend'],
+    'HTMLLinkElement': ['link'], 'HTMLMapElement': ['map'],
+    'HTMLMarqueeElement': ['marquee'], 'HTMLMenuElement': ['menu'],
+    'HTMLMetaElement': ['meta'], 'HTMLModElement': ['ins', 'del'],
+    'HTMLObjectElement': ['object'], 'HTMLOptGroupElement': ['optgroup'],
+    'HTMLOptionElement': ['option'], 'HTMLOutputElement': ['output'],
+    'HTMLParamElement': ['param'], 'HTMLPreElement': ['pre'],
+    'HTMLQuoteElement': ['blockquote', 'q'], 'HTMLScriptElement': ['script'],
+    'HTMLSelectElement': ['select'], 'HTMLSlotElement': ['slot'],
+    'HTMLSourceElement': ['source'], 'HTMLStyleElement': ['style'],
+    'HTMLTableCaptionElement': ['caption'], 'HTMLTemplateElement': ['template'],
+    'HTMLTextAreaElement': ['textarea'], 'HTMLTimeElement': ['time'],
+    'HTMLTrackElement': ['track'],
+}
+
 KINDS = {
     'string': 'String', 'string-nte': 'StringNte',
     'boolean-presence': 'BoolPresence', 'boolean-truefalse': 'BoolTrueFalse',
@@ -66,7 +94,7 @@ def main():
         map_entries = ', '.join(f'({rs(k)}, {rs(v)})' for k, v in sorted(enum_map.items()))
         empty = f'Some({rs(s["empty"])})' if 'empty' in s else 'None'
         out.append(
-            '    Spec { iface: %s, member: %s, attr: %s, kind: Kind::%s, default: %s, invalid: %s, empty: %s, map: &[%s], min: %d, udefault: %s, fallback_doc: %s, null_removes: %s },'
+            '    Spec { iface: %s, member: %s, attr: %s, kind: Kind::%s, default: %s, invalid: %s, empty: %s, map: &[%s], min: %d, udefault: %s, fallback_doc: %s, null_removes: %s, tags: &[%s] },'
             % (
                 rs(s['iface']), rs(member), rs(s['attr']), KINDS[kind],
                 rs(missing if kind in ('enum', 'string-known', 'known-fallback') else str(s.get('default', ''))),
@@ -74,6 +102,7 @@ def main():
                 s.get('min', 0), udefault,
                 'true' if s.get('fallbackDoc') else 'false',
                 'true' if s.get('nullRemoves') else 'false',
+                ', '.join(rs(t) for t in IFACE_TAGS[s['iface']]),
             )
         )
         count += 1
