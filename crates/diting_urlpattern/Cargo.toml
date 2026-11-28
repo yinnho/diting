@@ -1,0 +1,24 @@
+[package]
+name = "diting_urlpattern"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+# Vendored from rust-urlpattern 0.3.0 (denoland/rust-urlpattern, MIT) — see
+# crates/VENDORED.md. serde + the WPT-json test module were stripped on
+# intake: inits are built by hand from v8 objects and validation runs
+# against the engine's measured Chrome truth corpus instead.
+
+[lib]
+doctest = false
+
+[dependencies]
+regex = "1.10.5"
+unic-ucd-ident = { version = "0.9.0", features = ["id"] }
+url = "2.4.1"
+
+[dev-dependencies]
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+
+[lints]
+workspace = true

@@ -20,6 +20,7 @@ Upstream security advisories are watched by hand (see "Security" below).
 | `diting_swash` | `swash` | 0.2.10 | Apache-2.0 OR MIT | Chad Brokaw (dfrg) |
 | `diting_taffy` | `taffy` (main rev `4aca4f49`) | 0.15.0 | MIT | Visly Inc. and the Taffy Authors (DioxusLabs) |
 | `diting_xpath` | `moli-xpath` (lexmount/moli) | 0.1.0 (2026-11-25 rev) | MPL-2.0 | moli contributors |
+| `diting_urlpattern` | `urlpattern` (deno) | 0.3.0 | MIT | Deno authors |
 
 Source: the crates.io release tarballs of the versions above (https://github.com/0x676e67).
 Apache-2.0 obligations (section 4): each crate keeps its `LICENSE`; the repository `NOTICE`
@@ -252,6 +253,18 @@ file locking fork expectations, not a second taffy build), and the root
 `[patch.crates-io]` taffy entry deleted. Gate faces: layout battery 273/273,
 engine screenshot face, product stealth,screenshot face, and
 `cargo tree -i taffy` empty.
+
+## URLPattern engine (2026-11-28)
+
+**`diting_urlpattern`**: vendored from the deno `urlpattern` crate 0.3.0 for
+the URLPattern native migration. Intake deltas: the serde derive layer and
+the WPT-json test module were stripped (our truth pin is the Chrome-157
+measured corpus in `tests/chrome_matrix.rs`); the `RegExp` trait is
+implemented by the `regex` crate inside `diting_runtime`. The crate was then
+patched hard against measured Chrome truth — opaque-pathname C0 encoding,
+tokenizer/parser error wording and positions, compile-time component-name
+wrap, default-port stripping, insertion-ordered match groups — so it is a
+hybrid: upstream skeleton, house semantics. `LICENSE-MIT` kept at the root.
 
 ## Still external (on purpose)
 `btls` (the safe Rust wrapper; we call its API from `diting_wire`).

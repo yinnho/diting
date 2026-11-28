@@ -21,7 +21,7 @@ members = ["crates/diting-browser", "crates/diting", "crates/diting_authoring",
            "crates/diting_socks", "crates/diting_png", "crates/diting_html5ever",
            "crates/diting_markup5ever", "crates/diting_cssparser", "crates/diting_selectors",
            "crates/diting_swash", "crates/diting_taffy",
-           "crates/diting_xpath"]
+           "crates/diting_xpath", "crates/diting_urlpattern"]
 resolver = "2"
 
 # Lint 单源（2026-11-06 #27）：各成员 `[lints] workspace = true` 继承这里，
