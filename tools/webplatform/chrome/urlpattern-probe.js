@@ -187,6 +187,16 @@
   t('x.result.shape', function () { var r = new URLPattern({ pathname: '/:a' }).exec('https://x.com/z'); return [Object.keys(r), Object.keys(r.pathname), Object.getPrototypeOf(r) === Object.prototype, Object.getPrototypeOf(r.pathname.groups) === Object.prototype, Object.keys(r.protocol.groups)]; });
   t('x.groups.undef', function () { var r = new URLPattern({ pathname: '/a/:b?' }).exec({ pathname: '/a' }); return [Object.keys(r.pathname.groups), r.pathname.groups.b, 'b' in r.pathname.groups]; });
   t('x.groups.order', function () { var r = new URLPattern({ pathname: '/:z/:a/(.*)/:m' }).exec({ pathname: '/1/2/3/4' }); return Object.keys(r.pathname.groups); });
+  // undefined/null first argument is the default empty dictionary in chrome
+  // semantics: the init overload — so a string base second argument is the
+  // init+base rejection, in the constructor and in test/exec alike
+  t('x.undef.input.base', function () { return new URLPattern(undefined, 'https://b.com/'); });
+  t('x.null.input.base', function () { return new URLPattern(null, 'https://b.com/'); });
+  t('x.test.undef.base', function () { return new URLPattern({}).test(undefined, 'https://b.com/'); });
+  t('x.exec.undef.base', function () { return new URLPattern({}).exec(undefined, 'https://b.com/'); });
+  t('x.null.second', function () { return new URLPattern('/x', null).pathname; });
+  t('x.null.options', function () { return new URLPattern({ pathname: '/x' }, null).pathname; });
+  t('x.exec.init.badbase', function () { var r = new URLPattern({ protocol: 'https' }).exec({ hostname: 'x.com', baseURL: 'not a url' }); return r === null; });
   R.count = n;
   return JSON.stringify(R);
 })()

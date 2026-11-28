@@ -13294,5 +13294,12 @@
  "x.undef": [
   false,
   true
- ]
+ ],
+ "x.exec.init.badbase": true,
+ "x.exec.undef.base": "THROW TypeError: Failed to execute 'exec' on 'URLPattern': Invalid second argument baseURL 'https://b.com/' provided with a URLPatternInit input. Use the URLPatternInit.baseURL property instead.",
+ "x.null.input.base": "THROW TypeError: Failed to construct 'URLPattern': Invalid second argument baseURL 'https://b.com/' provided with a URLPatternInit input. Use the URLPatternInit.baseURL property instead.",
+ "x.null.options": "/x",
+ "x.null.second": "THROW TypeError: Failed to construct 'URLPattern': Relative constructor string '/x' must have a base URL passed as the second argument.",
+ "x.test.undef.base": "THROW TypeError: Failed to execute 'test' on 'URLPattern': Invalid second argument baseURL 'https://b.com/' provided with a URLPatternInit input. Use the URLPatternInit.baseURL property instead.",
+ "x.undef.input.base": "THROW TypeError: Failed to construct 'URLPattern': Invalid second argument baseURL 'https://b.com/' provided with a URLPatternInit input. Use the URLPatternInit.baseURL property instead."
 }

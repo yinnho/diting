@@ -208,14 +208,22 @@ unsafe extern "C" fn ctor(info: *const FunctionCallbackInfo) {
             throw_type(scope, &format!("Invalid second argument baseURL '{b}' provided with a URLPatternInit input. Use the URLPatternInit.baseURL property instead."), pre);
             return;
         }
+    } else if input.is_undefined() {
+        // chrome treats an absent/undefined/null first argument as the
+        // default empty dictionary — the init overload — so a string base
+        // second argument is rejected exactly as with an object input
+        // (pinned: new URLPattern(undefined, 'https://b.com/') throws)
+        if second_is_string {
+            let Some(b) = usv(scope, second, pre) else {
+                return;
+            };
+            throw_type(scope, &format!("Invalid second argument baseURL '{b}' provided with a URLPatternInit input. Use the URLPatternInit.baseURL property instead."), pre);
+            return;
+        }
     } else {
-        let s = if input.is_undefined() {
-            None
-        } else {
-            match usv(scope, input, pre) {
-                Some(s) => Some(s),
-                None => return,
-            }
+        let s = match usv(scope, input, pre) {
+            Some(s) => Some(s),
+            None => return,
         };
         if let Some(s) = s {
             let base_raw = if second_is_string {
@@ -398,6 +406,16 @@ unsafe extern "C" fn test_exec(info: *const FunctionCallbackInfo) {
         };
         match s {
             None => {
+                // undefined/null input is the empty-init overload: a base
+                // second argument is rejected, not ignored (pinned:
+                // test(undefined, 'https://b.com/') throws)
+                if !base_arg.is_undefined() {
+                    let Some(b) = usv(scope, base_arg, pre) else {
+                        return;
+                    };
+                    throw_type(scope, &format!("Invalid second argument baseURL '{b}' provided with a URLPatternInit input. Use the URLPatternInit.baseURL property instead."), pre);
+                    return;
+                }
                 let empty = v8::Object::new(scope);
                 (
                     up::UrlPatternMatchInput::Init(up::UrlPatternInit::default()),
