@@ -27,6 +27,8 @@ pub(crate) mod matmath;
 pub(crate) mod matrix;
 mod matrix_conv;
 pub(crate) mod quad;
+pub(crate) mod reflect;
+mod reflect_table;
 
 /// The one interface table. `parent` fields index into THIS slice; order
 /// is install order (a parent precedes its children).
@@ -47,6 +49,7 @@ pub(crate) fn external_refs() -> Vec<v8::ExternalReference> {
     v.extend(event::external_refs());
     v.extend(matrix::external_refs());
     v.extend(quad::external_refs());
+    v.extend(reflect::external_refs());
     v
 }
 
@@ -59,4 +62,5 @@ pub(crate) fn install(scope: &mut v8::PinScope<'_, '_>, global: v8::Local<v8::Ob
     event::install(scope, global);
     event_target::capture_dom_exception(scope, global);
     event_target::install(scope, global);
+    reflect::install(scope, global);
 }

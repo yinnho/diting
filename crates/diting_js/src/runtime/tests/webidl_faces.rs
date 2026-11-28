@@ -3192,3 +3192,51 @@ fn chrome157_textpath_side_constants() {
         })
     );
 }
+
+/// Native-migration coverage proof for the htmlreflect family. The bake-time
+/// shim records exactly which reflector() calls installed natively and which
+/// fell back to the JS closures. Invariant: NO member of the measured
+/// 237-spec table may sit in the fallback list (members skipped by the
+/// install-or-delegate chain never reach reflector() at all — those are
+/// engine-owned behavior, out of this family's scope). The test also pins
+/// the native accessors' cross-brand shape for a sample.
+#[test]
+fn htmlreflect_no_measured_member_falls_back_to_js() {
+    let mut rt = setup_runtime("<html><body></body></html>");
+    let pairs = r#"[["HTMLAnchorElement","download"],["HTMLAnchorElement","ping"],["HTMLAnchorElement","rel"],["HTMLAnchorElement","referrerPolicy"],["HTMLAnchorElement","coords"],["HTMLAnchorElement","charset"],["HTMLAnchorElement","name"],["HTMLAnchorElement","rev"],["HTMLAnchorElement","shape"],["HTMLAnchorElement","target"],["HTMLAnchorElement","href"],["HTMLAnchorElement","hreflang"],["HTMLAnchorElement","type"],["HTMLAnchorElement","hrefTranslate"],["HTMLAnchorElement","attributionSrc"],["HTMLAreaElement","alt"],["HTMLAreaElement","coords"],["HTMLAreaElement","download"],["HTMLAreaElement","shape"],["HTMLAreaElement","ping"],["HTMLAreaElement","rel"],["HTMLAreaElement","referrerPolicy"],["HTMLAreaElement","noHref"],["HTMLAreaElement","target"],["HTMLAreaElement","href"],["HTMLAreaElement","attributionSrc"],["HTMLBRElement","clear"],["HTMLBaseElement","target"],["HTMLButtonElement","disabled"],["HTMLButtonElement","formAction"],["HTMLButtonElement","formEnctype"],["HTMLButtonElement","formMethod"],["HTMLButtonElement","formNoValidate"],["HTMLButtonElement","formTarget"],["HTMLButtonElement","name"],["HTMLButtonElement","type"],["HTMLButtonElement","value"],["HTMLButtonElement","popoverTargetAction"],["HTMLButtonElement","command"],["HTMLDListElement","compact"],["HTMLDirectoryElement","compact"],["HTMLEmbedElement","src"],["HTMLEmbedElement","type"],["HTMLEmbedElement","width"],["HTMLEmbedElement","height"],["HTMLEmbedElement","align"],["HTMLEmbedElement","name"],["HTMLFieldSetElement","disabled"],["HTMLFieldSetElement","name"],["HTMLFontElement","color"],["HTMLFontElement","face"],["HTMLFontElement","size"],["HTMLFormElement","acceptCharset"],["HTMLFormElement","autocomplete"],["HTMLFormElement","enctype"],["HTMLFormElement","encoding"],["HTMLFormElement","method"],["HTMLFormElement","name"],["HTMLFormElement","noValidate"],["HTMLFormElement","target"],["HTMLFormElement","rel"],["HTMLFrameElement","name"],["HTMLFrameElement","scrolling"],["HTMLFrameElement","src"],["HTMLFrameElement","frameBorder"],["HTMLFrameElement","longDesc"],["HTMLFrameElement","noResize"],["HTMLFrameElement","marginHeight"],["HTMLFrameElement","marginWidth"],["HTMLHRElement","align"],["HTMLHRElement","color"],["HTMLHRElement","noShade"],["HTMLHRElement","size"],["HTMLHRElement","width"],["HTMLIFrameElement","src"],["HTMLIFrameElement","srcdoc"],["HTMLIFrameElement","name"],["HTMLIFrameElement","allowFullscreen"],["HTMLIFrameElement","width"],["HTMLIFrameElement","height"],["HTMLIFrameElement","referrerPolicy"],["HTMLIFrameElement","csp"],["HTMLIFrameElement","allow"],["HTMLIFrameElement","loading"],["HTMLIFrameElement","align"],["HTMLIFrameElement","scrolling"],["HTMLIFrameElement","frameBorder"],["HTMLIFrameElement","longDesc"],["HTMLIFrameElement","marginHeight"],["HTMLIFrameElement","marginWidth"],["HTMLIFrameElement","credentialless"],["HTMLIFrameElement","allowPaymentRequest"],["HTMLInputElement","accept"],["HTMLInputElement","alt"],["HTMLInputElement","autocomplete"],["HTMLInputElement","defaultChecked"],["HTMLInputElement","dirName"],["HTMLInputElement","disabled"],["HTMLInputElement","formAction"],["HTMLInputElement","formEnctype"],["HTMLInputElement","formMethod"],["HTMLInputElement","formNoValidate"],["HTMLInputElement","formTarget"],["HTMLInputElement","max"],["HTMLInputElement","min"],["HTMLInputElement","multiple"],["HTMLInputElement","name"],["HTMLInputElement","pattern"],["HTMLInputElement","placeholder"],["HTMLInputElement","readOnly"],["HTMLInputElement","required"],["HTMLInputElement","src"],["HTMLInputElement","step"],["HTMLInputElement","type"],["HTMLInputElement","defaultValue"],["HTMLInputElement","align"],["HTMLInputElement","useMap"],["HTMLInputElement","webkitdirectory"],["HTMLInputElement","incremental"],["HTMLInputElement","popoverTargetAction"],["HTMLLegendElement","align"],["HTMLLinkElement","disabled"],["HTMLLinkElement","href"],["HTMLLinkElement","crossOrigin"],["HTMLLinkElement","rel"],["HTMLLinkElement","media"],["HTMLLinkElement","hreflang"],["HTMLLinkElement","type"],["HTMLLinkElement","as"],["HTMLLinkElement","referrerPolicy"],["HTMLLinkElement","fetchPriority"],["HTMLLinkElement","imageSrcset"],["HTMLLinkElement","imageSizes"],["HTMLLinkElement","charset"],["HTMLLinkElement","rev"],["HTMLLinkElement","target"],["HTMLLinkElement","integrity"],["HTMLMapElement","name"],["HTMLMarqueeElement","behavior"],["HTMLMarqueeElement","bgColor"],["HTMLMarqueeElement","direction"],["HTMLMarqueeElement","height"],["HTMLMarqueeElement","hspace"],["HTMLMarqueeElement","scrollAmount"],["HTMLMarqueeElement","scrollDelay"],["HTMLMarqueeElement","trueSpeed"],["HTMLMarqueeElement","vspace"],["HTMLMarqueeElement","width"],["HTMLMenuElement","compact"],["HTMLMetaElement","name"],["HTMLMetaElement","httpEquiv"],["HTMLMetaElement","content"],["HTMLMetaElement","media"],["HTMLMetaElement","scheme"],["HTMLModElement","cite"],["HTMLModElement","dateTime"],["HTMLObjectElement","data"],["HTMLObjectElement","type"],["HTMLObjectElement","name"],["HTMLObjectElement","useMap"],["HTMLObjectElement","width"],["HTMLObjectElement","height"],["HTMLObjectElement","align"],["HTMLObjectElement","archive"],["HTMLObjectElement","code"],["HTMLObjectElement","declare"],["HTMLObjectElement","hspace"],["HTMLObjectElement","standby"],["HTMLObjectElement","vspace"],["HTMLObjectElement","codeBase"],["HTMLObjectElement","codeType"],["HTMLObjectElement","border"],["HTMLOptGroupElement","disabled"],["HTMLOptGroupElement","label"],["HTMLOptionElement","disabled"],["HTMLOptionElement","label"],["HTMLOptionElement","defaultSelected"],["HTMLOptionElement","value"],["HTMLOutputElement","name"],["HTMLParamElement","name"],["HTMLParamElement","value"],["HTMLParamElement","type"],["HTMLParamElement","valueType"],["HTMLPreElement","width"],["HTMLQuoteElement","cite"],["HTMLScriptElement","src"],["HTMLScriptElement","type"],["HTMLScriptElement","noModule"],["HTMLScriptElement","charset"],["HTMLScriptElement","defer"],["HTMLScriptElement","crossOrigin"],["HTMLScriptElement","referrerPolicy"],["HTMLScriptElement","fetchPriority"],["HTMLScriptElement","event"],["HTMLScriptElement","htmlFor"],["HTMLScriptElement","integrity"],["HTMLScriptElement","attributionSrc"],["HTMLSelectElement","autocomplete"],["HTMLSelectElement","disabled"],["HTMLSelectElement","multiple"],["HTMLSelectElement","name"],["HTMLSelectElement","required"],["HTMLSelectElement","size"],["HTMLSlotElement","name"],["HTMLSourceElement","src"],["HTMLSourceElement","type"],["HTMLSourceElement","srcset"],["HTMLSourceElement","sizes"],["HTMLSourceElement","media"],["HTMLSourceElement","width"],["HTMLSourceElement","height"],["HTMLStyleElement","media"],["HTMLStyleElement","type"],["HTMLTableCaptionElement","align"],["HTMLTemplateElement","shadowRootMode"],["HTMLTemplateElement","shadowRootDelegatesFocus"],["HTMLTemplateElement","shadowRootClonable"],["HTMLTemplateElement","shadowRootSerializable"],["HTMLTemplateElement","shadowRootCustomElementRegistry"],["HTMLTemplateElement","shadowRootSlotAssignment"],["HTMLTemplateElement","htmlFor"],["HTMLTextAreaElement","autocomplete"],["HTMLTextAreaElement","cols"],["HTMLTextAreaElement","dirName"],["HTMLTextAreaElement","disabled"],["HTMLTextAreaElement","name"],["HTMLTextAreaElement","placeholder"],["HTMLTextAreaElement","readOnly"],["HTMLTextAreaElement","required"],["HTMLTextAreaElement","rows"],["HTMLTextAreaElement","wrap"],["HTMLTimeElement","dateTime"],["HTMLTrackElement","kind"],["HTMLTrackElement","src"],["HTMLTrackElement","srclang"],["HTMLTrackElement","label"],["HTMLTrackElement","default"]]"#;
+    let script = format!(
+        r#"(function(){{
+        const measured = new Set({pairs}.map(([i, m]) => i + '.' + m));
+        const native = new Set(globalThis.__diting_reflect_native || []);
+        const fallback = (globalThis.__diting_reflect_fallback || []).filter(x => measured.has(x));
+        const nativeHits = [...measured].filter(x => native.has(x)).length;
+        return JSON.stringify({{ fallback, nativeHits, measured: measured.size }});
+    }})()"#,
+        pairs = pairs
+    );
+    let out = rt.evaluate(&script).unwrap();
+    let v: serde_json::Value = serde_json::from_str(out.as_str().unwrap()).unwrap();
+    assert_eq!(
+        v["fallback"],
+        serde_json::json!([]),
+        "measured reflectors served by JS closures: {v}"
+    );
+    // Coverage ledger in the test output — the migration account reads how
+    // many of the 237 measured members the native pair actually serves
+    // (the rest are engine-owned/delegated before reflector() is reached).
+    eprintln!(
+        "htmlreflect native coverage: {}/{} measured members",
+        v["nativeHits"], v["measured"]
+    );
+    // Cross-brand shape on a native-served member: the accessor pair must
+    // answer the Chrome-shaped TypeError.
+    let probe = rt
+        .evaluate(
+            r#"(function(){
+            const d = Object.getOwnPropertyDescriptor(HTMLAnchorElement.prototype, 'download');
+            try { d.get.call({}); return 'no-throw'; } catch (e) { return e.message; }
+        })()"#,
+        )
+        .unwrap();
+    assert_eq!(probe.as_str().unwrap(), "Illegal invocation");
+}

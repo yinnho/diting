@@ -39,6 +39,7 @@ if [ "${1:-}" = "--update" ]; then
   python3 $WP/gen/gen_iface.py $WP/spec/htmlelement.json crates/diting_js/js/platform/gen/htmlelement.gen.js gen/htmlelement $WP/chrome/htmlelement-truth-157.json patch-common
   python3 $WP/gen/gen_iface.py $WP/spec/htmlmedia.json crates/diting_js/js/platform/gen/htmlmedia.gen.js gen/htmlmedia $WP/chrome/htmlmedia-truth-157.json patch-media
   python3 $WP/gen/gen_iface.py $WP/spec/htmlmedia.json crates/diting_js/js/platform/gen/htmlreflect.gen.js gen/htmlreflect $WP/chrome/htmlreflect-truth-157.json patch-reflect
+  python3 $WP/gen/gen_reflect_specs.py
   python3 $WP/bundle.py
   (cd $WP/chrome && sha *.json > MANIFEST.sha256)
   echo "updated (font metrics regenerate separately: tools/webplatform/regen_font_metrics.sh)"; exit 0
@@ -131,6 +132,11 @@ gen_patch() { # <spec> <name> <truth> <strategy>
 gen_patch htmlelement.json htmlelement htmlelement-truth-157.json patch-common
 gen_patch htmlmedia.json htmlmedia htmlmedia-truth-157.json patch-media
 gen_patch htmlmedia.json htmlreflect htmlreflect-truth-157.json patch-reflect
+# the native reflector table consumes the same generated file — both arms of
+# the htmlreflect migration must regenerate from the same measured truth
+python3 $WP/gen/gen_reflect_specs.py "$tmp/reflect_table.rs" >/dev/null
+diff -q "$tmp/reflect_table.rs" crates/diting_runtime/src/native/reflect_table.rs >/dev/null \
+  || { echo "FAIL: crates/diting_runtime/src/native/reflect_table.rs is stale vs gen_reflect_specs.py" >&2; fail=1; }
 python3 $WP/bundle.py "$tmp/platform_bundle.js" >/dev/null
 diff -q "$tmp/platform_bundle.js" crates/diting_js/js/platform_bundle.js >/dev/null \
   || { echo "FAIL: crates/diting_js/js/platform_bundle.js is stale vs bundle.py" >&2; fail=1; }

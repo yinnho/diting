@@ -233,6 +233,31 @@ const __platform = (function () {
     const known = spec.known || null;
     const dflt = 'default' in spec ? spec.default : '';
     const iface = spec.iface || (proto.constructor && proto.constructor.name) || '';
+    // Native migration: the measured reflectors live in diting_runtime's
+    // reflect table — one shared callback pair serves all 237 of them, so
+    // the per-member closures/spec objects below never come into existence
+    // for covered members. The installer answers false for members outside
+    // the measured table (the hand-written HTMLElement/Element-level call
+    // sites) and those keep the JS implementation.
+    // Bake-time migration ledger: the native-installed and js-fallback
+    // member lists. Non-enumerable, __diting*-filtered from truth probes;
+    // the coverage test reads them to prove no measured member falls back.
+    if (!globalThis.__diting_reflect_native) {
+      Object.defineProperty(globalThis, '__diting_reflect_native', { value: [], configurable: true });
+      Object.defineProperty(globalThis, '__diting_reflect_fallback', { value: [], configurable: true });
+      // created after bootstrap's hide-list capture — register by hand
+      // (snapshot_sweeps.js precedent) or every page would leak them
+      if (Array.isArray(globalThis.__diting_hide_list)) {
+        globalThis.__diting_hide_list.push('__diting_reflect_native', '__diting_reflect_fallback');
+      }
+    }
+    if (!globalThis.__diting_reflect_off
+        && typeof globalThis.__diting_reflect_one === 'function'
+        && globalThis.__diting_reflect_one(proto, name, iface)) {
+      globalThis.__diting_reflect_native.push(iface + '.' + name);
+      return;
+    }
+    globalThis.__diting_reflect_fallback.push(iface + '.' + name);
     const prefix = "Failed to set the '" + name + "' property on '" + iface + "'";
     // enum tables: legacy spellings fold into the measured form
     let emap = null, emissing = dflt, einvalid = dflt, eempty;
