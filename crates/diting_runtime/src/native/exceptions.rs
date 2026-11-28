@@ -66,6 +66,7 @@ pub(crate) static DOM_EXCEPTION: Iface = Iface {
             writable: false,
         },
     ],
+    methods: &[],
     to_json: false,
     factory: None,
     error_like: true,

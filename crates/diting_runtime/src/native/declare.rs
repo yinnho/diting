@@ -56,6 +56,57 @@ pub(crate) struct Member {
     pub writable: bool,
 }
 
+/// What a method returns. Pure data: the generic layer performs the v8
+/// side (conversion, object construction, exception), so a method impl is
+/// testable arithmetic with no v8 lifetimes in its signature.
+// allow: dead until the first method-carrying interface (DOMMatrix) lands —
+// the infra and its consumer are separate commits on purpose.
+#[allow(dead_code)]
+pub(crate) enum MOut {
+    Undefined,
+    Bool(bool),
+    Val(Val),
+    /// A new instance of `ifaces[i]` whose root slots are these values
+    /// (instantiated through that interface's global constructor, so the
+    /// prototype chain is right).
+    Obj(usize, Vec<Val>),
+}
+
+/// One method argument, already converted. `Obj` carries the root slot
+/// values of a native object of the REQUIRED family (the generic layer
+/// brand-checks before reading); `Nums` collects trailing numeric args.
+// allow: same — first consumer lands with DOMMatrix.
+#[allow(dead_code)]
+pub(crate) enum MIn {
+    Num(f64),
+    Str(String),
+    Obj(Vec<Val>),
+}
+
+/// Method argument declaration: how the generic layer converts one JS
+/// argument before the impl runs.
+// allow: same — first consumer lands with DOMMatrix.
+#[allow(dead_code)]
+pub(crate) enum MArg {
+    /// unrestricted double; `undefined` -> the default.
+    Num(f64),
+    /// DOMString; `undefined` -> "".
+    Str,
+    /// Native object of this family tag; a miss is a type error.
+    Obj(i32),
+}
+
+pub(crate) struct Method {
+    pub name: &'static str,
+    /// JS arity (the function's `.length`).
+    pub len: i32,
+    pub args: &'static [MArg],
+    /// Chrome's excess-argument tolerance: extra JS args are ignored.
+    /// `imp` receives this-root slots + converted args, returns pure data.
+    /// Err(message) throws a TypeError with the execution prefix prepended.
+    pub imp: fn(&[Val], &[MIn]) -> Result<MOut, String>,
+}
+
 pub(crate) struct Iface {
     pub name: &'static str,
     /// Index of the parent interface in the same table.
@@ -69,6 +120,8 @@ pub(crate) struct Iface {
     pub to_json: bool,
     /// Static dictionary factory name ("fromRect"), if the interface has one.
     pub factory: Option<&'static str>,
+    /// Prototype methods, dispatched through the generic `method` callback.
+    pub methods: &'static [Method],
     /// Legacy numeric constants, defined on the constructor AND the
     /// prototype ({w:false, e:true, c:false}).
     pub consts: &'static [(&'static str, i32)],
@@ -85,6 +138,7 @@ pub(crate) fn external_refs() -> Vec<v8::ExternalReference> {
         set as Cb,
         to_json as Cb,
         factory as Cb,
+        method as Cb,
     ]
     .into_iter()
     .map(|f| v8::ExternalReference { function: f })
@@ -364,6 +418,105 @@ unsafe extern "C" fn factory(info: *const FunctionCallbackInfo) {
     }
 }
 
+/// Prototype method dispatch: converts the declared arguments, runs the
+/// pure-data impl, performs the v8 side of the result. No per-method
+/// external references - one callback, `data` selects iface+method.
+unsafe extern "C" fn method(info: *const FunctionCallbackInfo) {
+    let info = unsafe { &*info };
+    let parts = info.get_parts();
+    let args = FunctionCallbackArguments::from_function_callback_info_parts(info, &parts);
+    v8::callback_scope!(unsafe scope, info);
+    let t = table();
+    let (ii, mi) = dec(args.data().int32_value(scope).unwrap_or(0));
+    let it = t[ii];
+    let m = &it.methods[mi];
+    let root = t[root_of(t, ii)];
+    let prefix = format!("Failed to execute '{}' on '{}'", m.name, it.name);
+    let Some(v) = read(scope, args.this(), root) else {
+        throw_type_error(scope, "Illegal invocation");
+        return;
+    };
+    let mut converted: Vec<MIn> = Vec::with_capacity(m.args.len());
+    for (ai, spec) in m.args.iter().enumerate() {
+        let raw = args.get(ai as i32);
+        let had = !raw.is_undefined();
+        match spec {
+            MArg::Num(def) => match conv(scope, raw, Def::Num(*def), true, &prefix) {
+                Some(Val::Num(n)) => converted.push(MIn::Num(n)),
+                Some(_) => unreachable!("num spec converts to num"),
+                None => return,
+            },
+            MArg::Str => match conv(scope, raw, Def::Str(""), true, &prefix) {
+                Some(Val::Str(x)) => converted.push(MIn::Str(x)),
+                Some(_) => unreachable!("str spec converts to str"),
+                None => return,
+            },
+            MArg::Obj(family) => {
+                let Ok(obj) = Local::<v8::Object>::try_from(raw) else {
+                    throw_type_error(
+                        scope,
+                        &format!("{prefix}: The provided value is not of type '{}'.", it.name),
+                    );
+                    return;
+                };
+                let Some(root2) = t.iter().find(|r| r.family == *family) else {
+                    throw_type_error(scope, &format!("{prefix}: unknown family"));
+                    return;
+                };
+                match read(scope, obj, root2) {
+                    Some(vals) if had => converted.push(MIn::Obj(vals)),
+                    _ => {
+                        throw_type_error(
+                            scope,
+                            &format!(
+                                "{prefix}: The provided value is not of type '{}'.",
+                                root2.name
+                            ),
+                        );
+                        return;
+                    }
+                }
+            }
+        }
+    }
+    let out = match (m.imp)(&v, &converted) {
+        Ok(out) => out,
+        Err(msg) => {
+            throw_type_error(scope, &format!("{prefix}: {msg}"));
+            return;
+        }
+    };
+    let mut rv = ReturnValue::from_function_callback_info(info);
+    match out {
+        MOut::Undefined => {}
+        MOut::Bool(b) => rv.set(v8::Boolean::new(scope, b).into()),
+        MOut::Val(x) => {
+            let js = to_js(scope, &x);
+            rv.set(js);
+        }
+        MOut::Obj(ti, vals) => {
+            // No-args construction never fails for geometry types; the
+            // exact state is then written straight into the internal
+            // fields, so constructor-signature differences across
+            // interfaces never leak into method code.
+            let target = t[ti];
+            let global = scope.get_current_context().global(scope);
+            let k = v8::String::new(scope, target.name).unwrap();
+            let Some(c) = global.get(scope, k.into()) else {
+                return;
+            };
+            let Ok(c) = Local::<v8::Function>::try_from(c) else {
+                return;
+            };
+            let Some(o) = c.new_instance(scope, &[]) else {
+                return;
+            };
+            write(scope, o, target.family, &vals);
+            rv.set(o.into());
+        }
+    }
+}
+
 fn builder<'s>(
     scope: &mut v8::PinScope<'s, '_, ()>,
     cb: Cb,
@@ -420,6 +573,13 @@ pub(crate) fn install(scope: &mut v8::PinScope<'_, '_>, global: Local<v8::Object
             let n = name_of(scope, "toJSON");
             tj.set_class_name(n);
             proto.set_with_attr(n.into(), tj.into(), PropertyAttribute::NONE);
+        }
+        for (mi, m) in it.methods.iter().enumerate() {
+            let mt = builder(scope, method, enc(ii, mi), m.len);
+            let mn = name_of(scope, m.name);
+            mt.set_class_name(mn);
+            let key = name_of(scope, m.name);
+            proto.set_with_attr(key.into(), mt.into(), PropertyAttribute::NONE);
         }
         if let Some(fn_name) = it.factory {
             let f = builder(scope, factory, enc(ii, 0), 0);
