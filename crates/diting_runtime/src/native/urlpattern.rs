@@ -468,7 +468,7 @@ unsafe extern "C" fn test_exec(info: *const FunctionCallbackInfo) {
             let ik = v8::String::new(scope, "inputs").unwrap();
             let arr = v8::Array::new(scope, echo.len() as i32);
             for (i, e) in echo.iter().enumerate() {
-                arr.set_index(scope, i as u32, (*e).into());
+                arr.set_index(scope, i as u32, *e);
             }
             out.set(scope, ik.into(), arr.into());
             inputs_placed = true;
