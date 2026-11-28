@@ -124,7 +124,9 @@ pub fn evaluate_parsed_xpath<D: Dom>(
         Ok(mut value) => {
             if let Value::NodeSet(node_set) = &mut value {
                 node_set.deduplicate();
-                node_set.sort();
+                // No presentation sort: Chrome's unordered result types keep
+                // evaluation order (a union is concatenation), and the ordered
+                // types are sorted by the consumer that knows the document.
             }
 
             log::debug!("Evaluated XPath: {value:?}");

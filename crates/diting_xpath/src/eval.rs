@@ -46,7 +46,7 @@ impl Expression {
 
                 let value = match binary_operator {
                     BinaryOperator::Equal => (left_value == right_value).into(),
-                    BinaryOperator::NotEqual => (left_value != right_value).into(),
+                    BinaryOperator::NotEqual => left_value.xpath_ne(&right_value).into(),
                     BinaryOperator::LessThan => {
                         (left_value.convert_to_number() < right_value.convert_to_number()).into()
                     }
@@ -203,7 +203,7 @@ pub(crate) fn element_name_test(
     }
 }
 
-fn apply_node_test<D: Dom>(test: &NodeTest, node: &D::Node) -> Result<bool, Error> {
+fn apply_node_test<D: Dom>(test: &NodeTest, node: &D::Node, attribute_principal: bool) -> Result<bool, Error> {
     let result = match test {
         NodeTest::Name(expected_name) => {
             if let Some(element) = node.as_element() {
@@ -236,7 +236,13 @@ fn apply_node_test<D: Dom>(test: &NodeTest, node: &D::Node) -> Result<bool, Erro
                 false
             }
         }
-        NodeTest::Wildcard => node.as_element().is_some(),
+        NodeTest::Wildcard => {
+            if attribute_principal {
+                node.as_attribute().is_some()
+            } else {
+                node.as_element().is_some()
+            }
+        }
         NodeTest::Kind(kind) => match kind {
             KindTest::PI(target) => {
                 if let Some(processing_instruction) = node.as_processing_instruction() {
@@ -296,7 +302,7 @@ impl LocationStepExpression {
         // FIXME: Invent something like try_retain and use it here
         let filtered_nodes: NodeSet<D::Node> = nodes
             .into_iter()
-            .filter_map(|node| match apply_node_test::<D>(&self.node_test, &node) {
+            .filter_map(|node| match apply_node_test::<D>(&self.node_test, &node, self.axis == Axis::Attribute) {
                 Ok(false) => None,
                 Ok(true) => Some(Ok(node)),
                 Err(error) => Some(Err(error)),

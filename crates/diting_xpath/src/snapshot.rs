@@ -401,7 +401,7 @@ impl Node for SnapshotNode {
             if let Some(element) = node.as_element() {
                 for attribute in element.attributes() {
                     let data = attribute.data();
-                    if data.local_name.eq_ignore_ascii_case("lang") {
+                    if data.local_name == "lang" && data.prefix.as_deref() == Some("xml") {
                         return Some(data.value.clone());
                     }
                 }

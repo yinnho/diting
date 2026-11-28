@@ -156,6 +156,7 @@ impl diting_xpath::NamespaceResolver for NoResolver {
     }
 }
 
+#[derive(Debug)]
 pub enum EvalOut {
     Boolean(bool),
     Number(f64),
@@ -302,6 +303,15 @@ mod tests {
         assert!(matches!(&nodes[0], BackRef::Node(n) if *n == b));
     }
 
+    #[test]
+    fn attribute_axis_star() {
+        let (tree, body, a, _b) = fixture();
+        let out = evaluate(&tree, "//div[@id='a']/@*", body).unwrap();
+        eprintln!("attr star: {out:?}");
+        let out2 = evaluate(&tree, "//@id", body).unwrap();
+        eprintln!("id axis: {out2:?}");
+        let _ = a;
+    }
     #[test]
     fn bad_expression_errors() {
         let (tree, body, _, _) = fixture();

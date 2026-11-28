@@ -142,6 +142,53 @@ impl<N: Node> FromIterator<N> for NodeSet<N> {
     }
 }
 
+/// Blink-flavoured XPath number-to-string (observed Chrome behaviour, not the
+/// XPath 1.0 spec text): six significant digits; scientific notation with a
+/// non-padded exponent when the decimal exponent is >= 6 or <= -7, plain
+/// decimal with trailing zeros stripped otherwise; scientific keeps all six
+/// significant digits including trailing zeros (e.g. "1.00000e+6").
+pub(crate) fn xpath_number_to_string(number: f64) -> String {
+    if number.is_nan() {
+        return "NaN".to_owned();
+    }
+    if number.is_infinite() {
+        return if number.is_sign_negative() { "-Infinity" } else { "Infinity" }.to_owned();
+    }
+    if number == 0.0 {
+        return "0".to_owned();
+    }
+    let exp = number.abs().log10().floor() as i32;
+    // correct for log10 edge effects by probing the rounded 6-sig-digit value
+    if !(6..).contains(&exp) && exp > -7 {
+        // decimal: round to 6 significant digits then strip trailing zeros
+        let digits_after = 5 - exp;
+        let factor = 10f64.powi(digits_after);
+        let rounded = (number * factor).round() / factor;
+        let mut out = format!("{rounded:.prec$}", prec = digits_after.max(0) as usize);
+        if out.contains('.') {
+            while out.ends_with('0') {
+                out.pop();
+            }
+            if out.ends_with('.') {
+                out.pop();
+            }
+        }
+        // rounding may push across the scientific threshold (999999.5 -> 1e6)
+        if out.len() - out.find('.').unwrap_or(out.len()) > 0 && out.trim_start_matches('-').replace('.', "").len() > 6 && exp == 5 {
+            // rare carry case: fall through to scientific below using original number
+        } else {
+            return out;
+        }
+    }
+    // scientific: mantissa with 5 decimals (trailing zeros kept), exponent unpadded
+    let exp10 = number.abs().log10().floor() as i32;
+    let mantissa = number / 10f64.powi(exp10);
+    let mantissa = (mantissa * 100000.0).round() / 100000.0;
+    let (mantissa, exp10) = if mantissa.abs() >= 10.0 { (mantissa / 10.0, exp10 + 1) } else { (mantissa, exp10) };
+    let sign = if exp10 < 0 { "-" } else { "+" };
+    format!("{mantissa:.5}e{sign}{}", exp10.abs())
+}
+
 pub(crate) fn parse_number_from_string(string: &str) -> f64 {
     // https://www.w3.org/TR/1999/REC-xpath-19991116/#function-number:
     // > a string that consists of optional whitespace followed by an optional minus sign followed
@@ -194,6 +241,42 @@ impl<N: Node> PartialEq<Value<N>> for Value<N> {
 }
 
 impl<N: Node> Value<N> {
+    /// XPath 1.0 §3.4: `!=` is not the negation of `=` for node-sets — it is
+    /// true when SOME pairing is unequal (so empty node-sets make both `=`
+    /// and `!=` false). Scalar/scalar cases are plain inequality after the
+    /// same conversion rules `eq` uses.
+    pub(crate) fn xpath_ne(&self, other: &Value<N>) -> bool {
+        match (self, other) {
+            (Value::NodeSet(left_nodes), Value::NodeSet(right_nodes)) => {
+                let left_strings: HashSet<String> =
+                    left_nodes.iter().map(|node| node.text_content()).collect();
+                let right_strings: HashSet<String> =
+                    right_nodes.iter().map(|node| node.text_content()).collect();
+                left_strings.iter().any(|l| !right_strings.contains(l))
+                    || right_strings.iter().any(|r| !left_strings.contains(r))
+            }
+            (&Value::NodeSet(ref nodes), &Value::Number(val))
+            | (&Value::Number(val), &Value::NodeSet(ref nodes)) => {
+                let numbers = num_vals(nodes);
+                numbers.iter().any(|n| n != &val)
+            }
+            (&Value::NodeSet(ref nodes), &Value::String(ref string))
+            | (&Value::String(ref string), &Value::NodeSet(ref nodes)) => nodes
+                .iter()
+                .map(|node| node.text_content())
+                .any(|text_content| &text_content != string),
+            (&Value::Boolean(_), _) | (_, &Value::Boolean(_)) => {
+                self.convert_to_boolean() != other.convert_to_boolean()
+            }
+            (&Value::Number(_), _) | (_, &Value::Number(_)) => {
+                self.convert_to_number() != other.convert_to_number()
+            }
+            _ => self.convert_to_string() != other.convert_to_string(),
+        }
+    }
+}
+
+impl<N: Node> Value<N> {
     /// <https://www.w3.org/TR/1999/REC-xpath-19991116/#function-boolean>
     pub fn convert_to_boolean(&self) -> bool {
         match self {
@@ -235,7 +318,7 @@ impl<N: Node> Value<N> {
                     // catches -0.0 also
                     "0".into()
                 } else {
-                    number.to_string()
+                    xpath_number_to_string(*number)
                 }
             }
             Value::String(string) => string.to_owned(),

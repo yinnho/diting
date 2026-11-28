@@ -92,6 +92,8 @@ pub fn our_decls() -> Vec<diting_runtime::op_reg::OpDecl> {
         svg::op_svg_path_len(),
         svg::op_svg_path_point(),
         dom::op_shadow_attach(),
+        xpath::op_xpath_prefixes(),
+        xpath::op_xpath_eval(),
         console::op_console_msg(),
         console::op_dialog(),
         script_start::op_script_mark_started(),
@@ -175,3 +177,4 @@ mod svg;
 mod tests;
 mod timers;
 mod url_ops;
+mod xpath;
