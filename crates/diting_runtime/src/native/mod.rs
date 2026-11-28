@@ -25,6 +25,7 @@ pub(crate) mod exceptions;
 pub(crate) mod geometry;
 pub(crate) mod matmath;
 pub(crate) mod matrix;
+pub(crate) mod quad;
 
 /// The one interface table. `parent` fields index into THIS slice; order
 /// is install order (a parent precedes its children).
@@ -44,6 +45,7 @@ pub(crate) fn external_refs() -> Vec<v8::ExternalReference> {
     v.extend(event_target::external_refs());
     v.extend(event::external_refs());
     v.extend(matrix::external_refs());
+    v.extend(quad::external_refs());
     v
 }
 
@@ -52,6 +54,7 @@ pub(crate) fn external_refs() -> Vec<v8::ExternalReference> {
 pub(crate) fn install(scope: &mut v8::PinScope<'_, '_>, global: v8::Local<v8::Object>) {
     declare::install(scope, global, IFACES);
     matrix::install(scope, global);
+    quad::install(scope, global);
     event::install(scope, global);
     event_target::capture_dom_exception(scope, global);
     event_target::install(scope, global);

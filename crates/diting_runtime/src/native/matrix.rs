@@ -20,10 +20,17 @@ const IS_2D_SLOT: [usize; 6] = [0, 1, 4, 5, 12, 13];
 type Cb = unsafe extern "C" fn(*const FunctionCallbackInfo);
 
 pub(crate) fn external_refs() -> Vec<v8::ExternalReference> {
-    [ctor as Cb, get as Cb, set as Cb, method as Cb, stat as Cb]
-        .into_iter()
-        .map(|f| v8::ExternalReference { function: f })
-        .collect()
+    [
+        ctor as Cb,
+        get as Cb,
+        set as Cb,
+        method as Cb,
+        stat as Cb,
+        point_matrix_transform as Cb,
+    ]
+    .into_iter()
+    .map(|f| v8::ExternalReference { function: f })
+    .collect()
 }
 
 fn throw_type(scope: &mut v8::PinScope<'_, '_>, msg: &str, prefix: &str) {
@@ -1109,6 +1116,53 @@ unsafe extern "C" fn method(info: *const FunctionCallbackInfo) {
     }
 }
 
+/// DOMPointReadOnly.matrixTransform - installed here because its argument
+/// is a DOMMatrixInit dictionary, which the declarative method layer
+/// cannot express. The receiver is a native DOMPoint (family 0x0D02).
+unsafe extern "C" fn point_matrix_transform(info: *const FunctionCallbackInfo) {
+    let info = unsafe { &*info };
+    let parts = info.get_parts();
+    let args = FunctionCallbackArguments::from_function_callback_info_parts(info, &parts);
+    v8::callback_scope!(unsafe scope, info);
+    let ctx = "Failed to execute 'matrixTransform' on 'DOMPointReadOnly'";
+    let this = args.this();
+    let branded = (|| -> Option<bool> {
+        if this.internal_field_count() != 5 {
+            return Some(false);
+        }
+        let tag: Local<v8::Value> = this.get_internal_field(scope, 0)?.try_into().ok()?;
+        Some(tag.int32_value(scope)? == 0x0D02)
+    })();
+    if branded != Some(true) {
+        illegal(scope);
+        return;
+    }
+    let mut p = [0.0, 0.0, 0.0, 1.0];
+    for (i, slot) in p.iter_mut().enumerate() {
+        let Some(f) = (this.get_internal_field(scope, i + 1)) else {
+            return;
+        };
+        let Ok(f) = Local::<v8::Value>::try_from(f) else {
+            return;
+        };
+        let Some(n) = f.number_value(scope) else {
+            return;
+        };
+        *slot = n;
+    }
+    let Some(dict) = as_dict(scope, args.get(0), "DOMMatrixInit", ctx) else {
+        return;
+    };
+    let Some((m, _)) = read_matrix_init_opt(scope, dict, ctx) else {
+        return;
+    };
+    let out = mm::transform4(&m, p);
+    let Some(o) = mint_point(scope, out) else {
+        return;
+    };
+    rv_set(info, scope, o.into());
+}
+
 fn rv_set(info: &FunctionCallbackInfo, _scope: &mut v8::PinScope<'_, '_>, v: Local<v8::Value>) {
     let mut rv = ReturnValue::from_function_callback_info(info);
     rv.set(v);
@@ -1374,6 +1428,39 @@ pub(crate) fn install(scope: &mut v8::PinScope<'_, '_>, global: Local<v8::Object
                 f.into(),
                 v8::PropertyAttribute::DONT_ENUM,
             );
+        }
+        // WebKitCSSMatrix is the SAME constructor object under a legacy
+        // alias - not a twin (truth wkcm.*).
+        let key = v8::String::new(scope, "WebKitCSSMatrix").unwrap();
+        global.define_own_property(
+            scope,
+            key.into(),
+            muf.into(),
+            v8::PropertyAttribute::DONT_ENUM,
+        );
+    }
+    // DOMPointReadOnly.matrixTransform - dict-arg method the declarative
+    // point interface cannot express; install onto the live prototype.
+    let pk = v8::String::new(scope, "DOMPointReadOnly").unwrap();
+    if let Some(pc) = global.get(scope, pk.into()) {
+        if let Ok(pc) = Local::<v8::Function>::try_from(pc) {
+            let protk = v8::String::new(scope, "prototype").unwrap();
+            if let Some(proto) = pc.get(scope, protk.into()) {
+                if let Ok(proto) = Local::<v8::Object>::try_from(proto) {
+                    let mt = builder(scope, point_matrix_transform, 0, 0);
+                    let mn = v8::String::new(scope, "matrixTransform").unwrap();
+                    mt.set_class_name(mn);
+                    if let Some(mtf) = mt.get_function(scope) {
+                        let mk = v8::String::new(scope, "matrixTransform").unwrap();
+                        proto.define_own_property(
+                            scope,
+                            mk.into(),
+                            mtf.into(),
+                            v8::PropertyAttribute::NONE,
+                        );
+                    }
+                }
+            }
         }
     }
 }

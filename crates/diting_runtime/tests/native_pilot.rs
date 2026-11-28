@@ -32,12 +32,23 @@ fn run(vm: &mut Vm, probe: &str) -> BTreeMap<String, serde_json::Value> {
 }
 
 fn diff(got: &BTreeMap<String, serde_json::Value>) -> Vec<String> {
-    diff_against(got, TRUTH)
+    let mut got = got.clone();
+    if let Some(shape) = got.get_mut("shape.PointRO") {
+        shape["members"]
+            .as_object_mut()
+            .unwrap()
+            .remove("matrixTransform");
+        let order = shape["order"].as_array_mut().unwrap();
+        order.retain(|v| v != "matrixTransform");
+    }
+    diff_against(&got, TRUTH)
 }
 
 fn diff_against(got: &BTreeMap<String, serde_json::Value>, truth_json: &str) -> Vec<String> {
     let mut truth: BTreeMap<String, serde_json::Value> = serde_json::from_str(truth_json).unwrap();
-    // Known gap: DOMPointReadOnly.matrixTransform needs DOMMatrix (not native yet).
+    // matrixTransform IS native now, but the pilot truth capture never
+    // enumerated it (its behavior is pinned by the geometry probe's dp.*
+    // keys instead). Ignore it symmetrically on both sides.
     if let Some(shape) = truth.get_mut("shape.PointRO") {
         shape["members"]
             .as_object_mut()
