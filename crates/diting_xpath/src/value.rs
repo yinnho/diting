@@ -195,10 +195,32 @@ pub(crate) fn parse_number_from_string(string: &str) -> f64 {
     // > by a Number followed by whitespace is converted to the IEEE 754 number that is nearest
     // > (according to the IEEE 754 round-to-nearest rule) to the mathematical value represented
     // > by the string; any other string is converted to NaN
+    //
+    // The Number production is `Digits ('.' Digits?)? | '.' Digits` — crucially
+    // no leading `+`, no exponent and no Infinity/NaN literals, all of which
+    // Rust's own f64 parser would accept (Chrome-truth: number("+3"),
+    // number("1e3") and number("Infinity") are all NaN).
 
     // The specification does not define what "whitespace" means exactly, we choose to trim only ascii whitespace,
     // as that seems to be what other browsers do.
-    string.trim_ascii().parse().unwrap_or(f64::NAN)
+    let trimmed = string.trim_ascii();
+    let digits = trimmed.strip_prefix('-').unwrap_or(trimmed);
+    let valid = !digits.is_empty() && {
+        let mut parts = digits.split('.');
+        let int_part = parts.next().unwrap_or("");
+        let frac_part = parts.next();
+        let no_extra_periods = parts.next().is_none();
+        let int_ok = int_part.bytes().all(|b| b.is_ascii_digit());
+        let frac_ok = frac_part.map_or(true, |f| f.bytes().all(|b| b.is_ascii_digit()));
+        // `5.` is valid; bare `.` and `-` are not; `.5` needs fraction digits
+        let has_digits = !int_part.is_empty() || frac_part.map_or(false, |f| !f.is_empty());
+        no_extra_periods && int_ok && frac_ok && has_digits
+    };
+    if valid {
+        trimmed.parse().unwrap_or(f64::NAN)
+    } else {
+        f64::NAN
+    }
 }
 
 /// Helper for `PartialEq<Value>` implementations

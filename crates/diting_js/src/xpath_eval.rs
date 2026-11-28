@@ -59,30 +59,30 @@ pub fn build_snapshot(tree: &DomTree, context: NodeId) -> Option<Built> {
         back[id] = r;
     }
 
-    let doc_snap = b.append_document();
-    push_tracking(&mut back, doc_snap, None);
-    let root_snap;
-
     // iterative preorder walk with explicit stack: (live node, snapshot parent)
-    let mut stack: Vec<(NodeId, SnapshotNodeId)> = Vec::new();
-    // the root itself may be the document or a detached element
+    let mut stack: Vec<(NodeId, Option<SnapshotNodeId>)> = Vec::new();
+    // The root itself may be the document or a detached element. Chrome puts
+    // no document node above a detached tree: the topmost element IS the
+    // root, so `/` selects it and `/x` walks its children.
     let root_data = tree.get_node(root)?;
-    match &root_data.data {
-        NodeData::Document => {
-            root_snap = doc_snap;
-            if root == context {
-                ctx_snap = Some(doc_snap);
-            }
-            for c in tree.children(root).into_iter().rev() {
-                stack.push((c, doc_snap));
-            }
+    let root_snap;
+    if matches!(root_data.data, NodeData::Document) {
+        let doc_snap = b.append_document();
+        // the document node itself is a selectable result (`/`, `/.`)
+        push_tracking(&mut back, doc_snap, Some(BackRef::Node(root)));
+        root_snap = doc_snap;
+        if root == context {
+            ctx_snap = Some(doc_snap);
         }
-        _ => {
-            // detached subtree: still needs a document-ish root — the builder
-            // has no bare element root, so parent it under the document node.
-            root_snap = doc_snap;
-            stack.push((root, doc_snap));
+        for c in tree.children(root).into_iter().rev() {
+            stack.push((c, Some(doc_snap)));
         }
+    } else {
+        // detached subtree: the walk below creates the root node parentless
+        // (None parent), making it the snapshot root itself — any node kind,
+        // not just elements: a bare text node is its own root too.
+        root_snap = usize::MAX; // reassigned when the root node is pushed
+        stack.push((root, None));
     }
 
     while let Some((nid, parent_snap)) = stack.pop() {
@@ -112,7 +112,7 @@ pub fn build_snapshot(tree: &DomTree, context: NodeId) -> Option<Built> {
                     push_tracking(&mut back, aid, Some(BackRef::Attr(nid, qualified)));
                 }
                 for c in tree.children(nid).into_iter().rev() {
-                    stack.push((c, id));
+                    stack.push((c, Some(id)));
                 }
                 id
             }
@@ -138,6 +138,12 @@ pub fn build_snapshot(tree: &DomTree, context: NodeId) -> Option<Built> {
         }
     }
 
+    // detached trees: the root node was the first node the builder pushed
+    let root_snap = if root_snap == usize::MAX {
+        0
+    } else {
+        root_snap
+    };
     Some(Built {
         snapshot: b.finish(root_snap),
         back,
@@ -188,7 +194,7 @@ pub fn evaluate(tree: &DomTree, expr_src: &str, context: NodeId) -> Result<EvalO
 mod tests {
     use super::*;
     use diting_dom::NodeData;
-    use diting_html5ever::{local_name, ns, LocalName, Namespace, QualName};
+    use diting_html5ever::{ns, LocalName, Namespace, QualName};
 
     fn el(tree: &DomTree, local: &str) -> NodeId {
         tree.new_node(NodeData::Element {

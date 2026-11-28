@@ -118,9 +118,12 @@ impl SnapshotBuilder {
         self.push_node(None, SnapshotNodeKind::Document)
     }
 
+    /// `parent` is `None` for the root of a detached-tree snapshot: Chrome
+    /// puts no document node above a detached tree — the topmost node is the
+    /// root itself.
     pub fn append_element(
         &mut self,
-        parent: SnapshotNodeId,
+        parent: Option<SnapshotNodeId>,
         local_name: impl Into<String>,
         prefix: Option<String>,
         namespace: Option<String>,
@@ -134,7 +137,7 @@ impl SnapshotBuilder {
             }
         });
         let id = self.push_node(
-            Some(parent),
+            parent,
             SnapshotNodeKind::Element(SnapshotElementData {
                 prefix,
                 namespace,
@@ -143,7 +146,9 @@ impl SnapshotBuilder {
                 is_html_element_in_html_document,
             }),
         );
-        self.nodes[parent].children.push(id);
+        if let Some(parent) = parent {
+            self.nodes[parent].children.push(id);
+        }
         id
     }
 
@@ -172,21 +177,25 @@ impl SnapshotBuilder {
 
     pub fn append_text(
         &mut self,
-        parent: SnapshotNodeId,
+        parent: Option<SnapshotNodeId>,
         text: impl Into<String>,
     ) -> SnapshotNodeId {
-        let id = self.push_node(Some(parent), SnapshotNodeKind::Text(text.into()));
-        self.nodes[parent].children.push(id);
+        let id = self.push_node(parent, SnapshotNodeKind::Text(text.into()));
+        if let Some(parent) = parent {
+            self.nodes[parent].children.push(id);
+        }
         id
     }
 
     pub fn append_comment(
         &mut self,
-        parent: SnapshotNodeId,
+        parent: Option<SnapshotNodeId>,
         text: impl Into<String>,
     ) -> SnapshotNodeId {
-        let id = self.push_node(Some(parent), SnapshotNodeKind::Comment(text.into()));
-        self.nodes[parent].children.push(id);
+        let id = self.push_node(parent, SnapshotNodeKind::Comment(text.into()));
+        if let Some(parent) = parent {
+            self.nodes[parent].children.push(id);
+        }
         id
     }
 
@@ -313,7 +322,13 @@ impl SnapshotNode {
                 out.push_str(text);
             }
             SnapshotNodeKind::Document | SnapshotNodeKind::Element(_) => {
+                // XPath string-value of an element or document is the concatenation
+                // of descendant TEXT nodes only — comments (and PIs) contribute
+                // nothing, unlike DOM textContent.
                 for child in &nodes[id].children {
+                    if matches!(nodes[*child].kind, SnapshotNodeKind::Comment(_)) {
+                        continue;
+                    }
                     Self::text_content_from(*child, nodes, out);
                 }
             }
@@ -660,13 +675,13 @@ mod tests {
     fn sample_snapshot() -> (Snapshot, SnapshotNodeId) {
         let mut builder = SnapshotBuilder::new();
         let document = builder.append_document();
-        let root = builder.append_element(document, "main", None, None, true);
-        let first = builder.append_element(root, "div", None, None, true);
+        let root = builder.append_element(Some(document), "main", None, None, true);
+        let first = builder.append_element(Some(root), "div", None, None, true);
         builder.append_attribute(first, "id", "a", None, None);
-        builder.append_text(first, "Alpha");
-        let second = builder.append_element(root, "div", None, None, true);
+        builder.append_text(Some(first), "Alpha");
+        let second = builder.append_element(Some(root), "div", None, None, true);
         builder.append_attribute(second, "id", "b", None, None);
-        builder.append_text(second, "Beta");
+        builder.append_text(Some(second), "Beta");
         (builder.finish(document), document)
     }
 
@@ -692,18 +707,18 @@ mod tests {
     fn html_attribute_name_tests_use_the_owner_element_case_rules() {
         let mut builder = SnapshotBuilder::new();
         let document = builder.append_document();
-        let html = builder.append_element(document, "html", None, None, true);
-        let div = builder.append_element(html, "div", None, None, true);
+        let html = builder.append_element(Some(document), "html", None, None, true);
+        let div = builder.append_element(Some(html), "div", None, None, true);
         builder.append_attribute(div, "id", "html", None, None);
         let svg = builder.append_element(
-            html,
+            Some(html),
             "svg",
             None,
             Some(namespace_url!("http://www.w3.org/2000/svg").to_string()),
             false,
         );
         let path = builder.append_element(
-            svg,
+            Some(svg),
             "path",
             None,
             Some(namespace_url!("http://www.w3.org/2000/svg").to_string()),
@@ -731,8 +746,8 @@ mod tests {
     fn id_function_ignores_empty_id_token_lists() {
         let mut builder = SnapshotBuilder::new();
         let document = builder.append_document();
-        let root = builder.append_element(document, "root", None, None, false);
-        let element = builder.append_element(root, "item", None, None, false);
+        let root = builder.append_element(Some(document), "root", None, None, false);
+        let element = builder.append_element(Some(root), "item", None, None, false);
         builder.append_attribute(element, "id", "", None, None);
         let snapshot = builder.finish(document);
 

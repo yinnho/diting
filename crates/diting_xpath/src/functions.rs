@@ -6,29 +6,67 @@ use crate::ast::CoreFunction;
 use crate::context::EvaluationCtx;
 use crate::eval::try_extract_nodeset;
 use crate::value::{NodeSet, parse_number_from_string};
-use crate::{Document, Dom, Element, Error, Node, Value};
+use crate::{Attribute, Document, Dom, Element, Error, Node, Value};
 
 /// Returns e.g. "rect" for `<svg:rect>`
 fn local_name<N: Node>(node: &N) -> Option<String> {
+    if let Some(attribute) = node.as_attribute() {
+        return Some(attribute.local_name().to_string());
+    }
     node.as_element()
         .map(|element| element.local_name().to_string())
 }
 
 /// Returns e.g. "svg:rect" for `<svg:rect>`
 fn name<N: Node>(node: &N) -> Option<String> {
-    node.as_element().map(|element| {
-        if let Some(prefix) = element.prefix().as_ref() {
-            format!("{}:{}", prefix, element.local_name())
-        } else {
-            element.local_name().to_string()
-        }
-    })
+    let qualified = |prefix: Option<_>, local: String| match prefix {
+        Some(prefix) => format!("{}:{}", prefix, local),
+        None => local,
+    };
+    if let Some(attribute) = node.as_attribute() {
+        return Some(qualified(
+            attribute.prefix(),
+            attribute.local_name().to_string(),
+        ));
+    }
+    node.as_element()
+        .map(|element| qualified(element.prefix(), element.local_name().to_string()))
 }
 
 /// Returns e.g. the SVG namespace URI for `<svg:rect>`
 fn namespace_uri<N: Node>(node: &N) -> Option<String> {
+    if let Some(attribute) = node.as_attribute() {
+        return Some(attribute.namespace().to_string());
+    }
     node.as_element()
         .map(|element| element.namespace().to_string())
+}
+
+/// Chrome is lenient where the spec is not: `local-name(1)`, `name("a")` and
+/// `sum(1)` treat a non-node-set argument as the EMPTY node-set instead of
+/// erroring (count() is the exception — it throws). Yields the empty set on
+/// type mismatch.
+fn lenient_nodeset<N: Node>(value: Value<N>) -> NodeSet<N> {
+    match value {
+        Value::NodeSet(nodes) => nodes,
+        _ => NodeSet::default(),
+    }
+}
+
+/// XPath round(): half-way cases go towards positive infinity, so
+/// round(-1.5) is -1 and round(-2.5) is -2 (unlike f64::round, which is
+/// half-away-from-zero). floor(x + 0.5) implements exactly that and passes
+/// NaN/infinities through correctly.
+pub(crate) fn xpath_round(number: f64) -> f64 {
+    let rounded = (number + 0.5).floor();
+    // XPath 1.0: arguments in [-0.5, 0] round to NEGATIVE zero — the sign of
+    // a zero result follows the sign of the input (Chrome-truth: round(-0.4)
+    // is -0).
+    if rounded == 0.0 && number.is_sign_negative() {
+        -0.0
+    } else {
+        rounded
+    }
 }
 
 /// If s2 is found inside s1, return everything *before* s2. Return all of s1 otherwise.
@@ -48,16 +86,27 @@ fn substring_after(s1: &str, s2: &str) -> String {
 }
 
 /// <https://www.w3.org/TR/xpath-10/#function-substring>
-fn substring(source: &str, start: isize, length: Option<isize>) -> String {
-    let start_index = start.max(0) as usize;
-    let length = length
-        .map(|length| length.max(0) as usize)
-        .unwrap_or(usize::MAX);
-
-    // The specification doesn't tell us whether the term "length" refers
-    // to bytes, codepoints, graphemes etc. We choose code points.
-    // Firefox uses bytes and allows slicing at indices that are not char boundaries... Let's not do that.
-    source.chars().skip(start_index).take(length).collect()
+///
+/// Spec-faithful: returns the characters at 1-based positions `p` with
+/// `p >= round(start)` and `p < round(start) + round(length)`. Keeping the
+/// arithmetic in f64 makes the edge cases fall out for free: a NaN start or
+/// end compares false everywhere (empty result), +/-infinity span naturally,
+/// and nothing overflows (Chrome-truth pins all of these).
+fn substring(source: &str, start: f64, length: Option<f64>) -> String {
+    let rounded_start = xpath_round(start);
+    let end = match length {
+        Some(length) => rounded_start + xpath_round(length),
+        None => f64::INFINITY,
+    };
+    source
+        .chars()
+        .enumerate()
+        .filter(|(index, _)| {
+            let position = *index as f64 + 1.0;
+            position >= rounded_start && position < end
+        })
+        .map(|(_, character)| character)
+        .collect()
 }
 
 /// <https://www.w3.org/TR/1999/REC-xpath-19991116/#function-normalize-space>
@@ -131,16 +180,14 @@ impl CoreFunction {
     ) -> Result<Value<D::Node>, Error> {
         match self {
             CoreFunction::Last => {
-                let predicate_ctx = context.predicate_ctx.ok_or_else(|| Error::Internal {
-                    msg: "[CoreFunction] last() is only usable as a predicate".to_string(),
-                })?;
-                Ok(Value::Number(predicate_ctx.size as f64))
+                // Outside a predicate the context is a single node: size 1.
+                let size = context.predicate_ctx.map_or(1, |ctx| ctx.size);
+                Ok(Value::Number(size as f64))
             }
             CoreFunction::Position => {
-                let predicate_ctx = context.predicate_ctx.ok_or_else(|| Error::Internal {
-                    msg: "[CoreFunction] position() is only usable as a predicate".to_string(),
-                })?;
-                Ok(Value::Number(predicate_ctx.index as f64))
+                // Outside a predicate the context position is 1.
+                let index = context.predicate_ctx.map_or(1, |ctx| ctx.index);
+                Ok(Value::Number(index as f64))
             }
             CoreFunction::Count(expr) => {
                 let nodes = expr.evaluate(context).and_then(try_extract_nodeset)?;
@@ -187,10 +234,7 @@ impl CoreFunction {
             }
             CoreFunction::LocalName(expr_opt) => {
                 let node = match expr_opt {
-                    Some(expr) => expr
-                        .evaluate(context)
-                        .and_then(try_extract_nodeset)?
-                        .first(),
+                    Some(expr) => lenient_nodeset(expr.evaluate(context)?).first(),
                     None => Some(context.context_node.clone()),
                 };
                 let name = node.and_then(|n| local_name(&n)).unwrap_or_default();
@@ -198,10 +242,7 @@ impl CoreFunction {
             }
             CoreFunction::NamespaceUri(expr_opt) => {
                 let node = match expr_opt {
-                    Some(expr) => expr
-                        .evaluate(context)
-                        .and_then(try_extract_nodeset)?
-                        .first(),
+                    Some(expr) => lenient_nodeset(expr.evaluate(context)?).first(),
                     None => Some(context.context_node.clone()),
                 };
                 let ns = node.and_then(|n| namespace_uri(&n)).unwrap_or_default();
@@ -209,10 +250,7 @@ impl CoreFunction {
             }
             CoreFunction::Name(expr_opt) => {
                 let node = match expr_opt {
-                    Some(expr) => expr
-                        .evaluate(context)
-                        .and_then(try_extract_nodeset)?
-                        .first(),
+                    Some(expr) => lenient_nodeset(expr.evaluate(context)?).first(),
                     None => Some(context.context_node.clone()),
                 };
                 let name = node.and_then(|n| name(&n)).unwrap_or_default();
@@ -240,15 +278,12 @@ impl CoreFunction {
             }
             CoreFunction::Substring(source_expression, start, length) => {
                 let source = source_expression.evaluate(context)?.convert_to_string();
-                let start_idx = start.evaluate(context)?.convert_to_number().round() as isize - 1;
+                let start_num = start.evaluate(context)?.convert_to_number();
                 let result = if let Some(length_expression) = length {
-                    let length = length_expression
-                        .evaluate(context)?
-                        .convert_to_number()
-                        .round() as isize;
-                    substring(&source, start_idx, Some(length))
+                    let length = length_expression.evaluate(context)?.convert_to_number();
+                    substring(&source, start_num, Some(length))
                 } else {
-                    substring(&source, start_idx, None)
+                    substring(&source, start_num, None)
                 };
                 Ok(Value::String(result))
             }
@@ -281,11 +316,14 @@ impl CoreFunction {
                 Ok(Value::Number(val.convert_to_number()))
             }
             CoreFunction::Sum(expr) => {
-                let nodes = expr.evaluate(context).and_then(try_extract_nodeset)?;
+                // Lenient like Chrome: `sum(1)` sums the empty node-set (0).
+                let nodes = lenient_nodeset(expr.evaluate(context)?);
+                // Explicit fold from +0.0: Iterator::sum starts at -0.0, and
+                // Chrome's sum of an empty node-set is positive zero.
                 let sum = nodes
                     .iter()
                     .map(|node| parse_number_from_string(&node.text_content()))
-                    .sum();
+                    .fold(0.0, |acc, value| acc + value);
                 Ok(Value::Number(sum))
             }
             CoreFunction::Floor(expr) => {
@@ -298,7 +336,7 @@ impl CoreFunction {
             }
             CoreFunction::Round(expr) => {
                 let num = expr.evaluate(context)?.convert_to_number();
-                Ok(Value::Number(num.round()))
+                Ok(Value::Number(xpath_round(num)))
             }
             CoreFunction::Boolean(expr) => {
                 Ok(Value::Boolean(expr.evaluate(context)?.convert_to_boolean()))
@@ -343,26 +381,41 @@ mod tests {
 
     #[test]
     fn test_substring() {
-        assert_eq!(substring("hello world", 0, Some(5)), "hello");
-        assert_eq!(substring("hello world", 6, Some(5)), "world");
-        assert_eq!(substring("hello", 1, Some(3)), "ell");
-        assert_eq!(substring("hello", -5, Some(2)), "he");
-        assert_eq!(substring("hello", 0, None), "hello");
-        assert_eq!(substring("hello", 2, Some(10)), "llo");
-        assert_eq!(substring("hello", 5, Some(1)), "");
-        assert_eq!(substring("", 0, Some(5)), "");
-        assert_eq!(substring("hello", 0, Some(0)), "");
-        assert_eq!(substring("hello", 0, Some(-5)), "");
+        // XPath 1.0: positions are 1-based; character p is included when
+        // round(start) <= p < round(start) + round(length).
+        assert_eq!(substring("12345", 1.5, Some(2.6)), "234");
+        assert_eq!(substring("12345", 0.0, Some(3.0)), "12");
+        assert_eq!(substring("12345", 0.0, None), "12345");
+        assert_eq!(substring("12345", 2.0, None), "2345");
+        assert_eq!(substring("12345", 2.0, Some(3.0)), "234");
+        assert_eq!(substring("12345", -1.0, None), "12345");
+        assert_eq!(substring("12345", 5.0, Some(2.0)), "5");
+        assert_eq!(substring("12345", 6.0, None), "");
+        assert_eq!(substring("hello", 1.0, Some(3.0)), "hel");
+        assert_eq!(substring("hello", -5.0, Some(2.0)), "");
+        assert_eq!(substring("hello", 2.0, Some(10.0)), "ello");
+        assert_eq!(substring("", 0.0, Some(5.0)), "");
+        assert_eq!(substring("hello", 0.0, Some(0.0)), "");
+        assert_eq!(substring("hello", 0.0, Some(-5.0)), "");
+        // IEEE edge cases straight from the spec/Chrome-truth
+        assert_eq!(substring("12345", f64::NAN, None), "");
+        assert_eq!(substring("12345", 1.0, Some(f64::NAN)), "");
+        assert_eq!(
+            substring("12345", f64::NEG_INFINITY, Some(f64::INFINITY)),
+            ""
+        );
+        assert_eq!(substring("12345", -42.0, Some(f64::INFINITY)), "12345");
+        assert_eq!(substring("12345", f64::NEG_INFINITY, None), "12345");
     }
 
     #[test]
     fn test_substring_with_out_of_bounds_index() {
-        assert_eq!(substring("Servo", 42, None), "");
+        assert_eq!(substring("Servo", 42.0, None), "");
     }
 
     #[test]
     fn test_substring_with_multi_byte_characters() {
-        assert_eq!(substring("🦞🦞🦞", 1, None), "🦞🦞");
+        assert_eq!(substring("🦞🦞🦞", 2.0, None), "🦞🦞");
     }
 
     #[test]

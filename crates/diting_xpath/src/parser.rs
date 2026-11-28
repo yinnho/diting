@@ -199,6 +199,11 @@ where
                 .peek(0)
                 .is_some_and(|token| token.is_start_of_location_step())
             {
+                if has_implicit_descendant_or_self_step {
+                    // `//` (or `// `) with nothing after it: Chrome rejects
+                    // it as a syntax error, unlike bare `/` which is the root.
+                    return Err(Error::ExpectedNodeTest);
+                }
                 return Ok(Expression::Path(PathExpression {
                     is_absolute,
                     has_implicit_descendant_or_self_step,
@@ -283,10 +288,16 @@ where
                 self.advance(1);
                 Expression::Literal(literal.into())
             }
-            Token::VariableReference(_) => {
-                // TODO: Gecko does *something* here. Is it observable?
-                // https://searchfox.org/firefox-main/rev/054e2b072785984455b3b59acad9444ba1eeffb4/dom/xslt/xpath/txExprParser.cpp#349
-                return Err(Error::CannotUseVariables);
+            Token::VariableReference(name) => {
+                // Chrome parses variable references fine and evaluates them to
+                // the empty string (they can never be bound through
+                // document.evaluate) — see xpath-truth `$x` / `$x + 1`.
+                self.advance(1);
+                let (prefix, local_part) = match name.split_once(':') {
+                    Some((prefix, local)) => (Some(prefix.to_owned()), local.to_owned()),
+                    None => (None, name.to_owned()),
+                };
+                Expression::Variable(crate::ast::QName { prefix, local_part })
             }
             _ => self.parse_step_expression()?,
         };
@@ -356,14 +367,14 @@ where
         } else if let Token::CName(name_token) = self.expect_current_token()? {
             self.advance(1);
 
-            if name_token.local_name == "*" {
+            let namespace = name_token
+                .prefix
+                .map(|prefix| self.resolve_qualified_name(prefix))
+                .transpose()?;
+
+            if name_token.local_name == "*" && name_token.prefix.is_none() {
                 NodeTest::Wildcard
             } else {
-                let namespace = name_token
-                    .prefix
-                    .map(|prefix| self.resolve_qualified_name(prefix))
-                    .transpose()?;
-
                 let local_name = if self.is_in_html_document
                     && axis != Axis::Attribute
                     && name_token.prefix.is_none()
@@ -502,6 +513,9 @@ where
                 let mut args = vec![];
                 while let Some(argument) = arguments.maybe_next()? {
                     args.push(argument);
+                }
+                if args.len() < 2 {
+                    return Err(Error::TooFewFunctionArguments);
                 }
                 CoreFunction::Concat(args)
             }

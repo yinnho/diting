@@ -147,6 +147,21 @@ fn op_xpath_eval_inner(
                 .collect();
             serde_json::json!({ "ok": { "kind": "nodes", "nodes": nodes } }).to_string()
         }
-        Err(e) => serde_json::json!({ "err": "eval", "detail": format!("{e:?}") }).to_string(),
+        Err(e) => {
+            // Chrome distinguishes type conversion failures ("Type conversion
+            // failed while evaluating the expression.") from syntax errors;
+            // both surface as SyntaxError but with different messages.
+            let kind = if matches!(
+                e,
+                diting_xpath::SnapshotXPathEvaluationError::Evaluation(
+                    diting_xpath::Error::NotANodeset
+                )
+            ) {
+                "typeconv"
+            } else {
+                "eval"
+            };
+            serde_json::json!({ "err": kind, "detail": format!("{e:?}") }).to_string()
+        }
     }
 }

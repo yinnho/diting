@@ -157,7 +157,14 @@ pub enum Error {
 }
 
 /// <https://www.w3.org/TR/xml/#NT-NameStartChar>
+///
+/// Chrome-truth: decimal digits (e.g. U+0661) are rejected even though the
+/// XML 5th-edition ranges below include them — Blink lexes names closer to
+/// the XPath 1.0-era letter tables.
 fn is_valid_start(c: char) -> bool {
+    if c.is_numeric() {
+        return false;
+    }
     matches!(c, ':' |
         'A'..='Z' |
         '_' |

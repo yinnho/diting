@@ -22,6 +22,43 @@ pub(crate) fn try_extract_nodeset<N: Node>(v: Value<N>) -> Result<NodeSet<N>, Er
     }
 }
 
+/// XPath 1.0 §3.4 relational comparisons: when a node-set is involved the
+/// comparison is existential — true when ANY node's string-value (as a
+/// number) satisfies the relation against the other operand (pairwise when
+/// both sides are node-sets). Scalar/scalar falls back to plain numeric
+/// comparison after conversion.
+pub(crate) fn xpath_relational<N: Node>(
+    left: &Value<N>,
+    right: &Value<N>,
+    op: impl Fn(f64, f64) -> bool,
+) -> bool {
+    use crate::value::parse_number_from_string;
+    let as_numbers = |nodes: &NodeSet<N>| {
+        nodes
+            .iter()
+            .map(|node| parse_number_from_string(&node.text_content()))
+            .collect::<Vec<_>>()
+    };
+    match (left, right) {
+        (Value::NodeSet(left_nodes), Value::NodeSet(right_nodes)) => {
+            let left_numbers = as_numbers(left_nodes);
+            let right_numbers = as_numbers(right_nodes);
+            left_numbers
+                .iter()
+                .any(|&l| right_numbers.iter().any(|&r| op(l, r)))
+        }
+        (Value::NodeSet(nodes), other) => {
+            let other_num = other.convert_to_number();
+            as_numbers(nodes).iter().any(|&l| op(l, other_num))
+        }
+        (other, Value::NodeSet(nodes)) => {
+            let other_num = other.convert_to_number();
+            as_numbers(nodes).iter().any(|&r| op(other_num, r))
+        }
+        _ => op(left.convert_to_number(), right.convert_to_number()),
+    }
+}
+
 impl Expression {
     pub(crate) fn evaluate<D: Dom>(
         &self,
@@ -48,16 +85,16 @@ impl Expression {
                     BinaryOperator::Equal => (left_value == right_value).into(),
                     BinaryOperator::NotEqual => left_value.xpath_ne(&right_value).into(),
                     BinaryOperator::LessThan => {
-                        (left_value.convert_to_number() < right_value.convert_to_number()).into()
+                        xpath_relational(&left_value, &right_value, |a, b| a < b).into()
                     }
                     BinaryOperator::GreaterThan => {
-                        (left_value.convert_to_number() > right_value.convert_to_number()).into()
+                        xpath_relational(&left_value, &right_value, |a, b| a > b).into()
                     }
                     BinaryOperator::LessThanOrEqual => {
-                        (left_value.convert_to_number() <= right_value.convert_to_number()).into()
+                        xpath_relational(&left_value, &right_value, |a, b| a <= b).into()
                     }
                     BinaryOperator::GreaterThanOrEqual => {
-                        (left_value.convert_to_number() >= right_value.convert_to_number()).into()
+                        xpath_relational(&left_value, &right_value, |a, b| a >= b).into()
                     }
                     BinaryOperator::Add => {
                         (left_value.convert_to_number() + right_value.convert_to_number()).into()
@@ -80,8 +117,11 @@ impl Expression {
                         let mut left_nodes = as_nodes(left)?;
                         let right_nodes = as_nodes(right)?;
 
+                        // Chrome keeps the union in concatenated evaluation
+                        // order (deduplicated, first occurrence wins) — the
+                        // unordered result types expose this directly.
                         left_nodes.extend(right_nodes);
-                        left_nodes.sort();
+                        left_nodes.deduplicate();
                         Value::NodeSet(left_nodes)
                     }
                     _ => unreachable!("And/Or were handled above"),
@@ -105,7 +145,11 @@ impl Expression {
                 result.push(context.context_node.clone());
                 Ok(Value::NodeSet(result))
             }
-            Expression::Variable(_) => Err(Error::CannotUseVariables),
+            Expression::Variable(_) => {
+                // Chrome: unbound variables are the empty string (`$x` is a
+                // string-typed empty result, `$x + 1` is NaN).
+                Ok(Value::String(String::new()))
+            }
         }
     }
 }
@@ -152,7 +196,9 @@ impl PathExpression {
                             node,
                             step_expression
                         );
-                        return Ok(value);
+                        // `(1)/a` and friends: applying a path step to a
+                        // non-node-set is a type conversion error in Chrome.
+                        return Err(Error::NotANodeset);
                     }
                 }
             }

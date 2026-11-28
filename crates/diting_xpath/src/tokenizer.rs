@@ -143,6 +143,12 @@ impl<'a> Tokenizer<'a> {
                     return Ok(Token::AxisIdentifier(ncname));
                 }
 
+                // `*` is not a valid namespace prefix: `*:x` / `*:*` are syntax
+                // errors in Chrome (only `prefix:*` is a valid wildcard form).
+                if ncname == "*" {
+                    return Err(Error::InvalidNCName);
+                }
+
                 // The previous name was the prefix of a qualified name (foo:bar)
                 return Ok(Token::CName(CNameToken {
                     prefix: Some(ncname),
@@ -467,16 +473,13 @@ mod tests {
     }
 
     #[test]
-    fn parse_name_with_wildcard_prefix() {
+    fn wildcard_prefix_is_rejected() {
+        // `*:` is not a valid NameTest in Chrome — `*:bar` / `*:*` are syntax errors.
         let mut tokenizer = Tokenizer { remaining: "*:bar" };
         assert_eq!(
             tokenizer.consume_single_token(false),
-            Ok(Token::CName(CNameToken {
-                prefix: Some("*"),
-                local_name: "bar"
-            }))
+            Err(Error::InvalidNCName)
         );
-        assert!(tokenizer.remaining.is_empty());
     }
 
     #[test]
