@@ -5,6 +5,7 @@ pub mod module_loader;
 pub mod ops;
 pub mod runtime;
 pub mod ws;
+pub mod xpath_eval;
 
 pub use document::Document;
 pub use layout_policy::LayoutPolicy;

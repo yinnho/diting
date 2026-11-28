@@ -19,6 +19,7 @@ stealth = []
 [dependencies]
 diting_env = { path = "../diting_env" }
 diting_dom = { path = "../diting_dom" }
+diting_xpath = { path = "../diting_xpath" }
 diting_css = { path = "../diting_css" }
 diting_net = { path = "../diting_net" }
 diting_layout = { path = "../diting_layout", optional = true }

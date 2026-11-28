@@ -847,6 +847,7 @@ dependencies = [
  "diting_png",
  "diting_runtime",
  "diting_socks",
+ "diting_xpath",
  "ecdsa",
  "ed25519-dalek",
  "flate2",
